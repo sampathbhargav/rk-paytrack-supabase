@@ -39,7 +39,9 @@ function DuePayments() {
   const promisesDue = promises.filter((promise) => {
     return (
       promise.promised_date === selectedDate &&
-      promise.promise_status !== "Paid"
+      promise.promise_status !== "Paid" &&
+      promise.promise_status !== "Rescheduled" &&
+      promise.promise_status !== "Cancelled"
     );
   });
 

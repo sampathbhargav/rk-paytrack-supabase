@@ -121,3 +121,49 @@ function markBrokenPromisesInUI(promises) {
     return promise;
   });
 }
+
+export async function reschedulePromise({
+  promise,
+  newPromisedDate,
+  reason,
+}) {
+  if (!newPromisedDate) {
+    throw new Error("New promised date is required.");
+  }
+
+  // 1. Mark old promise as Rescheduled
+  const { error: oldPromiseError } = await supabase
+    .from("payment_promises")
+    .update({
+      promise_status: "Rescheduled",
+      reschedule_reason: reason || "",
+    })
+    .eq("id", promise.id);
+
+  if (oldPromiseError) throw oldPromiseError;
+
+  // 2. Create new promise for the same remaining amount
+  const { data: newPromise, error: newPromiseError } = await supabase
+    .from("payment_promises")
+    .insert({
+      deal_id: promise.deal_id,
+      original_due_date: promise.original_due_date,
+      amount_due: promise.amount_due,
+      amount_paid_now: promise.amount_paid_now,
+      remaining_amount: promise.remaining_amount,
+      promised_date: newPromisedDate,
+      promise_status: "Pending",
+      notes:
+        reason ||
+        `Promise rescheduled from ${promise.promised_date} to ${newPromisedDate}`,
+      parent_promise_id: promise.id,
+      rescheduled_from_date: promise.promised_date,
+      reschedule_reason: reason || "",
+    })
+    .select()
+    .single();
+
+  if (newPromiseError) throw newPromiseError;
+
+  return newPromise;
+}

@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { markPromisePaidAndCreatePayment } from "../api/promisesApi";
+import {
+  markPromisePaidAndCreatePayment,
+  reschedulePromise,
+} from "../api/promisesApi";
 import { formatMoney } from "../utils/moneyUtils";
 
 function PromiseHistory({ promises, onPromiseUpdated }) {
@@ -10,6 +13,10 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
   );
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
+
+  const [reschedulePromiseItem, setReschedulePromiseItem] = useState(null);
+  const [newPromisedDate, setNewPromisedDate] = useState("");
+  const [rescheduleReason, setRescheduleReason] = useState("");
 
   const openMarkPaidForm = (promise) => {
     setSelectedPromise(promise);
@@ -35,6 +42,33 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
       onPromiseUpdated();
     } catch (error) {
       setMessage(`Failed to record promise payment: ${error.message}`);
+    }
+  };
+
+  const openRescheduleForm = (promise) => {
+    setReschedulePromiseItem(promise);
+    setNewPromisedDate("");
+    setRescheduleReason(
+      `Customer missed promise date ${promise.promised_date} and promised a new date.`
+    );
+  };
+  
+  const handleReschedulePromise = async () => {
+    if (!reschedulePromiseItem) return;
+  
+    try {
+      await reschedulePromise({
+        promise: reschedulePromiseItem,
+        newPromisedDate,
+        reason: rescheduleReason,
+      });
+  
+      setReschedulePromiseItem(null);
+      setNewPromisedDate("");
+      setRescheduleReason("");
+      onPromiseUpdated();
+    } catch (error) {
+      alert(`Failed to reschedule promise: ${error.message}`);
     }
   };
 
@@ -107,6 +141,58 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
         </div>
       )}
 
+{reschedulePromiseItem && (
+  <div style={modalBox}>
+    <h3>Reschedule Promise</h3>
+
+    <p>
+      <strong>Old Promised Date:</strong>{" "}
+      {reschedulePromiseItem.promised_date}
+    </p>
+
+    <p>
+      <strong>Remaining Amount:</strong>{" "}
+      {formatMoney(reschedulePromiseItem.remaining_amount)}
+    </p>
+
+    <div style={grid}>
+      <div>
+        <label>New Promised Date</label>
+        <input
+          type="date"
+          value={newPromisedDate}
+          onChange={(e) => setNewPromisedDate(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+    </div>
+
+    <div style={{ marginTop: "15px" }}>
+      <label>Reason / Notes</label>
+      <textarea
+        value={rescheduleReason}
+        onChange={(e) => setRescheduleReason(e.target.value)}
+        style={{
+          ...inputStyle,
+          height: "80px",
+          resize: "vertical",
+        }}
+      />
+    </div>
+
+    <button onClick={handleReschedulePromise} style={buttonStyle}>
+      Save New Promise Date
+    </button>
+
+    <button
+      onClick={() => setReschedulePromiseItem(null)}
+      style={cancelButtonStyle}
+    >
+      Cancel
+    </button>
+  </div>
+)}
+
       {promises.length === 0 ? (
         <p>No payment promises recorded yet.</p>
       ) : (
@@ -139,13 +225,26 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
                 </td>
                 <td style={td}>{promise.notes}</td>
                 <td style={td}>
-                  {promise.promise_status !== "Paid" ? (
-                    <button
-                      onClick={() => openMarkPaidForm(promise)}
-                      style={buttonStyle}
-                    >
-                      Mark Paid
-                    </button>
+                  {promise.promise_status !== "Paid" &&
+                  promise.promise_status !== "Rescheduled" ? (
+                    <>
+                      <button
+                        onClick={() => openMarkPaidForm(promise)}
+                        style={buttonStyle}
+                      >
+                        Mark Paid
+                      </button>
+
+                      <button
+                        onClick={() => openRescheduleForm(promise)}
+                        style={{
+                          ...buttonStyle,
+                          background: "#92400e",
+                        }}
+                      >
+                        Reschedule
+                      </button>
+                    </>
                   ) : (
                     "—"
                   )}
@@ -188,6 +287,14 @@ function getStatusStyle(status) {
       ...base,
       background: "#dcfce7",
       color: "#166534",
+    };
+  }
+
+  if (status === "Rescheduled") {
+    return {
+      ...base,
+      background: "#e0e7ff",
+      color: "#3730a3",
     };
   }
 

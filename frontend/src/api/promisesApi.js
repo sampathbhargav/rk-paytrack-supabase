@@ -1,0 +1,123 @@
+import { supabase } from "../supabaseClient";
+
+export async function getPromises() {
+  const { data, error } = await supabase
+    .from("payment_promises")
+    .select(`
+      *,
+      deals (
+        deal_tag,
+        truck,
+        year,
+        customers (
+          customer_name,
+          phone
+        )
+      )
+    `)
+    .order("promised_date", { ascending: true });
+
+  if (error) throw error;
+
+  return markBrokenPromisesInUI(data);
+}
+
+export async function getPromisesByDealId(dealId) {
+  const { data, error } = await supabase
+    .from("payment_promises")
+    .select("*")
+    .eq("deal_id", dealId)
+    .order("promised_date", { ascending: true });
+
+  if (error) throw error;
+
+  return markBrokenPromisesInUI(data);
+}
+
+export async function updateBrokenPromises() {
+  const today = new Date().toISOString().split("T")[0];
+
+  const { error } = await supabase
+    .from("payment_promises")
+    .update({
+      promise_status: "Broken",
+    })
+    .lt("promised_date", today)
+    .eq("promise_status", "Pending");
+
+  if (error) throw error;
+}
+
+export async function markPromisePaidAndCreatePayment({
+  promise,
+  paymentDate,
+  paymentMethod,
+  notes,
+}) {
+  const amountPaid = Number(promise.remaining_amount || 0);
+
+  if (amountPaid <= 0) {
+    throw new Error("Promise remaining amount must be greater than 0.");
+  }
+
+  // Create payment record for the promised remaining amount
+  const { data: payment, error: paymentError } = await supabase
+    .from("payments")
+    .insert({
+      deal_id: promise.deal_id,
+      payment_date: paymentDate,
+
+      // IMPORTANT:
+      // This connects the promise payment back to the original installment.
+      due_date: promise.original_due_date,
+
+      amount_due: amountPaid,
+      amount_paid: amountPaid,
+      remaining_amount: 0,
+      payment_method: paymentMethod,
+      payment_type: "Promise Payment",
+      notes:
+        notes ||
+        `Promise payment received for original due date ${promise.original_due_date}`,
+    })
+    .select()
+    .single();
+
+  if (paymentError) throw paymentError;
+
+  // Mark promise as paid
+  const { data: updatedPromise, error: promiseError } = await supabase
+    .from("payment_promises")
+    .update({
+      promise_status: "Paid",
+    })
+    .eq("id", promise.id)
+    .select()
+    .single();
+
+  if (promiseError) throw promiseError;
+
+  return {
+    payment,
+    promise: updatedPromise,
+  };
+}
+
+function markBrokenPromisesInUI(promises) {
+  const today = new Date().toISOString().split("T")[0];
+
+  return promises.map((promise) => {
+    if (
+      promise.promise_status === "Pending" &&
+      promise.promised_date &&
+      promise.promised_date < today
+    ) {
+      return {
+        ...promise,
+        promise_status: "Broken",
+      };
+    }
+
+    return promise;
+  });
+}

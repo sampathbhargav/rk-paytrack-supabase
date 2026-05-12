@@ -1,0 +1,78 @@
+{
+  "name": "rk-paytrack",
+  "private": true,
+  "version": "1.0.0",
+  "description": "RK PayTrack desktop payment tracking app",
+  "author": "RK Truck & Trailer Sales",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "preview": "vite preview",
+    "lint": "eslint .",
+  
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+  
+    "build": "vite build",
+    "electron:build": "npm run build && electron-builder",
+  
+    "build:mac": "rm -rf dist release && xattr -cr public src electron build-assets package.json vite.config.js index.html && find public src electron build-assets -name '._*' -delete && npm run build && COPYFILE_DISABLE=1 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --universal",
+    "build:mac:intel": "rm -rf dist release && npm run build && COPYFILE_DISABLE=1 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --x64",
+    "build:mac:apple": "rm -rf dist release && npm run build && COPYFILE_DISABLE=1 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --arm64",
+    "build:win": "npm run build && npx electron-builder --win"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.15.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "electron": "^41.5.1",
+    "electron-builder": "^26.8.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "vite": "^8.0.10",
+    "wait-on": "^9.0.6"
+  },
+  "build": {
+    "appId": "com.rktrucksales.rkpaytrack",
+    "productName": "RK PayTrack",
+    "directories": {
+      "output": "release",
+      "buildResources": "build-assets"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.business",
+      "icon": "build-assets/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build-assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RK PayTrack"
+    }
+  }
+}

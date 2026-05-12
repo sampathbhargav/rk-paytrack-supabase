@@ -1,0 +1,160 @@
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { getDealById } from "../api/dealsApi";
+import { getPaymentsByDealId } from "../api/paymentsApi";
+import { getPromisesByDealId, updateBrokenPromises } from "../api/promisesApi";
+import { formatMoney } from "../utils/moneyUtils";
+import PaymentHistory from "../components/PaymentHistory";
+import PromiseHistory from "../components/PromiseHistory";
+import DueSchedule from "../components/DueSchedule";
+
+function CustomerDetail() {
+  const { dealId } = useParams();
+
+  const [deal, setDeal] = useState(null);
+  const [payments, setPayments] = useState([]);
+  const [promises, setPromises] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadCustomerDetail();
+  }, [dealId]);
+
+  const loadCustomerDetail = async () => {
+    try {
+      setError("");
+
+      await updateBrokenPromises();
+
+      const dealData = await getDealById(dealId);
+      const paymentsData = await getPaymentsByDealId(dealId);
+      const promisesData = await getPromisesByDealId(dealId);
+
+      setDeal(dealData);
+      setPayments(paymentsData);
+      setPromises(promisesData);
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  if (error) {
+    return (
+      <div>
+        <Link to="/deals">← Back to Deals</Link>
+        <p style={{ color: "red" }}>{error}</p>
+      </div>
+    );
+  }
+
+  if (!deal) {
+    return <p>Loading customer detail...</p>;
+  }
+
+  const totalAmount = Number(deal.total_amount || 0);
+
+  const totalPaid = payments.reduce(
+    (sum, payment) => sum + Number(payment.amount_paid || 0),
+    0
+  );
+
+  const balance = Math.max(totalAmount - totalPaid, 0);
+
+  const pendingPromises = promises.filter(
+    (promise) => promise.promise_status === "Pending"
+  );
+
+  const brokenPromises = promises.filter(
+    (promise) => promise.promise_status === "Broken"
+  );
+
+  return (
+    <div>
+      <Link to="/deals" style={{ color: "#0A1A2F" }}>
+        ← Back to Deals
+      </Link>
+
+      <Link
+        to={`/deals/${dealId}/edit`}
+        style={{
+          display: "inline-block",
+          marginLeft: "15px",
+          background: "#0A1A2F",
+          color: "white",
+          padding: "8px 12px",
+          borderRadius: "8px",
+          textDecoration: "none",
+        }}
+      >
+        Edit Deal
+      </Link>
+
+      <h1>
+        {deal.deal_tag} - {deal.customers?.customer_name}
+      </h1>
+
+      <p>Customer deal, payment history, promises, and balance.</p>
+
+      <div style={cardGrid}>
+        <Card title="Customer" value={deal.customers?.customer_name || "—"} />
+        <Card title="Phone" value={deal.customers?.phone || "—"} />
+        <Card title="Truck" value={`${deal.year || ""} ${deal.truck || ""}`} />
+        <Card title="VIN" value={deal.vin || "—"} />
+        <Card title="Total Amount" value={formatMoney(totalAmount)} />
+        <Card title="Total Paid" value={formatMoney(totalPaid)} />
+        <Card title="Balance" value={formatMoney(balance)} />
+        <Card title="Monthly Payment" value={formatMoney(deal.monthly_payment)} />
+        <Card title="Pending Promises" value={pendingPromises.length} />
+        <Card title="Broken Promises" value={brokenPromises.length} />
+        {/* <Card title="Deal Notes" value={deal.notes || "—"} /> */}
+      </div>
+
+      <div style={notesBox}>
+            <h2>Deal Notes</h2>
+            <p style={{ whiteSpace: "pre-wrap" }}>{deal.notes || "No notes added."}</p>
+      </div>
+
+      <DueSchedule deal={deal} payments={payments} promises={promises} />
+
+      <PaymentHistory payments={payments} />
+
+      <PromiseHistory
+        promises={promises}
+        onPromiseUpdated={loadCustomerDetail}
+      />
+    </div>
+  );
+}
+
+function Card({ title, value }) {
+  return (
+    <div style={cardStyle}>
+      <p style={{ margin: 0, color: "#667085" }}>{title}</p>
+      <h3 style={{ marginTop: "10px" }}>{value}</h3>
+    </div>
+  );
+}
+
+const cardGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "20px",
+  marginTop: "25px",
+};
+
+const cardStyle = {
+  background: "white",
+  padding: "20px",
+  borderRadius: "12px",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+};
+
+const notesBox = {
+    background: "white",
+    padding: "20px",
+    borderRadius: "12px",
+    marginTop: "25px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  };
+
+export default CustomerDetail;

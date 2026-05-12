@@ -110,3 +110,66 @@ export function getDueDealsForDate(deals, payments, selectedDate) {
         });
     });
 }
+
+export function getPastDueScheduledPayments(deals, payments, todayDate) {
+  const today = new Date(`${todayDate}T00:00:00`);
+
+  return deals
+    .filter((deal) => {
+      if (deal.status !== "Active") return false;
+      if (deal.deal_type === "Cash") return false;
+      if (!deal.start_date) return false;
+      if (!deal.due_day) return false;
+      if (!deal.term) return false;
+      if (!deal.monthly_payment) return false;
+
+      return true;
+    })
+    .flatMap((deal) => {
+      const schedule = getDealDueSchedule(deal);
+
+      return schedule
+        .filter((item) => {
+          const dueDate = new Date(`${item.dueDate}T00:00:00`);
+          return dueDate < today;
+        })
+        .map((item) => {
+          const paidForDueDate = payments
+            .filter(
+              (payment) =>
+                payment.deal_id === deal.id &&
+                payment.due_date === item.dueDate
+            )
+            .reduce(
+              (sum, payment) => sum + Number(payment.amount_paid || 0),
+              0
+            );
+
+          const remainingForDueDate = Math.max(
+            Number(item.amountDue || 0) - paidForDueDate,
+            0
+          );
+
+          if (remainingForDueDate <= 0) {
+            return null;
+          }
+
+          let status = "Past Due";
+
+          if (paidForDueDate > 0) {
+            status = "Past Due - Partial";
+          }
+
+          return {
+            deal,
+            installmentNumber: item.installmentNumber,
+            dueDate: item.dueDate,
+            amountDue: item.amountDue,
+            paidForDueDate,
+            remainingForDueDate,
+            status,
+          };
+        })
+        .filter(Boolean);
+    });
+}

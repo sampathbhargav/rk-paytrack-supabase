@@ -4,10 +4,13 @@ import { getPayments } from "../api/paymentsApi";
 import { addPayment } from "../api/paymentsApi";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
+import PaymentReceipt from "./PaymentReceipt";
 
 function PaymentForm() {
   const [deals, setDeals] = useState([]);
   const [payments, setPayments] = useState([]);
+
+  const [receipt, setReceipt] = useState(null);
 
   const [formData, setFormData] = useState({
     dealId: "",
@@ -97,6 +100,29 @@ function PaymentForm() {
       await addPayment(formData);
 
       setMessage("Payment saved successfully.");
+
+      const selectedDealData = deals.find((deal) => deal.id === formData.dealId);
+
+      const totalPaidForDeal = payments
+        .filter((payment) => payment.deal_id === formData.dealId)
+        .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+
+      const newTotalPaid = totalPaidForDeal + Number(formData.amountPaid || 0);
+
+      const remainingBalance = Math.max(
+        Number(selectedDealData?.total_amount || 0) - newTotalPaid,
+        0
+      );
+
+      setReceipt({
+        customerName: selectedDealData?.customers?.customer_name || "",
+        dealTag: selectedDealData?.deal_tag || "",
+        amountPaid: Number(formData.amountPaid || 0),
+        paymentMethod: formData.paymentMethod,
+        paymentDate: formData.paymentDate,
+        dueDate: formData.dueDate,
+        remainingBalance,
+      });
 
       setFormData({
         dealId: "",
@@ -267,6 +293,7 @@ function PaymentForm() {
       </button>
 
       {message && <p>{message}</p>}
+      <PaymentReceipt receipt={receipt} onClose={() => setReceipt(null)} />
     </form>
   );
 }

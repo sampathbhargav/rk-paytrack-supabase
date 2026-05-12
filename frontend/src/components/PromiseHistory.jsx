@@ -28,7 +28,13 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
 
   const handleConfirmPaid = async () => {
     if (!selectedPromise) return;
-
+  
+    const confirmed = window.confirm(
+      "Are you sure you want to mark this promise as paid? This will create a payment record and affect the balance."
+    );
+  
+    if (!confirmed) return;
+  
     try {
       await markPromisePaidAndCreatePayment({
         promise: selectedPromise,
@@ -36,7 +42,7 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
         paymentMethod,
         notes,
       });
-
+  
       setMessage("Promise payment recorded successfully.");
       setSelectedPromise(null);
       onPromiseUpdated();
@@ -55,6 +61,12 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
   
   const handleReschedulePromise = async () => {
     if (!reschedulePromiseItem) return;
+  
+    const confirmed = window.confirm(
+      "Are you sure you want to reschedule this promise? The old promise will be marked as Rescheduled and a new promise will be created."
+    );
+  
+    if (!confirmed) return;
   
     try {
       await reschedulePromise({

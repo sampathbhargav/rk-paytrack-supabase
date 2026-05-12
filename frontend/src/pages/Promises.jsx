@@ -8,6 +8,8 @@ function Promises() {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
 
+  const [statusFilter, setStatusFilter] = useState("All");
+
   useEffect(() => {
     loadPromises();
   }, []);
@@ -24,13 +26,17 @@ function Promises() {
 
   const filteredPromises = promises.filter((promise) => {
     const text = search.toLowerCase();
-
-    return (
+  
+    const matchesSearch =
       promise.deals?.deal_tag?.toLowerCase().includes(text) ||
       promise.deals?.customers?.customer_name?.toLowerCase().includes(text) ||
       promise.deals?.customers?.phone?.toLowerCase().includes(text) ||
-      promise.promise_status?.toLowerCase().includes(text)
-    );
+      promise.promise_status?.toLowerCase().includes(text);
+  
+    const matchesStatus =
+      statusFilter === "All" || promise.promise_status === statusFilter;
+  
+    return matchesSearch && matchesStatus;
   });
 
   return (
@@ -43,6 +49,27 @@ function Promises() {
         onChange={setSearch}
         placeholder="Search by deal tag, customer, phone, or status..."
       />
+
+    <div style={{ marginBottom: "20px" }}>
+      <label>Status Filter: </label>
+      <select
+        value={statusFilter}
+        onChange={(e) => setStatusFilter(e.target.value)}
+        style={{
+          padding: "10px",
+          border: "1px solid #ccc",
+          borderRadius: "8px",
+          marginLeft: "10px",
+        }}
+      >
+        <option>All</option>
+        <option>Pending</option>
+        <option>Broken</option>
+        <option>Rescheduled</option>
+        <option>Paid</option>
+        <option>Cancelled</option>
+      </select>
+    </div>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 

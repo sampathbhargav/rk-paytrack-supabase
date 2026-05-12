@@ -87,6 +87,20 @@ function EditDeal() {
     e.preventDefault();
     setMessage("");
 
+    const scheduleChangingFields = [
+      "totalAmount",
+      "monthlyPayment",
+      "term",
+      "dueDay",
+      "startDate",
+    ];
+    
+    const confirmed = window.confirm(
+      "Are you sure you want to save these changes? If you changed total amount, monthly payment, term, due day, or start date, this may affect the payment schedule and balance."
+    );
+    
+    if (!confirmed) return;
+
     try {
       await updateCustomer(customerId, {
         customerName: formData.customerName,

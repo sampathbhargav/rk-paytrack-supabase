@@ -10,6 +10,7 @@ import CustomerDetail from "./pages/CustomerDetail";
 import ConnectionStatus from "./components/ConnectionStatus";
 import EditDeal from "./pages/EditDeal";
 import logo from "./assets/rk-paytrack-logo.png";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 function App() {
   return (
@@ -123,17 +124,18 @@ function AppLayout() {
 
       <main style={{ flex: 1, padding: "25px", background: "#f4f6f8" }}>
         <ConnectionStatus />
-
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/deals" element={<Deals />} />
-          <Route path="/deals/:dealId" element={<CustomerDetail />} />
-          <Route path="/deals/:dealId/edit" element={<EditDeal />} />
-          <Route path="/add-deal" element={<AddDeal />} />
-          <Route path="/add-payment" element={<AddPayment />} />
-          <Route path="/due-payments" element={<DuePayments />} />
-          <Route path="/promises" element={<Promises />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/deals" element={<Deals />} />
+            <Route path="/deals/:dealId" element={<CustomerDetail />} />
+            <Route path="/deals/:dealId/edit" element={<EditDeal />} />
+            <Route path="/add-deal" element={<AddDeal />} />
+            <Route path="/add-payment" element={<AddPayment />} />
+            <Route path="/due-payments" element={<DuePayments />} />
+            <Route path="/promises" element={<Promises />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
     </div>
   );

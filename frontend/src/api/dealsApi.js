@@ -116,3 +116,15 @@ export async function updateDeal(dealId, dealData) {
 
   return data;
 }
+
+export async function checkDealTagExists(dealTag) {
+  const { data, error } = await supabase
+    .from("deals")
+    .select("id, deal_tag")
+    .eq("deal_tag", dealTag)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data;
+}

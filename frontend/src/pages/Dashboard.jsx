@@ -110,6 +110,30 @@ const totalPromisesDueToday = promisesDueToday.reduce(
   //   return promise.promised_date === today && promise.promise_status !== "Paid";
   // });
 
+  const balanceByDealType = deals.reduce((acc, deal) => {
+    const dealPayments = payments.filter(
+      (payment) =>
+        payment.deal_id === deal.id &&
+        payment.payment_status !== "Voided"
+    );
+  
+    const totalPaidForDeal = dealPayments.reduce(
+      (sum, payment) => sum + Number(payment.amount_paid || 0),
+      0
+    );
+  
+    const balance = Math.max(
+      Number(deal.total_amount || 0) - totalPaidForDeal,
+      0
+    );
+  
+    const type = deal.deal_type || "Other";
+  
+    acc[type] = (acc[type] || 0) + balance;
+  
+    return acc;
+  }, {});
+
   return (
     <div>
       <h1>Dashboard</h1>
@@ -218,6 +242,13 @@ const totalPromisesDueToday = promisesDueToday.reduce(
             </tbody>
           </table>
         )}
+      </div>
+      <div style={cardGrid}>
+        <Card title="In-house Balance" value={formatMoney(balanceByDealType["In-house"] || 0)} />
+        <Card title="Down Finance Balance" value={formatMoney(balanceByDealType["Down Finance"] || 0)} />
+        <Card title="Borrow Money Balance" value={formatMoney(balanceByDealType["Borrow Money"] || 0)} />
+        <Card title="Motor Finance Balance" value={formatMoney(balanceByDealType["Motor Finance"] || 0)} />
+        <Card title="Cash Balance" value={formatMoney(balanceByDealType["Cash"] || 0)} />
       </div>
     </div>
   );

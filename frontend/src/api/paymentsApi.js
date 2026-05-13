@@ -62,6 +62,8 @@ export async function addPayment(paymentData) {
     .select()
     .single();
 
+  await updateDealPaidOffStatus(paymentData.dealId);
+
   if (paymentError) throw paymentError;
 
   if (remainingAmount > 0 && paymentData.promisedDate) {
@@ -82,4 +84,84 @@ export async function addPayment(paymentData) {
   }
 
   return payment;
+}
+
+async function updateDealPaidOffStatus(dealId) {
+  const { data: deal, error: dealError } = await supabase
+    .from("deals")
+    .select("id, total_amount, status")
+    .eq("id", dealId)
+    .single();
+
+  if (dealError) throw dealError;
+
+  const { data: payments, error: paymentsError } = await supabase
+    .from("payments")
+    .select("amount_paid")
+    .eq("deal_id", dealId)
+    .neq("payment_status", "Voided");
+
+  if (paymentsError) throw paymentsError;
+
+  const totalPaid = payments.reduce(
+    (sum, payment) => sum + Number(payment.amount_paid || 0),
+    0
+  );
+
+  const totalAmount = Number(deal.total_amount || 0);
+
+  if (totalAmount > 0 && totalPaid >= totalAmount && deal.status !== "Paid Off") {
+    const { error: updateError } = await supabase
+      .from("deals")
+      .update({ status: "Paid Off" })
+      .eq("id", dealId);
+
+    if (updateError) throw updateError;
+  }
+
+  if (totalPaid < totalAmount && deal.status === "Paid Off") {
+    const { error: updateError } = await supabase
+      .from("deals")
+      .update({ status: "Active" })
+      .eq("id", dealId);
+
+    if (updateError) throw updateError;
+  }
+}
+
+export async function voidPayment(paymentId, reason) {
+  if (!reason || !reason.trim()) {
+    throw new Error("Void reason is required.");
+  }
+
+  const { data: payment, error: getError } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("id", paymentId)
+    .single();
+
+  if (getError) throw getError;
+
+  const confirmed = window.confirm(
+    "Are you sure you want to void this payment? This will affect the balance and payment schedule."
+  );
+
+  if (!confirmed) return null;
+
+  const { data, error } = await supabase
+    .from("payments")
+    .update({
+      payment_status: "Voided",
+      void_reason: reason,
+      voided_at: new Date().toISOString(),
+    })
+    .eq("id", paymentId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  await updateDealPaidOffStatus(payment.deal_id);
+
+  return data;
 }

@@ -8,7 +8,8 @@ function DueSchedule({ deal, payments, promises = [] }) {
     const paymentsForDueDate = payments.filter(
       (payment) =>
         payment.deal_id === deal.id &&
-        payment.due_date === installment.dueDate
+        payment.due_date === installment.dueDate &&
+        payment.payment_status !== "Voided"
     );
 
     const paidForDueDate = paymentsForDueDate.reduce(
@@ -35,6 +36,8 @@ function DueSchedule({ deal, payments, promises = [] }) {
       (promise) => promise.promise_status === "Broken"
     );
 
+    const today = new Date().toISOString().split("T")[0];
+
     let status = "Due";
     let promiseStatus = "";
 
@@ -50,6 +53,8 @@ function DueSchedule({ deal, payments, promises = [] }) {
       if (brokenPromise) {
         promiseStatus = "Promise Broken";
       }
+    } else if (installment.dueDate < today) {
+      status = "Past Due";
     }
 
     return {
@@ -67,7 +72,8 @@ function DueSchedule({ deal, payments, promises = [] }) {
 
       {scheduleWithStatus.length === 0 ? (
         <p>
-          No due schedule available. Check start date, due day, term, and monthly payment.
+          No due schedule available. Check start date, due day, term, and monthly
+          payment.
         </p>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -145,10 +151,26 @@ function getStatusStyle(status) {
     };
   }
 
+  if (status === "Past Due") {
+    return {
+      ...base,
+      background: "#7f1d1d",
+      color: "#ffffff",
+    };
+  }
+
+  if (status === "Due") {
+    return {
+      ...base,
+      background: "#fee2e2",
+      color: "#991b1b",
+    };
+  }
+
   return {
     ...base,
-    background: "#fee2e2",
-    color: "#991b1b",
+    background: "#e5e7eb",
+    color: "#374151",
   };
 }
 

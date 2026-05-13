@@ -173,3 +173,75 @@ export function getPastDueScheduledPayments(deals, payments, todayDate) {
         .filter(Boolean);
     });
 }
+
+export function getPastDueScheduledPayments(deals, payments, todayDate) {
+  const today = new Date(`${todayDate}T00:00:00`);
+
+  return deals
+    .filter((deal) => {
+      if (deal.status !== "Active") return false;
+      if (deal.deal_type === "Cash") return false;
+      if (!deal.start_date) return false;
+      if (!deal.due_day) return false;
+      if (!deal.term) return false;
+      if (!deal.monthly_payment) return false;
+
+      return true;
+    })
+    .flatMap((deal) => {
+      const schedule = getDealDueSchedule(deal);
+
+      return schedule
+        .filter((installment) => {
+          const dueDate = new Date(`${installment.dueDate}T00:00:00`);
+          return dueDate < today;
+        })
+        .map((installment) => {
+          const paidForDueDate = payments
+            .filter(
+              (payment) =>
+                payment.deal_id === deal.id &&
+                payment.due_date === installment.dueDate &&
+                payment.payment_status !== "Voided"
+            )
+            .reduce(
+              (sum, payment) => sum + Number(payment.amount_paid || 0),
+              0
+            );
+
+          const amountDue = Number(installment.amountDue || 0);
+
+          const remainingForDueDate = Math.max(
+            amountDue - paidForDueDate,
+            0
+          );
+
+          if (remainingForDueDate <= 0) {
+            return null;
+          }
+
+          const dueDate = new Date(`${installment.dueDate}T00:00:00`);
+          const diffMs = today - dueDate;
+          const daysLate = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+          let status = "Past Due";
+
+          if (paidForDueDate > 0) {
+            status = "Past Due - Partial";
+          }
+
+          return {
+            deal,
+            installmentNumber: installment.installmentNumber,
+            dueDate: installment.dueDate,
+            amountDue,
+            paidForDueDate,
+            remainingForDueDate,
+            daysLate,
+            status,
+          };
+        })
+        .filter(Boolean);
+    })
+    .sort((a, b) => b.daysLate - a.daysLate);
+}

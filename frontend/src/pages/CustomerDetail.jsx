@@ -53,10 +53,9 @@ function CustomerDetail() {
 
   const totalAmount = Number(deal.total_amount || 0);
 
-  const totalPaid = payments.reduce(
-    (sum, payment) => sum + Number(payment.amount_paid || 0),
-    0
-  );
+  const totalPaid = payments
+  .filter((payment) => payment.payment_status !== "Voided")
+  .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
 
   const balance = Math.max(totalAmount - totalPaid, 0);
 

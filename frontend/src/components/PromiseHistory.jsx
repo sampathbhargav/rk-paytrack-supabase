@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   markPromisePaidAndCreatePayment,
   reschedulePromise,
+  partialPayPromiseAndCreateNewPromise,
 } from "../api/promisesApi";
 import { formatMoney } from "../utils/moneyUtils";
 
@@ -17,6 +18,15 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
   const [reschedulePromiseItem, setReschedulePromiseItem] = useState(null);
   const [newPromisedDate, setNewPromisedDate] = useState("");
   const [rescheduleReason, setRescheduleReason] = useState("");
+
+  const [partialPromiseItem, setPartialPromiseItem] = useState(null);
+  const [partialPaymentDate, setPartialPaymentDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [partialAmountPaid, setPartialAmountPaid] = useState("");
+  const [partialPaymentMethod, setPartialPaymentMethod] = useState("Cash");
+  const [partialNewPromisedDate, setPartialNewPromisedDate] = useState("");
+  const [partialNotes, setPartialNotes] = useState("");
 
   const openMarkPaidForm = (promise) => {
     setSelectedPromise(promise);
@@ -81,6 +91,47 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
       onPromiseUpdated();
     } catch (error) {
       alert(`Failed to reschedule promise: ${error.message}`);
+    }
+  };
+
+  const openPartialPromiseForm = (promise) => {
+    setPartialPromiseItem(promise);
+    setPartialPaymentDate(new Date().toISOString().split("T")[0]);
+    setPartialAmountPaid("");
+    setPartialPaymentMethod("Cash");
+    setPartialNewPromisedDate("");
+    setPartialNotes(
+      `Customer paid part of promised amount and re-promised remaining balance.`
+    );
+  };
+  
+  const handlePartialPromisePayment = async () => {
+    if (!partialPromiseItem) return;
+  
+    const confirmed = window.confirm(
+      "Are you sure you want to record a partial promise payment and create a new promise for the remaining amount?"
+    );
+  
+    if (!confirmed) return;
+  
+    try {
+      await partialPayPromiseAndCreateNewPromise({
+        promise: partialPromiseItem,
+        paymentDate: partialPaymentDate,
+        amountPaid: partialAmountPaid,
+        paymentMethod: partialPaymentMethod,
+        newPromisedDate: partialNewPromisedDate,
+        notes: partialNotes,
+      });
+  
+      setPartialPromiseItem(null);
+      setPartialAmountPaid("");
+      setPartialNewPromisedDate("");
+      setPartialNotes("");
+  
+      onPromiseUpdated();
+    } catch (error) {
+      alert(`Failed to record partial promise payment: ${error.message}`);
     }
   };
 
@@ -205,6 +256,89 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
   </div>
 )}
 
+{partialPromiseItem && (
+  <div style={modalBox}>
+    <h3>Partial Promise Payment</h3>
+
+    <p>
+      <strong>Current Promised Amount:</strong>{" "}
+      {formatMoney(partialPromiseItem.remaining_amount)}
+    </p>
+
+    <div style={grid}>
+      <div>
+        <label>Payment Date</label>
+        <input
+          type="date"
+          value={partialPaymentDate}
+          onChange={(e) => setPartialPaymentDate(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+
+      <div>
+        <label>Amount Paid Now</label>
+        <input
+          type="number"
+          value={partialAmountPaid}
+          onChange={(e) => setPartialAmountPaid(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+
+      <div>
+        <label>Payment Method</label>
+        <select
+          value={partialPaymentMethod}
+          onChange={(e) => setPartialPaymentMethod(e.target.value)}
+          style={inputStyle}
+        >
+          <option>Cash</option>
+          <option>Zelle</option>
+          <option>Card</option>
+          <option>Check</option>
+          <option>ACH</option>
+          <option>Other</option>
+        </select>
+      </div>
+
+      <div>
+        <label>New Promised Date for Remaining</label>
+        <input
+          type="date"
+          value={partialNewPromisedDate}
+          onChange={(e) => setPartialNewPromisedDate(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+    </div>
+
+    <div style={{ marginTop: "15px" }}>
+      <label>Notes</label>
+      <textarea
+        value={partialNotes}
+        onChange={(e) => setPartialNotes(e.target.value)}
+        style={{
+          ...inputStyle,
+          height: "80px",
+          resize: "vertical",
+        }}
+      />
+    </div>
+
+    <button onClick={handlePartialPromisePayment} style={buttonStyle}>
+      Save Partial Payment
+    </button>
+
+    <button
+      onClick={() => setPartialPromiseItem(null)}
+      style={cancelButtonStyle}
+    >
+      Cancel
+    </button>
+  </div>
+)}
+
       {promises.length === 0 ? (
         <p>No payment promises recorded yet.</p>
       ) : (
@@ -238,13 +372,24 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
                 <td style={td}>{promise.notes}</td>
                 <td style={td}>
                   {promise.promise_status !== "Paid" &&
-                  promise.promise_status !== "Rescheduled" ? (
+                  promise.promise_status !== "Rescheduled" &&
+                  promise.promise_status !== "Partial Paid" ? (
                     <>
                       <button
                         onClick={() => openMarkPaidForm(promise)}
                         style={buttonStyle}
                       >
                         Mark Paid
+                      </button>
+
+                      <button
+                        onClick={() => openPartialPromiseForm(promise)}
+                        style={{
+                          ...buttonStyle,
+                          background: "#1d4ed8",
+                        }}
+                      >
+                        Partial Pay
                       </button>
 
                       <button
@@ -307,6 +452,14 @@ function getStatusStyle(status) {
       ...base,
       background: "#e0e7ff",
       color: "#3730a3",
+    };
+  }
+
+  if (status === "Partial Paid") {
+    return {
+      ...base,
+      background: "#fef9c3",
+      color: "#854d0e",
     };
   }
 

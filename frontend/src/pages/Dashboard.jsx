@@ -196,7 +196,65 @@ const totalPromisesDueToday = promisesDueToday.reduce(
         )}
       </div>
 
+      <div style={cardGrid}>
+        <Card title="Past Due Customers" value={pastDueScheduled.length} />
+        <Card title="Past Due Amount" value={formatMoney(totalPastDueScheduled)} />
+      </div>
+
       <div style={tableBox}>
+        <h2>Past Due Customers</h2>
+        <p>Customers with unpaid scheduled installments before today.</p>
+
+        {pastDueScheduled.length === 0 ? (
+          <p>No past due scheduled payments.</p>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Deal Tag</th>
+                <th style={th}>Customer</th>
+                <th style={th}>Phone</th>
+                <th style={th}>Truck</th>
+                <th style={th}>Due Date</th>
+                <th style={th}>Installment</th>
+                <th style={th}>Amount Due</th>
+                <th style={th}>Paid</th>
+                <th style={th}>Remaining</th>
+                <th style={th}>Days Late</th>
+                <th style={th}>Status</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {pastDueScheduled.map((item) => (
+                <tr key={`${item.deal.id}-${item.dueDate}`}>
+                  <td style={td}>{item.deal.deal_tag}</td>
+                  <td style={td}>{item.deal.customers?.customer_name}</td>
+                  <td style={td}>{item.deal.customers?.phone}</td>
+                  <td style={td}>
+                    {item.deal.year} {item.deal.truck}
+                  </td>
+                  <td style={td}>{formatDisplayDate(item.dueDate)}</td>
+                  <td style={td}>{item.installmentNumber}</td>
+                  <td style={td}>{formatMoney(item.amountDue)}</td>
+                  <td style={td}>{formatMoney(item.paidForDueDate)}</td>
+                  <td style={td}>{formatMoney(item.remainingForDueDate)}</td>
+                  <td style={td}>
+                    <strong>{item.daysLate}</strong> days
+                  </td>
+                  <td style={td}>
+                    <span style={getPastDueStatusStyle(item.status)}>
+                      {item.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* <div style={tableBox}>
         <h2>Due Today</h2>
 
         {dueTodayUnpaidOrPartial.length === 0 ? (
@@ -242,7 +300,7 @@ const totalPromisesDueToday = promisesDueToday.reduce(
             </tbody>
           </table>
         )}
-      </div>
+      </div> */}
       <div style={cardGrid}>
         <Card title="In-house Balance" value={formatMoney(balanceByDealType["In-house"] || 0)} />
         <Card title="Down Finance Balance" value={formatMoney(balanceByDealType["Down Finance"] || 0)} />
@@ -322,6 +380,36 @@ function PromiseFollowUpTable({ promises }) {
   );
 }
 
+function formatDisplayDate(dateString) {
+  if (!dateString) return "—";
+
+  const [year, month, day] = dateString.split("-");
+  return `${month}/${day}/${year}`;
+}
+
+function getPastDueStatusStyle(status) {
+  const base = {
+    padding: "5px 10px",
+    borderRadius: "999px",
+    fontSize: "13px",
+    fontWeight: "bold",
+  };
+
+  if (status === "Past Due - Partial") {
+    return {
+      ...base,
+      background: "#fef9c3",
+      color: "#854d0e",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#7f1d1d",
+    color: "#ffffff",
+  };
+}
+
 function Card({ title, value }) {
   return (
     <div style={cardStyle}>
@@ -381,6 +469,7 @@ const tableBox = {
   padding: "20px",
   borderRadius: "12px",
   marginTop: "25px",
+  overflowX: "auto",
 };
 
 const th = {
@@ -388,11 +477,13 @@ const th = {
   padding: "12px",
   borderBottom: "1px solid #ddd",
   background: "#f9fafb",
+  whiteSpace: "nowrap",
 };
 
 const td = {
   padding: "12px",
   borderBottom: "1px solid #eee",
+  whiteSpace: "nowrap",
 };
 
 export default Dashboard;

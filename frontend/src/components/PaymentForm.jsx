@@ -104,7 +104,11 @@ function PaymentForm() {
       const selectedDealData = deals.find((deal) => deal.id === formData.dealId);
 
       const totalPaidForDeal = payments
-        .filter((payment) => payment.deal_id === formData.dealId)
+        .filter(
+          (payment) =>
+            payment.deal_id === formData.dealId &&
+            payment.payment_status !== "Voided"
+        )
         .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
 
       const newTotalPaid = totalPaidForDeal + Number(formData.amountPaid || 0);
@@ -307,7 +311,8 @@ function getInstallmentOptions(deal, payments) {
         .filter(
           (payment) =>
             payment.deal_id === deal.id &&
-            payment.due_date === installment.dueDate
+            payment.due_date === installment.dueDate &&
+            payment.payment_status !== "Voided"
         )
         .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
 

@@ -51,11 +51,16 @@ function CustomerDetail() {
     return <p>Loading customer detail...</p>;
   }
 
+  const activePayments = payments.filter(
+    (payment) => payment.payment_status !== "Voided"
+  );
+
   const totalAmount = Number(deal.total_amount || 0);
 
-  const totalPaid = payments
-  .filter((payment) => payment.payment_status !== "Voided")
-  .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+  const totalPaid = activePayments.reduce(
+    (sum, payment) => sum + Number(payment.amount_paid || 0),
+    0
+  );
 
   const balance = Math.max(totalAmount - totalPaid, 0);
 
@@ -97,6 +102,8 @@ function CustomerDetail() {
       <div style={cardGrid}>
         <Card title="Customer" value={deal.customers?.customer_name || "—"} />
         <Card title="Phone" value={deal.customers?.phone || "—"} />
+        <Card title="Deal Type" value={deal.deal_type || "—"} />
+        <Card title="Sub Type" value={deal.deal_subtype || "—"} />
         <Card title="Truck" value={`${deal.year || ""} ${deal.truck || ""}`} />
         <Card title="VIN" value={deal.vin || "—"} />
         <Card title="Total Amount" value={formatMoney(totalAmount)} />
@@ -105,17 +112,21 @@ function CustomerDetail() {
         <Card title="Monthly Payment" value={formatMoney(deal.monthly_payment)} />
         <Card title="Pending Promises" value={pendingPromises.length} />
         <Card title="Broken Promises" value={brokenPromises.length} />
-        {/* <Card title="Deal Notes" value={deal.notes || "—"} /> */}
       </div>
 
       <div style={notesBox}>
-            <h2>Deal Notes</h2>
-            <p style={{ whiteSpace: "pre-wrap" }}>{deal.notes || "No notes added."}</p>
+        <h2>Deal Notes</h2>
+        <p style={{ whiteSpace: "pre-wrap" }}>
+          {deal.notes || "No notes added."}
+        </p>
       </div>
 
-      <DueSchedule deal={deal} payments={payments} promises={promises} />
+      <DueSchedule deal={deal} payments={activePayments} promises={promises} />
 
-      <PaymentHistory payments={payments} />
+      <PaymentHistory
+        payments={payments}
+        onPaymentUpdated={loadCustomerDetail}
+      />
 
       <PromiseHistory
         promises={promises}
@@ -149,11 +160,11 @@ const cardStyle = {
 };
 
 const notesBox = {
-    background: "white",
-    padding: "20px",
-    borderRadius: "12px",
-    marginTop: "25px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-  };
+  background: "white",
+  padding: "20px",
+  borderRadius: "12px",
+  marginTop: "25px",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+};
 
 export default CustomerDetail;

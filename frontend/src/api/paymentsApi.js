@@ -86,7 +86,7 @@ export async function addPayment(paymentData) {
   return payment;
 }
 
-async function updateDealPaidOffStatus(dealId) {
+export async function updateDealPaidOffStatus(dealId) {
   const { data: deal, error: dealError } = await supabase
     .from("deals")
     .select("id, total_amount, status")
@@ -97,7 +97,7 @@ async function updateDealPaidOffStatus(dealId) {
 
   const { data: payments, error: paymentsError } = await supabase
     .from("payments")
-    .select("amount_paid")
+    .select("amount_paid, payment_status")
     .eq("deal_id", dealId)
     .neq("payment_status", "Voided");
 
@@ -111,21 +111,21 @@ async function updateDealPaidOffStatus(dealId) {
   const totalAmount = Number(deal.total_amount || 0);
 
   if (totalAmount > 0 && totalPaid >= totalAmount && deal.status !== "Paid Off") {
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from("deals")
       .update({ status: "Paid Off" })
       .eq("id", dealId);
 
-    if (updateError) throw updateError;
+    if (error) throw error;
   }
 
   if (totalPaid < totalAmount && deal.status === "Paid Off") {
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from("deals")
       .update({ status: "Active" })
       .eq("id", dealId);
 
-    if (updateError) throw updateError;
+    if (error) throw error;
   }
 }
 
@@ -141,12 +141,6 @@ export async function voidPayment(paymentId, reason) {
     .single();
 
   if (getError) throw getError;
-
-  const confirmed = window.confirm(
-    "Are you sure you want to void this payment? This will affect the balance and payment schedule."
-  );
-
-  if (!confirmed) return null;
 
   const { data, error } = await supabase
     .from("payments")

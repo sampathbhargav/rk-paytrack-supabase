@@ -34,41 +34,43 @@ function Dashboard() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const dueToday = getDueDealsForDate(deals, payments, today);
-
-  // const dueToday = getDueDealsForDate(deals, payments, today);
-
-const scheduledDueToday = dueToday.filter(
-  (item) => item.status === "Due" || item.status === "Partial"
-);
-
-const promisesDueToday = promises.filter((promise) => {
-  return (
-    promise.promised_date === today &&
-    promise.promise_status !== "Paid" &&
-    promise.promise_status !== "Rescheduled" &&
-    promise.promise_status !== "Cancelled"
+  const activePayments = payments.filter(
+    (payment) => payment.payment_status !== "Voided"
   );
-});
 
-const brokenPromises = promises.filter(
-  (promise) => promise.promise_status === "Broken"
-);
+  const dueToday = getDueDealsForDate(deals, activePayments, today);
 
-const pastDueScheduled = getPastDueScheduledPayments(deals, payments, today);
-
-const totalPastDueScheduled = pastDueScheduled.reduce(
-  (sum, item) => sum + Number(item.remainingForDueDate || 0),
-  0
-);
-
-const totalPromisesDueToday = promisesDueToday.reduce(
-  (sum, promise) => sum + Number(promise.remaining_amount || 0),
-  0
-);
-
-  const dueTodayUnpaidOrPartial = dueToday.filter(
+  const scheduledDueToday = dueToday.filter(
     (item) => item.status === "Due" || item.status === "Partial"
+  );
+
+  const promisesDueToday = promises.filter((promise) => {
+    return (
+      promise.promised_date === today &&
+      promise.promise_status !== "Paid" &&
+      promise.promise_status !== "Rescheduled" &&
+      promise.promise_status !== "Cancelled"
+    );
+  });
+
+  const brokenPromises = promises.filter(
+    (promise) => promise.promise_status === "Broken"
+  );
+
+  const pastDueScheduled = getPastDueScheduledPayments(
+    deals,
+    activePayments,
+    today
+  );
+
+  const totalPastDueScheduled = pastDueScheduled.reduce(
+    (sum, item) => sum + Number(item.remainingForDueDate || 0),
+    0
+  );
+
+  const totalPromisesDueToday = promisesDueToday.reduce(
+    (sum, promise) => sum + Number(promise.remaining_amount || 0),
+    0
   );
 
   const totalDueToday = dueToday.reduce(
@@ -91,7 +93,7 @@ const totalPromisesDueToday = promisesDueToday.reduce(
     0
   );
 
-  const totalCollected = payments.reduce(
+  const totalCollected = activePayments.reduce(
     (sum, payment) => sum + Number(payment.amount_paid || 0),
     0
   );
@@ -102,35 +104,25 @@ const totalPromisesDueToday = promisesDueToday.reduce(
     (promise) => promise.promise_status === "Pending"
   );
 
-  // const brokenPromises = promises.filter(
-  //   (promise) => promise.promise_status === "Broken"
-  // );
-
-  // const promisesDueToday = promises.filter((promise) => {
-  //   return promise.promised_date === today && promise.promise_status !== "Paid";
-  // });
-
   const balanceByDealType = deals.reduce((acc, deal) => {
-    const dealPayments = payments.filter(
-      (payment) =>
-        payment.deal_id === deal.id &&
-        payment.payment_status !== "Voided"
+    const dealPayments = activePayments.filter(
+      (payment) => payment.deal_id === deal.id
     );
-  
+
     const totalPaidForDeal = dealPayments.reduce(
       (sum, payment) => sum + Number(payment.amount_paid || 0),
       0
     );
-  
+
     const balance = Math.max(
       Number(deal.total_amount || 0) - totalPaidForDeal,
       0
     );
-  
+
     const type = deal.deal_type || "Other";
-  
+
     acc[type] = (acc[type] || 0) + balance;
-  
+
     return acc;
   }, {});
 
@@ -142,7 +134,7 @@ const totalPromisesDueToday = promisesDueToday.reduce(
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       <div style={cardGrid}>
-        <Card title="Payments Due Today" value={dueTodayUnpaidOrPartial.length} />
+        <Card title="Payments Due Today" value={scheduledDueToday.length} />
         <Card title="Total Due Today" value={formatMoney(totalDueToday)} />
         <Card
           title="Collected for Today's Due"
@@ -151,6 +143,12 @@ const totalPromisesDueToday = promisesDueToday.reduce(
         <Card
           title="Remaining Due Today"
           value={formatMoney(totalRemainingToday)}
+        />
+
+        <Card title="Past Due Customers" value={pastDueScheduled.length} />
+        <Card
+          title="Past Due Amount"
+          value={formatMoney(totalPastDueScheduled)}
         />
 
         <Card title="Active Deals" value={deals.length} />
@@ -162,12 +160,7 @@ const totalPromisesDueToday = promisesDueToday.reduce(
         <Card title="Promises Due Today" value={promisesDueToday.length} />
         <Card
           title="Promise Amount Due Today"
-          value={formatMoney(
-            promisesDueToday.reduce(
-              (sum, promise) => sum + Number(promise.remaining_amount || 0),
-              0
-            )
-          )}
+          value={formatMoney(totalPromisesDueToday)}
         />
       </div>
 
@@ -196,11 +189,6 @@ const totalPromisesDueToday = promisesDueToday.reduce(
         )}
       </div>
 
-      <div style={cardGrid}>
-        <Card title="Past Due Customers" value={pastDueScheduled.length} />
-        <Card title="Past Due Amount" value={formatMoney(totalPastDueScheduled)} />
-      </div>
-
       <div style={tableBox}>
         <h2>Past Due Customers</h2>
         <p>Customers with unpaid scheduled installments before today.</p>
@@ -213,10 +201,8 @@ const totalPromisesDueToday = promisesDueToday.reduce(
               <tr>
                 <th style={th}>Deal Tag</th>
                 <th style={th}>Customer</th>
-                <th style={th}>Phone</th>
-                <th style={th}>Truck</th>
-                <th style={th}>Due Date</th>
-                <th style={th}>Installment</th>
+                <th style={th}>Original Due Date</th>
+                <th style={th}>Installment #</th>
                 <th style={th}>Amount Due</th>
                 <th style={th}>Paid</th>
                 <th style={th}>Remaining</th>
@@ -230,10 +216,6 @@ const totalPromisesDueToday = promisesDueToday.reduce(
                 <tr key={`${item.deal.id}-${item.dueDate}`}>
                   <td style={td}>{item.deal.deal_tag}</td>
                   <td style={td}>{item.deal.customers?.customer_name}</td>
-                  <td style={td}>{item.deal.customers?.phone}</td>
-                  <td style={td}>
-                    {item.deal.year} {item.deal.truck}
-                  </td>
                   <td style={td}>{formatDisplayDate(item.dueDate)}</td>
                   <td style={td}>{item.installmentNumber}</td>
                   <td style={td}>{formatMoney(item.amountDue)}</td>
@@ -254,59 +236,27 @@ const totalPromisesDueToday = promisesDueToday.reduce(
         )}
       </div>
 
-      {/* <div style={tableBox}>
-        <h2>Due Today</h2>
-
-        {dueTodayUnpaidOrPartial.length === 0 ? (
-          <p>No unpaid payments due today.</p>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={th}>Deal Tag</th>
-                <th style={th}>Type</th>
-                <th style={th}>Sub Type</th>
-                <th style={th}>Customer</th>
-                <th style={th}>Phone</th>
-                <th style={th}>Truck</th>
-                <th style={th}>Due</th>
-                <th style={th}>Paid</th>
-                <th style={th}>Remaining</th>
-                <th style={th}>Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {dueTodayUnpaidOrPartial.map((item) => (
-                <tr key={item.deal.id}>
-                  <td style={td}>{item.deal.deal_tag}</td>
-                  <td style={td}>{item.deal.deal_type}</td>
-                  <td style={td}>{item.deal.deal_subtype || "—"}</td>
-                  <td style={td}>{item.deal.customers?.customer_name}</td>
-                  <td style={td}>{item.deal.customers?.phone}</td>
-                  <td style={td}>
-                    {item.deal.year} {item.deal.truck}
-                  </td>
-                  <td style={td}>{formatMoney(item.amountDue)}</td>
-                  <td style={td}>{formatMoney(item.paidForDueDate)}</td>
-                  <td style={td}>{formatMoney(item.remainingForDueDate)}</td>
-                  <td style={td}>
-                    <span style={getStatusStyle(item.status)}>
-                      {item.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div> */}
       <div style={cardGrid}>
-        <Card title="In-house Balance" value={formatMoney(balanceByDealType["In-house"] || 0)} />
-        <Card title="Down Finance Balance" value={formatMoney(balanceByDealType["Down Finance"] || 0)} />
-        <Card title="Borrow Money Balance" value={formatMoney(balanceByDealType["Borrow Money"] || 0)} />
-        <Card title="Motor Finance Balance" value={formatMoney(balanceByDealType["Motor Finance"] || 0)} />
-        <Card title="Cash Balance" value={formatMoney(balanceByDealType["Cash"] || 0)} />
+        <Card
+          title="In-house Balance"
+          value={formatMoney(balanceByDealType["In-house"] || 0)}
+        />
+        <Card
+          title="Down Finance Balance"
+          value={formatMoney(balanceByDealType["Down Finance"] || 0)}
+        />
+        <Card
+          title="Borrow Money Balance"
+          value={formatMoney(balanceByDealType["Borrow Money"] || 0)}
+        />
+        <Card
+          title="Motor Finance Balance"
+          value={formatMoney(balanceByDealType["Motor Finance"] || 0)}
+        />
+        <Card
+          title="Cash Balance"
+          value={formatMoney(balanceByDealType["Cash"] || 0)}
+        />
       </div>
     </div>
   );
@@ -319,7 +269,6 @@ function FollowUpTable({ items }) {
         <tr>
           <th style={th}>Deal Tag</th>
           <th style={th}>Customer</th>
-          <th style={th}>Phone</th>
           <th style={th}>Due Date</th>
           <th style={th}>Installment</th>
           <th style={th}>Due</th>
@@ -334,8 +283,7 @@ function FollowUpTable({ items }) {
           <tr key={`${item.deal.id}-${item.dueDate}`}>
             <td style={td}>{item.deal.deal_tag}</td>
             <td style={td}>{item.deal.customers?.customer_name}</td>
-            <td style={td}>{item.deal.customers?.phone}</td>
-            <td style={td}>{item.dueDate}</td>
+            <td style={td}>{formatDisplayDate(item.dueDate)}</td>
             <td style={td}>{item.installmentNumber}</td>
             <td style={td}>{formatMoney(item.amountDue)}</td>
             <td style={td}>{formatMoney(item.paidForDueDate)}</td>
@@ -369,8 +317,8 @@ function PromiseFollowUpTable({ promises }) {
             <td style={td}>{promise.deals?.deal_tag}</td>
             <td style={td}>{promise.deals?.customers?.customer_name}</td>
             <td style={td}>{promise.deals?.customers?.phone}</td>
-            <td style={td}>{promise.original_due_date}</td>
-            <td style={td}>{promise.promised_date}</td>
+            <td style={td}>{formatDisplayDate(promise.original_due_date)}</td>
+            <td style={td}>{formatDisplayDate(promise.promised_date)}</td>
             <td style={td}>{formatMoney(promise.remaining_amount)}</td>
             <td style={td}>{promise.promise_status}</td>
           </tr>
@@ -417,37 +365,6 @@ function Card({ title, value }) {
       <h2 style={{ marginTop: "10px" }}>{value}</h2>
     </div>
   );
-}
-
-function getStatusStyle(status) {
-  const base = {
-    padding: "5px 10px",
-    borderRadius: "999px",
-    fontSize: "13px",
-    fontWeight: "bold",
-  };
-
-  if (status === "Paid") {
-    return {
-      ...base,
-      background: "#dcfce7",
-      color: "#166534",
-    };
-  }
-
-  if (status === "Partial") {
-    return {
-      ...base,
-      background: "#fef9c3",
-      color: "#854d0e",
-    };
-  }
-
-  return {
-    ...base,
-    background: "#fee2e2",
-    color: "#991b1b",
-  };
 }
 
 const cardGrid = {

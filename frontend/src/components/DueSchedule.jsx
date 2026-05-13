@@ -43,8 +43,13 @@ function DueSchedule({ deal, payments, promises = [] }) {
 
     if (paidForDueDate >= installment.amountDue) {
       status = "Paid";
-    } else if (paidForDueDate > 0) {
-      status = "Partial";
+      promiseStatus = "";
+    } else {
+      if (paidForDueDate > 0) {
+        status = "Partial";
+      } else if (installment.dueDate < today) {
+        status = "Past Due";
+      }
 
       if (pendingPromise) {
         promiseStatus = "Promise Pending";
@@ -53,8 +58,6 @@ function DueSchedule({ deal, payments, promises = [] }) {
       if (brokenPromise) {
         promiseStatus = "Promise Broken";
       }
-    } else if (installment.dueDate < today) {
-      status = "Past Due";
     }
 
     return {

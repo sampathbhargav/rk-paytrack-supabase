@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getDealById } from "../api/dealsApi";
-import { getPaymentsByDealId } from "../api/paymentsApi";
+import {
+  getPaymentsByDealId,
+  updateDealPaidOffStatus,
+} from "../api/paymentsApi";
 import { getPromisesByDealId, updateBrokenPromises } from "../api/promisesApi";
 import { formatMoney } from "../utils/moneyUtils";
 import PaymentHistory from "../components/PaymentHistory";
@@ -25,6 +28,7 @@ function CustomerDetail() {
       setError("");
 
       await updateBrokenPromises();
+      await updateDealPaidOffStatus(dealId);
 
       const dealData = await getDealById(dealId);
       const paymentsData = await getPaymentsByDealId(dealId);
@@ -97,6 +101,12 @@ function CustomerDetail() {
         {deal.deal_tag} - {deal.customers?.customer_name}
       </h1>
 
+      {balance <= 0 && (
+        <div style={paidOffBadge}>
+          PAID OFF
+        </div>
+      )}
+
       <p>Customer deal, payment history, promises, and balance.</p>
 
       <div style={cardGrid}>
@@ -106,6 +116,7 @@ function CustomerDetail() {
         <Card title="Sub Type" value={deal.deal_subtype || "—"} />
         <Card title="Truck" value={`${deal.year || ""} ${deal.truck || ""}`} />
         <Card title="VIN" value={deal.vin || "—"} />
+        <Card title="Deal Status" value={deal.status || "—"} />
         <Card title="Total Amount" value={formatMoney(totalAmount)} />
         <Card title="Total Paid" value={formatMoney(totalPaid)} />
         <Card title="Balance" value={formatMoney(balance)} />
@@ -165,6 +176,18 @@ const notesBox = {
   borderRadius: "12px",
   marginTop: "25px",
   boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+};
+
+const paidOffBadge = {
+  display: "inline-block",
+  background: "#16a34a",
+  color: "white",
+  padding: "10px 18px",
+  borderRadius: "999px",
+  fontWeight: "bold",
+  fontSize: "16px",
+  marginBottom: "15px",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
 };
 
 export default CustomerDetail;

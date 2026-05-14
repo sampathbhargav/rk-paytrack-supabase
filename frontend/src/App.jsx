@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Link,
+  useLocation,
+} from "react-router-dom";
+
 import Dashboard from "./pages/Dashboard";
 import Deals from "./pages/Deals";
 import AddPayment from "./pages/AddPayment";
@@ -7,10 +14,12 @@ import AddDeal from "./pages/AddDeal";
 import DuePayments from "./pages/DuePayments";
 import Promises from "./pages/Promises";
 import CustomerDetail from "./pages/CustomerDetail";
-import ConnectionStatus from "./components/ConnectionStatus";
 import EditDeal from "./pages/EditDeal";
-import logo from "./assets/rk-paytrack-logo.png";
+
+import ConnectionStatus from "./components/ConnectionStatus";
 import ErrorBoundary from "./components/ErrorBoundary";
+
+import logo from "./assets/rk-paytrack-logo.png";
 
 function App() {
   return (
@@ -59,25 +68,41 @@ function AppLayout() {
             alignItems: "center",
             justifyContent: collapsed ? "center" : "space-between",
             marginBottom: "25px",
+            gap: "10px",
           }}
         >
           {!collapsed && (
-            <div>
-              <img
-                src={logo}
-                alt="RK PayTrack Logo"
+            <div style={simpleLogoWrapper}>
+              <div style={logoHighlightBox}>
+                <img
+                  src={logo}
+                  alt="RK PayTrack Logo"
+                  style={simpleLogoStyle}
+                />
+              </div>
+
+              <p
                 style={{
-                  width: "190px",
-                  height: "auto",
-                  display: "block",
-                  marginBottom: "10px",
+                  color: "#cbd5e1",
+                  fontSize: "13px",
+                  marginTop: "8px",
+                  marginBottom: 0,
                 }}
-              />
-              <p style={{ color: "#cbd5e1", fontSize: "13px", marginTop: "6px" }}>
+              >
                 Dealer Payment Tracking
               </p>
             </div>
           )}
+
+          {/* {collapsed && (
+            <div style={collapsedLogoHighlightBox}>
+              <img
+                src={logo}
+                alt="RK PayTrack"
+                style={collapsedLogoStyle}
+              />
+            </div>
+          )} */}
 
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -89,6 +114,7 @@ function AppLayout() {
               padding: "8px 10px",
               cursor: "pointer",
               fontSize: "18px",
+              flexShrink: 0,
             }}
             title={collapsed ? "Expand menu" : "Collapse menu"}
           >
@@ -124,6 +150,7 @@ function AppLayout() {
 
       <main style={{ flex: 1, padding: "25px", background: "#f4f6f8" }}>
         <ConnectionStatus />
+
         <ErrorBoundary>
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -153,6 +180,42 @@ function getIcon(label) {
 
   return icons[label] || "•";
 }
+
+const simpleLogoWrapper = {
+  textAlign: "center",
+};
+
+const logoHighlightBox = {
+  background: "white",
+  padding: "4px",
+  borderRadius: "8px",
+  boxShadow: "0 3px 8px rgba(0,0,0,0.22)",
+  display: "inline-block",
+};
+
+const simpleLogoStyle = {
+  width: "180px",
+  height: "auto",
+  display: "block",
+  objectFit: "contain",
+};
+
+const collapsedLogoHighlightBox = {
+  background: "white",
+  padding: "3px",
+  borderRadius: "8px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxShadow: "0 3px 8px rgba(0,0,0,0.22)",
+  flexShrink: 0,
+};
+
+const collapsedLogoStyle = {
+  width: "36px",
+  height: "36px",
+  objectFit: "contain",
+};
 
 const linkStyle = {
   display: "flex",

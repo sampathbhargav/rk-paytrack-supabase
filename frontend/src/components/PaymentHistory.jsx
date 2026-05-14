@@ -39,7 +39,12 @@ function PaymentHistory({ payments, onPaymentUpdated }) {
 
   return (
     <div style={boxStyle}>
-      <h2>Payment History</h2>
+      <div style={sectionHeader}>
+        <h2 style={sectionTitle}>Payment History</h2>
+        <p style={sectionDescription}>
+          All recorded payments for this deal, including active and voided payment records.
+        </p>
+      </div>
 
       {selectedPayment && (
         <div style={voidBox}>
@@ -83,7 +88,12 @@ function PaymentHistory({ payments, onPaymentUpdated }) {
       {message && <p>{message}</p>}
 
       {payments.length === 0 ? (
-        <p>No payments recorded yet.</p>
+        <div style={emptyState}>
+          <strong>No payments recorded yet.</strong>
+          <p>
+            Use Add Payment to record the first customer payment for this deal.
+          </p>
+        </div>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -212,6 +222,31 @@ const voidBox = {
   padding: "15px",
   borderRadius: "12px",
   marginBottom: "20px",
+};
+
+const emptyState = {
+  background: "#f9fafb",
+  border: "1px dashed #cbd5e1",
+  padding: "16px",
+  borderRadius: "10px",
+  color: "#475569",
+  marginTop: "12px",
+};
+
+const sectionHeader = {
+  marginBottom: "14px",
+};
+
+const sectionTitle = {
+  margin: 0,
+  color: "#111827",
+};
+
+const sectionDescription = {
+  marginTop: "6px",
+  marginBottom: 0,
+  color: "#667085",
+  fontSize: "14px",
 };
 
 export default PaymentHistory;

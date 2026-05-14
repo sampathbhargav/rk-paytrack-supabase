@@ -68,6 +68,7 @@ function Deals() {
           <option>Closed</option>
           <option>Repo</option>
           <option>Cancelled</option>
+          <option>Defaulted</option>
         </select>
       </div>
 

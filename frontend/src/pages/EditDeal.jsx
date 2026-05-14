@@ -305,6 +305,7 @@ function EditDeal() {
               <option>Closed</option>
               <option>Repo</option>
               <option>Cancelled</option>
+              <option>Defaulted</option>
             </select>
           </div>
         </div>

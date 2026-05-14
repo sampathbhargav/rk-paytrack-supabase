@@ -44,7 +44,11 @@ function DealTable({ deals }) {
               <td style={td}>{formatMoney(deal.total_amount)}</td>
               <td style={td}>{formatMoney(deal.monthly_payment)}</td>
               <td style={td}>{deal.maturity_date}</td>
-              <td style={td}>{deal.status}</td>
+              <td style={td}>
+                <span style={getStatusStyle(deal.status)}>
+                  {deal.status || "Active"}
+                </span>
+              </td>
               <td style={td}>
                 <Link
                   to={`/deals/${deal.id}/edit`}
@@ -68,6 +72,71 @@ function DealTable({ deals }) {
   );
 }
 
+function getStatusStyle(status) {
+  const base = {
+    padding: "5px 10px",
+    borderRadius: "999px",
+    fontSize: "13px",
+    fontWeight: "bold",
+    display: "inline-block",
+    whiteSpace: "nowrap",
+  };
+
+  if (status === "Active") {
+    return {
+      ...base,
+      background: "#dbeafe",
+      color: "#1d4ed8",
+    };
+  }
+
+  if (status === "Paid Off") {
+    return {
+      ...base,
+      background: "#dcfce7",
+      color: "#166534",
+    };
+  }
+
+  if (status === "Closed") {
+    return {
+      ...base,
+      background: "#e5e7eb",
+      color: "#374151",
+    };
+  }
+
+  if (status === "Repo") {
+    return {
+      ...base,
+      background: "#fee2e2",
+      color: "#991b1b",
+    };
+  }
+
+  if (status === "Cancelled") {
+    return {
+      ...base,
+      background: "#f3f4f6",
+      color: "#6b7280",
+    };
+  }
+
+  if (status === "Defaulted") {
+    return {
+      ...base,
+      background: "#111827",
+      color: "#ffffff",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#e5e7eb",
+    color: "#374151",
+  };
+}
+
 const th = {
   textAlign: "left",
   padding: "12px",
@@ -79,5 +148,7 @@ const td = {
   padding: "12px",
   borderBottom: "1px solid #eee",
 };
+
+
 
 export default DealTable;

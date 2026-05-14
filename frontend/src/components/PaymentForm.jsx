@@ -160,7 +160,7 @@ function PaymentForm() {
             <option value="">Select Deal</option>
             {deals.map((deal) => (
               <option key={deal.id} value={deal.id}>
-                {deal.deal_tag} - {deal.customers?.customer_name}
+                {deal.deal_tag} - {deal.customers?.customer_name} - {deal.status}
               </option>
             ))}
           </select>

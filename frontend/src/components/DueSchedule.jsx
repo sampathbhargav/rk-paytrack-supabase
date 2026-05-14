@@ -71,13 +71,20 @@ function DueSchedule({ deal, payments, promises = [] }) {
 
   return (
     <div style={boxStyle}>
-      <h2>Due Schedule</h2>
+      <div style={sectionHeader}>
+        <h2 style={sectionTitle}>Due Schedule</h2>
+        <p style={sectionDescription}>
+          Monthly installment schedule with paid, partial, due, past-due, and promise status.
+        </p>
+      </div>
 
       {scheduleWithStatus.length === 0 ? (
-        <p>
-          No due schedule available. Check start date, due day, term, and monthly
-          payment.
-        </p>
+        <div style={emptyState}>
+          <strong>No due schedule available.</strong>
+          <p>
+            Check the deal start date, due day, term, and monthly payment to generate the installment schedule.
+          </p>
+        </div>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -225,6 +232,30 @@ const th = {
 const td = {
   padding: "12px",
   borderBottom: "1px solid #eee",
+};
+
+const sectionHeader = {
+  marginBottom: "14px",
+};
+
+const sectionTitle = {
+  margin: 0,
+  color: "#111827",
+};
+
+const sectionDescription = {
+  marginTop: "6px",
+  marginBottom: 0,
+  color: "#667085",
+  fontSize: "14px",
+};
+
+const emptyState = {
+  background: "#f9fafb",
+  border: "1px dashed #cbd5e1",
+  padding: "16px",
+  borderRadius: "10px",
+  color: "#475569",
 };
 
 export default DueSchedule;

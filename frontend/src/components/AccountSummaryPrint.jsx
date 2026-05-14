@@ -1,5 +1,6 @@
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
+import logo from "../assets/rk-paytrack-logo.png";
 
 function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
   const activePayments = payments.filter(
@@ -43,7 +44,15 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
       "account-summary-print"
     ).innerHTML;
 
+    const logoUrl = new URL(logo, window.location.origin).href;
+
     const printWindow = window.open("", "_blank", "width=1000,height=800");
+    const logoForPrint = logo;
+
+    const finalPrintContents = printContents.replace(
+        'src="' + logo + '"',
+        'src="' + logoForPrint + '"'
+      );
 
     printWindow.document.write(`
       <html>
@@ -309,11 +318,34 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
               .section {
                 page-break-inside: avoid;
               }
+
+              .logo-row {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+              }
+              
+              .logo-print-box {
+                background: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                padding: 3px;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+                width: fit-content;
+              }
+              
+              .logo-print {
+                width: 70px;
+                max-width: 70px;
+                height: auto;
+                display: block;
+                object-fit: contain;
+              }
             }
           </style>
         </head>
         <body>
-          ${printContents}
+          ${finalPrintContents}
         </body>
       </html>
     `);
@@ -330,18 +362,35 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
       </button>
 
       <div id="account-summary-print" style={{ display: "none" }}>
-        <div className="top-header">
-          <div className="brand">
+      <div className="top-header">
+        <div className="logo-row">
+            <div className="logo-print-box">
+            <img
+                src={logo}
+                alt="RK PayTrack Logo"
+                className="logo-print"
+                style={{
+                    width: "70px",
+                    maxWidth: "70px",
+                    height: "auto",
+                    display: "block",
+                    objectFit: "contain",
+                }}
+                />
+            </div>
+
+            <div className="brand">
             <h1>RK PayTrack</h1>
             <p>Dealer Payment Tracking System</p>
             <p>Account Summary / Customer Statement</p>
-          </div>
+            </div>
+        </div>
 
-          <div className="statement-box">
+        <div className="statement-box">
             <h2>ACCOUNT SUMMARY</h2>
             <p>Generated: {new Date().toLocaleString()}</p>
             <p>Deal Tag: {deal.deal_tag}</p>
-          </div>
+        </div>
         </div>
 
         <div className="customer-title">

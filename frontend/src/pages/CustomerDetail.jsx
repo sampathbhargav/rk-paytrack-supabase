@@ -10,6 +10,7 @@ import { formatMoney } from "../utils/moneyUtils";
 import PaymentHistory from "../components/PaymentHistory";
 import PromiseHistory from "../components/PromiseHistory";
 import DueSchedule from "../components/DueSchedule";
+import AccountSummaryPrint from "../components/AccountSummaryPrint";
 
 function CustomerDetail() {
   const { dealId } = useParams();
@@ -78,25 +79,28 @@ function CustomerDetail() {
 
   return (
     <div>
-      <Link to="/deals" style={{ color: "#0A1A2F" }}>
+      <div style={topActionBar}>
+      <Link to="/deals" style={{ color: "#0A1A2F", textDecoration: "none" }}>
         ← Back to Deals
       </Link>
 
-      <Link
-        to={`/deals/${dealId}/edit`}
-        style={{
-          display: "inline-block",
-          marginLeft: "15px",
-          background: "#0A1A2F",
-          color: "white",
-          padding: "8px 12px",
-          borderRadius: "8px",
-          textDecoration: "none",
-        }}
-      >
-        Edit Deal
-      </Link>
+      <div style={rightActions}>
+        <Link
+          to={`/deals/${dealId}/edit`}
+          style={editButtonStyle}
+        >
+          Edit Deal
+        </Link>
 
+        <AccountSummaryPrint
+          deal={deal}
+          payments={payments}
+          promises={promises}
+          totalPaid={totalPaid}
+          balance={balance}
+        />
+      </div>
+    </div>
       <h1>
         {deal.deal_tag} - {deal.customers?.customer_name}
       </h1>
@@ -188,6 +192,28 @@ const paidOffBadge = {
   fontSize: "16px",
   marginBottom: "15px",
   boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+};
+
+const topActionBar = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: "20px",
+};
+
+const rightActions = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+};
+
+const editButtonStyle = {
+  display: "inline-block",
+  background: "#0A1A2F",
+  color: "white",
+  padding: "8px 12px",
+  borderRadius: "8px",
+  textDecoration: "none",
 };
 
 export default CustomerDetail;

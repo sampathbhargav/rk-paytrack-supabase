@@ -65,6 +65,7 @@ export async function markPromisePaidAndCreatePayment({
     .from("payments")
     .insert({
       deal_id: promise.deal_id,
+      promise_id: promise.id,
       payment_date: paymentDate,
 
       // IMPORTANT:

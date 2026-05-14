@@ -142,7 +142,7 @@ export async function voidPayment(paymentId, reason) {
 
   if (getError) throw getError;
 
-  const { data, error } = await supabase
+  const { data: voidedPayment, error } = await supabase
     .from("payments")
     .update({
       payment_status: "Voided",
@@ -155,7 +155,41 @@ export async function voidPayment(paymentId, reason) {
 
   if (error) throw error;
 
+  if (payment.promise_id) {
+    await resetPromiseAfterPaymentVoid(payment.promise_id);
+  }
+
   await updateDealPaidOffStatus(payment.deal_id);
 
-  return data;
+  return voidedPayment;
+}
+
+async function resetPromiseAfterPaymentVoid(promiseId) {
+  const { data: promise, error: promiseError } = await supabase
+    .from("payment_promises")
+    .select("*")
+    .eq("id", promiseId)
+    .single();
+
+  if (promiseError) throw promiseError;
+
+  const today = new Date().toISOString().split("T")[0];
+
+  let newStatus = "Pending";
+
+  if (promise.promised_date && promise.promised_date < today) {
+    newStatus = "Broken";
+  }
+
+  const { error: updateError } = await supabase
+    .from("payment_promises")
+    .update({
+      promise_status: newStatus,
+      notes:
+        promise.notes ||
+        "Promise status reset because related promise payment was voided.",
+    })
+    .eq("id", promiseId);
+
+  if (updateError) throw updateError;
 }

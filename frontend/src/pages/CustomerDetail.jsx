@@ -130,10 +130,16 @@ function CustomerDetail() {
       </div>
 
       <div style={notesBox}>
-        <h2>Deal Notes</h2>
-        <p style={{ whiteSpace: "pre-wrap" }}>
-          {deal.notes || "No notes added."}
-        </p>
+        <div style={sectionHeader}>
+          <h2 style={sectionTitle}>Internal Deal Notes</h2>
+          <p style={sectionDescription}>
+            Internal comments, special deal terms, title notes, customer agreements, or other dealership notes.
+          </p>
+        </div>
+
+        <div style={notesContent}>
+          {deal.notes || "No internal notes added for this deal."}
+        </div>
       </div>
 
       <DueSchedule deal={deal} payments={activePayments} promises={promises} />
@@ -175,11 +181,22 @@ const cardStyle = {
 };
 
 const notesBox = {
-  background: "white",
+  background: "#fffbeb",
   padding: "20px",
   borderRadius: "12px",
   marginTop: "25px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  border: "1px solid #fde68a",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+};
+
+const notesContent = {
+  background: "#fff7ed",
+  padding: "15px",
+  borderRadius: "10px",
+  border: "1px solid #fed7aa",
+  whiteSpace: "pre-wrap",
+  color: "#78350f",
+  lineHeight: "1.5",
 };
 
 const paidOffBadge = {
@@ -214,6 +231,22 @@ const editButtonStyle = {
   padding: "8px 12px",
   borderRadius: "8px",
   textDecoration: "none",
+};
+
+const sectionHeader = {
+  marginBottom: "14px",
+};
+
+const sectionTitle = {
+  margin: 0,
+  color: "#111827",
+};
+
+const sectionDescription = {
+  marginTop: "6px",
+  marginBottom: 0,
+  color: "#667085",
+  fontSize: "14px",
 };
 
 export default CustomerDetail;

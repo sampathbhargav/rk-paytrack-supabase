@@ -137,7 +137,12 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
 
   return (
     <div style={boxStyle}>
-      <h2>Promise History</h2>
+      <div style={sectionHeader}>
+        <h2 style={sectionTitle}>Promise History</h2>
+        <p style={sectionDescription}>
+          Tracks customer promises, broken promises, rescheduled promises, and promise payments.
+        </p>
+      </div>
 
       {message && <p>{message}</p>}
 
@@ -340,7 +345,12 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
 )}
 
       {promises.length === 0 ? (
-        <p>No payment promises recorded yet.</p>
+        <div style={emptyState}>
+          <strong>No promises recorded yet.</strong>
+          <p>
+            Promises will appear here when a customer pays partially or reschedules a payment commitment.
+          </p>
+        </div>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -531,6 +541,31 @@ const cancelButtonStyle = {
   borderRadius: "8px",
   cursor: "pointer",
   marginTop: "15px",
+};
+
+const emptyState = {
+  background: "#f9fafb",
+  border: "1px dashed #cbd5e1",
+  padding: "16px",
+  borderRadius: "10px",
+  color: "#475569",
+  marginTop: "12px",
+};
+
+const sectionHeader = {
+  marginBottom: "14px",
+};
+
+const sectionTitle = {
+  margin: 0,
+  color: "#111827",
+};
+
+const sectionDescription = {
+  marginTop: "6px",
+  marginBottom: 0,
+  color: "#667085",
+  fontSize: "14px",
 };
 
 export default PromiseHistory;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
-import { getPromises } from "../api/promisesApi";
+import { getPromises, updateBrokenPromises } from "../api/promisesApi";
 import { formatMoney } from "../utils/moneyUtils";
 import {
   getDueDealsForDate,
@@ -20,6 +20,10 @@ function Dashboard() {
 
   const loadDashboard = async () => {
     try {
+      setError("");
+
+      await updateBrokenPromises();
+
       const dealsData = await getDeals();
       const paymentsData = await getPayments();
       const promisesData = await getPromises();
@@ -49,13 +53,16 @@ function Dashboard() {
       promise.promised_date === today &&
       promise.promise_status !== "Paid" &&
       promise.promise_status !== "Rescheduled" &&
-      promise.promise_status !== "Cancelled"
+      promise.promise_status !== "Cancelled" &&
+      promise.promise_status !== "Partial Paid"
     );
   });
 
-  const brokenPromises = promises.filter(
+  const pastDuePromises = promises.filter(
     (promise) => promise.promise_status === "Broken"
   );
+
+  const brokenPromises = pastDuePromises;
 
   const pastDueScheduled = getPastDueScheduledPayments(
     deals,
@@ -73,17 +80,12 @@ function Dashboard() {
     0
   );
 
-  const totalDueToday = dueToday.reduce(
-    (sum, item) => sum + Number(item.amountDue || 0),
+  const totalPastDuePromiseAmount = pastDuePromises.reduce(
+    (sum, promise) => sum + Number(promise.remaining_amount || 0),
     0
   );
 
-  const totalPaidForTodayDue = dueToday.reduce(
-    (sum, item) => sum + Number(item.paidForDueDate || 0),
-    0
-  );
-
-  const totalRemainingToday = dueToday.reduce(
+  const totalRemainingToday = scheduledDueToday.reduce(
     (sum, item) => sum + Number(item.remainingForDueDate || 0),
     0
   );
@@ -129,72 +131,61 @@ function Dashboard() {
   return (
     <div>
       <h1>Dashboard</h1>
-      <p>Customer financing and payment overview.</p>
+      <p>Daily customer payment follow-up and finance overview.</p>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <div style={cardGrid}>
-        <Card title="Payments Due Today" value={scheduledDueToday.length} />
-        <Card title="Total Due Today" value={formatMoney(totalDueToday)} />
+      <div style={priorityCardGrid}>
         <Card
-          title="Collected for Today's Due"
-          value={formatMoney(totalPaidForTodayDue)}
-        />
-        <Card
-          title="Remaining Due Today"
-          value={formatMoney(totalRemainingToday)}
+          title="Past Due Customers"
+          value={pastDueScheduled.length}
+          tone="danger"
         />
 
-        <Card title="Past Due Customers" value={pastDueScheduled.length} />
         <Card
           title="Past Due Amount"
           value={formatMoney(totalPastDueScheduled)}
+          tone="danger"
         />
 
-        <Card title="Active Deals" value={deals.length} />
-        <Card title="Total Financed" value={formatMoney(totalFinanced)} />
-        <Card title="Total Collected" value={formatMoney(totalCollected)} />
-        <Card title="Pending Balance" value={formatMoney(pendingBalance)} />
-        <Card title="Pending Promises" value={pendingPromises.length} />
-        <Card title="Broken Promises" value={brokenPromises.length} />
-        <Card title="Promises Due Today" value={promisesDueToday.length} />
         <Card
-          title="Promise Amount Due Today"
-          value={formatMoney(totalPromisesDueToday)}
+          title="Due Today"
+          value={scheduledDueToday.length}
+          tone="warning"
+        />
+
+        <Card
+          title="Promises Due Today"
+          value={promisesDueToday.length}
+          tone="info"
+        />
+
+        <Card
+          title="Broken Promises"
+          value={brokenPromises.length}
+          tone="danger"
+        />
+
+        <Card
+          title="Past Due Promise Amount"
+          value={formatMoney(totalPastDuePromiseAmount)}
+          tone="danger"
         />
       </div>
 
       <div style={tableBox}>
-        <h2>Today Follow-Up</h2>
-
-        <h3>Scheduled Payments Due Today</h3>
-        {scheduledDueToday.length === 0 ? (
-          <p>No scheduled payments due today.</p>
-        ) : (
-          <FollowUpTable items={scheduledDueToday} />
-        )}
-
-        <h3>Promises Due Today</h3>
-        {promisesDueToday.length === 0 ? (
-          <p>No promises due today.</p>
-        ) : (
-          <PromiseFollowUpTable promises={promisesDueToday} />
-        )}
-
-        <h3>Past Due Scheduled Payments</h3>
-        {pastDueScheduled.length === 0 ? (
-          <p>No past-due scheduled payments.</p>
-        ) : (
-          <FollowUpTable items={pastDueScheduled} />
-        )}
-      </div>
-
-      <div style={tableBox}>
-        <h2>Past Due Customers</h2>
-        <p>Customers with unpaid scheduled installments before today.</p>
+        <div style={sectionHeader}>
+          <h2 style={sectionTitle}>Past Due Customers</h2>
+          <p style={sectionDescription}>
+            Customers with unpaid scheduled installments before today.
+          </p>
+        </div>
 
         {pastDueScheduled.length === 0 ? (
-          <p>No past due scheduled payments.</p>
+          <EmptyState
+            title="No past due customers."
+            message="There are no unpaid scheduled installments before today."
+          />
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -220,7 +211,9 @@ function Dashboard() {
                   <td style={td}>{item.installmentNumber}</td>
                   <td style={td}>{formatMoney(item.amountDue)}</td>
                   <td style={td}>{formatMoney(item.paidForDueDate)}</td>
-                  <td style={td}>{formatMoney(item.remainingForDueDate)}</td>
+                  <td style={moneyDueCell}>
+                    {formatMoney(item.remainingForDueDate)}
+                  </td>
                   <td style={td}>
                     <strong>{item.daysLate}</strong> days
                   </td>
@@ -234,6 +227,88 @@ function Dashboard() {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div style={tableBox}>
+        <div style={sectionHeader}>
+          <h2 style={sectionTitle}>Due Today</h2>
+          <p style={sectionDescription}>
+            Scheduled installments due today that are still unpaid or partially
+            paid.
+          </p>
+        </div>
+
+        {scheduledDueToday.length === 0 ? (
+          <EmptyState
+            title="No scheduled payments due today."
+            message="There are no active scheduled installments due today."
+          />
+        ) : (
+          <FollowUpTable items={scheduledDueToday} />
+        )}
+      </div>
+
+      <div style={tableBox}>
+        <div style={sectionHeader}>
+          <h2 style={sectionTitle}>Promises Due Today</h2>
+          <p style={sectionDescription}>
+            Customer promises that need follow-up today.
+          </p>
+        </div>
+
+        {promisesDueToday.length === 0 ? (
+          <EmptyState
+            title="No promises due today."
+            message="There are no active customer promises due today."
+          />
+        ) : (
+          <PromiseFollowUpTable promises={promisesDueToday} />
+        )}
+      </div>
+
+      <div style={tableBox}>
+        <div style={sectionHeader}>
+          <h2 style={sectionTitle}>Past Due Promises</h2>
+          <p style={sectionDescription}>
+            Customer promises where the promised date has passed and payment was
+            not completed.
+          </p>
+        </div>
+
+        {pastDuePromises.length === 0 ? (
+          <EmptyState
+            title="No past due promises."
+            message="There are no broken customer promises at this time."
+          />
+        ) : (
+          <PromiseFollowUpTable promises={pastDuePromises} />
+        )}
+      </div>
+
+      <div style={sectionDivider}>
+        <h2>Financial Summary</h2>
+        <p>Overall collection and balance snapshot.</p>
+      </div>
+
+      <div style={cardGrid}>
+        <Card title="Active Deals" value={deals.length} />
+        <Card title="Total Financed" value={formatMoney(totalFinanced)} />
+        <Card title="Total Collected" value={formatMoney(totalCollected)} />
+        <Card title="Pending Balance" value={formatMoney(pendingBalance)} />
+        <Card title="Pending Promises" value={pendingPromises.length} />
+        <Card
+          title="Promise Amount Due Today"
+          value={formatMoney(totalPromisesDueToday)}
+        />
+        <Card
+          title="Remaining Due Today"
+          value={formatMoney(totalRemainingToday)}
+        />
+      </div>
+
+      <div style={sectionDivider}>
+        <h2>Balance by Deal Type</h2>
+        <p>Where the current outstanding balance is tied up.</p>
       </div>
 
       <div style={cardGrid}>
@@ -264,7 +339,7 @@ function Dashboard() {
 
 function FollowUpTable({ items }) {
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "25px" }}>
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
         <tr>
           <th style={th}>Deal Tag</th>
@@ -287,8 +362,10 @@ function FollowUpTable({ items }) {
             <td style={td}>{item.installmentNumber}</td>
             <td style={td}>{formatMoney(item.amountDue)}</td>
             <td style={td}>{formatMoney(item.paidForDueDate)}</td>
-            <td style={td}>{formatMoney(item.remainingForDueDate)}</td>
-            <td style={td}>{item.status}</td>
+            <td style={moneyDueCell}>{formatMoney(item.remainingForDueDate)}</td>
+            <td style={td}>
+              <span style={getDueStatusStyle(item.status)}>{item.status}</span>
+            </td>
           </tr>
         ))}
       </tbody>
@@ -298,7 +375,7 @@ function FollowUpTable({ items }) {
 
 function PromiseFollowUpTable({ promises }) {
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "25px" }}>
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
         <tr>
           <th style={th}>Deal Tag</th>
@@ -319,13 +396,59 @@ function PromiseFollowUpTable({ promises }) {
             <td style={td}>{promise.deals?.customers?.phone}</td>
             <td style={td}>{formatDisplayDate(promise.original_due_date)}</td>
             <td style={td}>{formatDisplayDate(promise.promised_date)}</td>
-            <td style={td}>{formatMoney(promise.remaining_amount)}</td>
-            <td style={td}>{promise.promise_status}</td>
+            <td style={moneyDueCell}>{formatMoney(promise.remaining_amount)}</td>
+            <td style={td}>
+              <span style={getPromiseStatusStyle(promise.promise_status)}>
+                {promise.promise_status}
+              </span>
+            </td>
           </tr>
         ))}
       </tbody>
     </table>
   );
+}
+
+function EmptyState({ title, message }) {
+  return (
+    <div style={emptyState}>
+      <strong>{title}</strong>
+      <p style={{ margin: "6px 0 0" }}>{message}</p>
+    </div>
+  );
+}
+
+function Card({ title, value, tone = "default" }) {
+  return (
+    <div style={{ ...cardStyle, ...getCardToneStyle(tone) }}>
+      <p style={{ margin: 0, color: "#667085" }}>{title}</p>
+      <h2 style={{ marginTop: "10px", marginBottom: 0 }}>{value}</h2>
+    </div>
+  );
+}
+
+function getCardToneStyle(tone) {
+  if (tone === "danger") {
+    return {
+      borderLeft: "5px solid #991b1b",
+    };
+  }
+
+  if (tone === "warning") {
+    return {
+      borderLeft: "5px solid #f59e0b",
+    };
+  }
+
+  if (tone === "info") {
+    return {
+      borderLeft: "5px solid #2563eb",
+    };
+  }
+
+  return {
+    borderLeft: "5px solid transparent",
+  };
 }
 
 function formatDisplayDate(dateString) {
@@ -358,20 +481,88 @@ function getPastDueStatusStyle(status) {
   };
 }
 
-function Card({ title, value }) {
-  return (
-    <div style={cardStyle}>
-      <p style={{ margin: 0, color: "#667085" }}>{title}</p>
-      <h2 style={{ marginTop: "10px" }}>{value}</h2>
-    </div>
-  );
+function getDueStatusStyle(status) {
+  const base = {
+    padding: "5px 10px",
+    borderRadius: "999px",
+    fontSize: "13px",
+    fontWeight: "bold",
+  };
+
+  if (status === "Partial") {
+    return {
+      ...base,
+      background: "#fef9c3",
+      color: "#854d0e",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#fee2e2",
+    color: "#991b1b",
+  };
 }
+
+function getPromiseStatusStyle(status) {
+  const base = {
+    padding: "5px 10px",
+    borderRadius: "999px",
+    fontSize: "13px",
+    fontWeight: "bold",
+  };
+
+  if (status === "Broken") {
+    return {
+      ...base,
+      background: "#fee2e2",
+      color: "#991b1b",
+    };
+  }
+
+  if (status === "Rescheduled") {
+    return {
+      ...base,
+      background: "#e0e7ff",
+      color: "#3730a3",
+    };
+  }
+
+  if (status === "Partial Paid") {
+    return {
+      ...base,
+      background: "#fef9c3",
+      color: "#854d0e",
+    };
+  }
+
+  if (status === "Paid") {
+    return {
+      ...base,
+      background: "#dcfce7",
+      color: "#166534",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#dbeafe",
+    color: "#1d4ed8",
+  };
+}
+
+const priorityCardGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "20px",
+  marginTop: "25px",
+};
 
 const cardGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: "20px",
-  marginTop: "25px",
+  marginTop: "20px",
 };
 
 const cardStyle = {
@@ -387,6 +578,35 @@ const tableBox = {
   borderRadius: "12px",
   marginTop: "25px",
   overflowX: "auto",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+};
+
+const sectionHeader = {
+  marginBottom: "14px",
+};
+
+const sectionTitle = {
+  margin: 0,
+  color: "#111827",
+};
+
+const sectionDescription = {
+  marginTop: "6px",
+  marginBottom: 0,
+  color: "#667085",
+  fontSize: "14px",
+};
+
+const sectionDivider = {
+  marginTop: "35px",
+};
+
+const emptyState = {
+  background: "#f9fafb",
+  border: "1px dashed #cbd5e1",
+  padding: "16px",
+  borderRadius: "10px",
+  color: "#475569",
 };
 
 const th = {
@@ -401,6 +621,11 @@ const td = {
   padding: "12px",
   borderBottom: "1px solid #eee",
   whiteSpace: "nowrap",
+};
+
+const moneyDueCell = {
+  ...td,
+  fontWeight: "bold",
 };
 
 export default Dashboard;

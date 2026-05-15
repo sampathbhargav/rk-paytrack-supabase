@@ -6,47 +6,65 @@ import {
   calculateMaturityDate,
 } from "../utils/dealDateUtils";
 
-function DealForm() {
-    const [formData, setFormData] = useState({
-        customerName: "",
-        phone: "",
-        email: "",
-        address: "",
-        dealTag: "",
-        dealType: "In-house",
-        dealSubtype: "",
-        startDate: "",
-        truck: "",
-        year: "",
-        vin: "",
-        totalAmount: "",
-        monthlyPayment: "",
-        dueDay: "",
-        term: "",
-        maturityDate: "",
-        notes: "",
-      });
+const initialFormData = {
+  customerName: "",
+  phone: "",
+  email: "",
+  address: "",
+  dealTag: "",
+  dealType: "In-house",
+  dealSubtype: "",
+  startDate: "",
+  truck: "",
+  year: "",
+  vin: "",
+  totalAmount: "",
+  monthlyPayment: "",
+  dueDay: "",
+  term: "",
+  maturityDate: "",
+  notes: "",
+};
 
+function DealForm() {
+  const [formData, setFormData] = useState(initialFormData);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const isCashDeal = formData.dealType === "Cash";
+  const isInHouseDeal = formData.dealType === "In-house";
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-  
+
+    setMessage("");
+    setMessageType("");
+
     setFormData((prev) => {
       const updated = {
         ...prev,
         [name]: value,
       };
-  
-      if (name === "dealType" && value !== "In-house") {
-        updated.dealSubtype = "";
+
+      if (name === "dealType") {
+        if (value !== "In-house") {
+          updated.dealSubtype = "";
+        }
+
+        if (value === "Cash") {
+          updated.monthlyPayment = "";
+          updated.dueDay = "";
+          updated.term = "";
+          updated.maturityDate = "";
+        }
       }
-  
-      if (name === "startDate") {
+
+      if (name === "startDate" && value) {
         const dueDay = getDueDayFromStartDate(value);
         updated.dueDay = dueDay;
-  
-        if (updated.term) {
+
+        if (updated.term && value !== "" && updated.dealType !== "Cash") {
           updated.maturityDate = calculateMaturityDate(
             value,
             dueDay,
@@ -54,312 +72,452 @@ function DealForm() {
           );
         }
       }
-  
-      if (name === "term") {
+
+      if (name === "term" && updated.dealType !== "Cash") {
         updated.maturityDate = calculateMaturityDate(
           updated.startDate,
           updated.dueDay,
           value
         );
       }
-  
-      if (name === "dueDay") {
+
+      if (name === "dueDay" && updated.dealType !== "Cash") {
         updated.maturityDate = calculateMaturityDate(
           updated.startDate,
           value,
           updated.term
         );
       }
-  
+
       return updated;
     });
   };
 
+  const cleanFormData = () => {
+    const cleanDealTag = formData.dealTag.trim();
+    const cleanCustomerName = formData.customerName.trim();
+
+    return {
+      ...formData,
+      customerName: cleanCustomerName,
+      phone: formData.phone.trim(),
+      email: formData.email.trim(),
+      address: formData.address.trim(),
+      dealTag: cleanDealTag,
+      truck: formData.truck.trim(),
+      year: formData.year.trim(),
+      vin: formData.vin.trim().toUpperCase(),
+      notes: formData.notes.trim(),
+    };
+  };
+
   const validateDealForm = () => {
-    if (!formData.customerName.trim()) {
+    const data = cleanFormData();
+
+    if (!data.customerName) {
       return "Customer name is required.";
     }
-  
-    if (!formData.dealTag.trim()) {
+
+    if (!data.dealTag) {
       return "Deal tag is required.";
     }
-  
-    if (!formData.dealType) {
+
+    if (!data.dealType) {
       return "Deal type is required.";
     }
-  
-    if (formData.dealType === "In-house" && !formData.dealSubtype) {
+
+    if (data.dealType === "In-house" && !data.dealSubtype) {
       return "Deal sub type is required for In-house deals.";
     }
-  
-    if (formData.dealType !== "Cash") {
-      if (!formData.startDate) {
+
+    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      return "Please enter a valid email address.";
+    }
+
+    if (data.year && !/^\d{4}$/.test(data.year)) {
+      return "Year must be a 4-digit year, for example 2022.";
+    }
+
+    if (data.vin && data.vin.length > 17) {
+      return "VIN cannot be more than 17 characters.";
+    }
+
+    if (data.totalAmount && Number(data.totalAmount) < 0) {
+      return "Total amount cannot be negative.";
+    }
+
+    if (data.dealType !== "Cash") {
+      if (!data.startDate) {
         return "Start date is required for payment deals.";
       }
-  
-      if (!formData.monthlyPayment || Number(formData.monthlyPayment) <= 0) {
+
+      if (!data.totalAmount || Number(data.totalAmount) <= 0) {
+        return "Total amount must be greater than 0 for payment deals.";
+      }
+
+      if (!data.monthlyPayment || Number(data.monthlyPayment) <= 0) {
         return "Monthly payment must be greater than 0.";
       }
-  
-      if (!formData.dueDay || Number(formData.dueDay) <= 0) {
+
+      if (!data.dueDay || Number(data.dueDay) <= 0) {
         return "Due day is required.";
       }
-  
-      if (Number(formData.dueDay) < 1 || Number(formData.dueDay) > 31) {
+
+      if (Number(data.dueDay) < 1 || Number(data.dueDay) > 31) {
         return "Due day must be between 1 and 31.";
       }
-  
-      if (!formData.term || Number(formData.term) <= 0) {
+
+      if (!data.term || Number(data.term) <= 0) {
         return "Term must be greater than 0.";
       }
-  
-      if (!formData.maturityDate) {
+
+      if (!Number.isInteger(Number(data.term))) {
+        return "Term must be a whole number.";
+      }
+
+      if (!data.maturityDate) {
         return "Maturity date is required.";
       }
     }
-  
+
+    if (data.dealType === "Cash") {
+      if (!data.totalAmount || Number(data.totalAmount) <= 0) {
+        return "Total amount is required for Cash deals.";
+      }
+    }
+
     return "";
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setMessage("");
+    setMessageType("");
 
     const validationError = validateDealForm();
 
     if (validationError) {
       setMessage(validationError);
+      setMessageType("error");
       return;
     }
 
-    const existingDeal = await checkDealTagExists(formData.dealTag);
-
-    if (existingDeal) {
-      setMessage(`Deal tag ${formData.dealTag} already exists.`);
-      return;
-    }
+    const data = cleanFormData();
 
     try {
+      setIsSaving(true);
+
+      const existingDeal = await checkDealTagExists(data.dealTag);
+
+      if (existingDeal) {
+        setMessage(`Deal tag ${data.dealTag} already exists.`);
+        setMessageType("error");
+        return;
+      }
+
       const customer = await createCustomer({
-        customerName: formData.customerName,
-        phone: formData.phone,
-        email: formData.email,
-        address: formData.address,
+        customerName: data.customerName,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
       });
 
       await createDeal({
         customerId: customer.id,
-        dealTag: formData.dealTag,
-        dealType: formData.dealType,
-        dealSubtype: formData.dealSubtype,
-        startDate: formData.startDate,
-        truck: formData.truck,
-        year: formData.year,
-        vin: formData.vin,
-        totalAmount: formData.totalAmount,
-        monthlyPayment: formData.monthlyPayment,
-        dueDay: formData.dueDay,
-        term: formData.term,
-        maturityDate: formData.maturityDate,
-        notes: formData.notes,
+        dealTag: data.dealTag,
+        dealType: data.dealType,
+        dealSubtype: data.dealType === "In-house" ? data.dealSubtype : null,
+        startDate: data.startDate || null,
+        truck: data.truck,
+        year: data.year,
+        vin: data.vin,
+        totalAmount: Number(data.totalAmount || 0),
+        monthlyPayment: data.dealType === "Cash" ? 0 : Number(data.monthlyPayment || 0),
+        dueDay: data.dealType === "Cash" ? null : Number(data.dueDay || 0),
+        term: data.dealType === "Cash" ? null : Number(data.term || 0),
+        maturityDate: data.dealType === "Cash" ? null : data.maturityDate,
+        notes: data.notes,
       });
 
       setMessage("Customer and deal created successfully.");
-
-      setFormData({
-        customerName: "",
-        phone: "",
-        email: "",
-        address: "",
-        dealTag: "",
-        truck: "",
-        year: "",
-        vin: "",
-        totalAmount: "",
-        monthlyPayment: "",
-        dueDay: "",
-        term: "",
-        maturityDate: "",
-        dealType: "In-house",
-        startDate: "",
-        notes: "",
-      });
+      setMessageType("success");
+      setFormData(initialFormData);
     } catch (error) {
       setMessage(`Failed to create deal: ${error.message}`);
+      setMessageType("error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} style={formStyle}>
-      <h2>Customer Information</h2>
+      <div style={formHeader}>
+        <div>
+          <h2 style={formTitle}>Add Customer / Deal</h2>
+          <p style={formDescription}>
+            Enter customer details, deal information, and payment schedule setup.
+          </p>
+        </div>
 
-      <div style={grid}>
-        <Input
-          label="Customer Name"
-          name="customerName"
-          value={formData.customerName}
-          onChange={handleChange}
-          required
-        />
-
-        <Input
-          label="Phone"
-          name="phone"
-          value={formData.phone}
-          onChange={handleChange}
-        />
-
-        <Input
-          label="Email"
-          name="email"
-          value={formData.email}
-          onChange={handleChange}
-        />
-
-        <Input
-          label="Address"
-          name="address"
-          value={formData.address}
-          onChange={handleChange}
-        />
+        <div style={dealTypeBadge}>{formData.dealType}</div>
       </div>
 
-      <h2 style={{ marginTop: "30px" }}>Deal Information</h2>
+      {message && (
+        <div
+          style={{
+            ...messageBox,
+            ...(messageType === "success" ? successMessage : errorMessage),
+          }}
+        >
+          {message}
+        </div>
+      )}
 
-      <div style={grid}>
-        <Input
-          label="Deal Tag"
-          name="dealTag"
-          value={formData.dealTag}
-          onChange={handleChange}
-          required
-        />
+      <Section
+        title="Customer Information"
+        description="Basic customer contact details used for payment follow-up."
+      >
+        <div style={grid}>
+          <Input
+            label="Customer Name"
+            name="customerName"
+            value={formData.customerName}
+            onChange={handleChange}
+            required
+            placeholder="Example: Rohit Kapoor"
+          />
 
-        <div>
-        <label>Deal Type</label>
-        <select
+          <Input
+            label="Phone"
+            name="phone"
+            value={formData.phone}
+            onChange={handleChange}
+            placeholder="Example: 1234567890"
+          />
+
+          <Input
+            label="Email"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+            placeholder="customer@email.com"
+          />
+
+          <Input
+            label="Address"
+            name="address"
+            value={formData.address}
+            onChange={handleChange}
+            placeholder="Customer address"
+          />
+        </div>
+      </Section>
+
+      <Section
+        title="Deal Information"
+        description="Deal type, truck information, amount, and financing details."
+      >
+        <div style={grid}>
+          <Input
+            label="Deal Tag"
+            name="dealTag"
+            value={formData.dealTag}
+            onChange={handleChange}
+            required
+            placeholder="Example: 1723"
+          />
+
+          <Select
+            label="Deal Type"
             name="dealType"
             value={formData.dealType}
             onChange={handleChange}
-            style={inputStyle}
-        >
-            <option>In-house</option>
-            <option>Down Finance</option>
-            <option>Borrow Money</option>
-            <option>Motor Finance</option>
-            <option>Cash</option>
-        </select>
-        </div>
+            options={[
+              "In-house",
+              "Down Finance",
+              "Borrow Money",
+              "Motor Finance",
+              "Cash",
+            ]}
+            required
+          />
 
-        {formData.dealType === "In-house" && (
-        <div>
-            <label>Deal Sub Type</label>
-            <select
-            name="dealSubtype"
-            value={formData.dealSubtype}
+          {isInHouseDeal && (
+            <Select
+              label="Deal Sub Type"
+              name="dealSubtype"
+              value={formData.dealSubtype}
+              onChange={handleChange}
+              options={["Regular", "Apportioned", "Combination"]}
+              placeholder="Select Sub Type"
+              required
+            />
+          )}
+
+          <Input
+            label="Start Date"
+            name="startDate"
+            type="date"
+            value={formData.startDate}
             onChange={handleChange}
-            style={inputStyle}
-            >
-            <option value="">Select Sub Type</option>
-            <option>Regular</option>
-            <option>Apportioned</option>
-            <option>Combination</option>
-            </select>
+            required={!isCashDeal}
+            helperText={
+              isCashDeal
+                ? "Optional for Cash deals."
+                : "Due day will auto-fill from this date."
+            }
+          />
+
+          <Input
+            label="Truck"
+            name="truck"
+            value={formData.truck}
+            onChange={handleChange}
+            placeholder="Example: FRTLR"
+          />
+
+          <Input
+            label="Year"
+            name="year"
+            value={formData.year}
+            onChange={handleChange}
+            placeholder="Example: 2022"
+            maxLength={4}
+          />
+
+          <Input
+            label="VIN"
+            name="vin"
+            value={formData.vin}
+            onChange={handleChange}
+            placeholder="VIN"
+            maxLength={17}
+          />
+
+          <Input
+            label="Total Amount"
+            name="totalAmount"
+            type="number"
+            value={formData.totalAmount}
+            onChange={handleChange}
+            required
+            placeholder="Example: 25000"
+            helperText="Total financed or deal amount."
+          />
         </div>
+      </Section>
+
+      <Section
+        title="Payment Schedule"
+        description={
+          isCashDeal
+            ? "Cash deals do not require a monthly schedule."
+            : "Schedule is calculated from start date, due day, term, and monthly payment."
+        }
+      >
+        {isCashDeal && (
+          <div style={infoBox}>
+            Cash deal selected. Monthly payment, due day, term, and maturity date
+            are not required.
+          </div>
         )}
 
-        <Input
-        label="Start Date"
-        name="startDate"
-        type="date"
-        value={formData.startDate}
-        onChange={handleChange}
-        />
+        <div style={grid}>
+          <Input
+            label="Monthly Payment"
+            name="monthlyPayment"
+            type="number"
+            value={formData.monthlyPayment}
+            onChange={handleChange}
+            required={!isCashDeal}
+            disabled={isCashDeal}
+            placeholder="Example: 500"
+          />
 
-        <Input
-          label="Truck"
-          name="truck"
-          value={formData.truck}
-          onChange={handleChange}
-        />
+          <Input
+            label="Due Day"
+            name="dueDay"
+            type="number"
+            value={formData.dueDay}
+            onChange={handleChange}
+            required={!isCashDeal}
+            disabled={isCashDeal}
+            placeholder="Auto from start date"
+            helperText="Auto-filled from start date but can be edited."
+          />
 
-        <Input
-          label="Year"
-          name="year"
-          value={formData.year}
-          onChange={handleChange}
-        />
+          <Input
+            label="Term"
+            name="term"
+            type="number"
+            value={formData.term}
+            onChange={handleChange}
+            required={!isCashDeal}
+            disabled={isCashDeal}
+            placeholder="Example: 5"
+          />
 
-        <Input
-          label="VIN"
-          name="vin"
-          value={formData.vin}
-          onChange={handleChange}
-        />
+          <Input
+            label="Maturity Date"
+            name="maturityDate"
+            type="date"
+            value={formData.maturityDate}
+            onChange={handleChange}
+            readOnly
+            disabled={isCashDeal}
+            helperText="Auto-calculated from start date and term."
+          />
+        </div>
+      </Section>
 
-        <Input
-          label="Total Amount"
-          name="totalAmount"
-          type="number"
-          value={formData.totalAmount}
+      <Section
+        title="Internal Deal Notes"
+        description="Special agreements, title notes, tax/title details, down payment details, or internal comments."
+      >
+        <textarea
+          name="notes"
+          value={formData.notes}
           onChange={handleChange}
+          placeholder="Example: Customer paid $2,500 cash for tax/title. Remaining amount financed over 7 months..."
+          style={notesInput}
         />
+      </Section>
 
-        <Input
-          label="Monthly Payment"
-          name="monthlyPayment"
-          type="number"
-          value={formData.monthlyPayment}
-          onChange={handleChange}
-        />
+      <div style={buttonRow}>
+        <button type="submit" style={buttonStyle} disabled={isSaving}>
+          {isSaving ? "Saving..." : "Create Deal"}
+        </button>
 
-        <Input
-          label="Due Day"
-          name="dueDay"
-          type="number"
-          value={formData.dueDay}
-          onChange={handleChange}
-        />
+        <button
+          type="button"
+          style={secondaryButtonStyle}
+          onClick={() => {
+            setFormData(initialFormData);
+            setMessage("");
+            setMessageType("");
+          }}
+          disabled={isSaving}
+        >
+          Clear Form
+        </button>
+      </div>
+    </form>
+  );
+}
 
-        <Input
-          label="Term"
-          name="term"
-          type="number"
-          value={formData.term}
-          onChange={handleChange}
-        />
-
-        <Input
-          label="Maturity Date"
-          name="maturityDate"
-          type="date"
-          value={formData.maturityDate}
-          onChange={handleChange}
-          readOnly
-        />
+function Section({ title, description, children }) {
+  return (
+    <section style={sectionBox}>
+      <div style={sectionHeader}>
+        <h3 style={sectionTitle}>{title}</h3>
+        <p style={sectionDescription}>{description}</p>
       </div>
 
-      <div style={{ marginTop: "20px" }}>
-        <label>Deal Notes</label>
-        <textarea
-            name="notes"
-            value={formData.notes}
-            onChange={handleChange}
-            placeholder="Example: Customer promised extra payment, title issue, special agreement, down payment details..."
-            style={{
-            ...inputStyle,
-            height: "100px",
-            resize: "vertical",
-            }}
-        />
-        </div>
-
-      <button type="submit" style={buttonStyle}>
-        Create Deal
-      </button>
-
-      {message && <p>{message}</p>}
-    </form>
+      {children}
+    </section>
   );
 }
 
@@ -371,10 +529,17 @@ function Input({
   type = "text",
   required,
   readOnly,
+  disabled,
+  placeholder,
+  helperText,
+  maxLength,
 }) {
   return (
     <div>
-      <label>{label}</label>
+      <label style={labelStyle}>
+        {label} {required && <span style={requiredMark}>*</span>}
+      </label>
+
       <input
         name={name}
         type={type}
@@ -382,46 +547,212 @@ function Input({
         onChange={onChange}
         required={required}
         readOnly={readOnly}
+        disabled={disabled}
+        placeholder={placeholder}
+        maxLength={maxLength}
         style={{
           ...inputStyle,
-          background: readOnly ? "#f3f4f6" : "white",
+          background: readOnly || disabled ? "#f3f4f6" : "white",
+          cursor: disabled ? "not-allowed" : "text",
         }}
       />
+
+      {helperText && <small style={helperTextStyle}>{helperText}</small>}
+    </div>
+  );
+}
+
+function Select({
+  label,
+  name,
+  value,
+  onChange,
+  options,
+  placeholder,
+  required,
+}) {
+  return (
+    <div>
+      <label style={labelStyle}>
+        {label} {required && <span style={requiredMark}>*</span>}
+      </label>
+
+      <select
+        name={name}
+        value={value}
+        onChange={onChange}
+        required={required}
+        style={inputStyle}
+      >
+        {placeholder && <option value="">{placeholder}</option>}
+
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
 
 const formStyle = {
   background: "white",
-  padding: "25px",
+  padding: "26px",
+  borderRadius: "14px",
+  maxWidth: "980px",
+  boxShadow: "0 3px 12px rgba(0,0,0,0.08)",
+};
+
+const formHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "20px",
+  marginBottom: "20px",
+  borderBottom: "1px solid #e5e7eb",
+  paddingBottom: "18px",
+};
+
+const formTitle = {
+  margin: 0,
+  color: "#111827",
+};
+
+const formDescription = {
+  marginTop: "6px",
+  marginBottom: 0,
+  color: "#667085",
+};
+
+const dealTypeBadge = {
+  background: "#dbeafe",
+  color: "#1d4ed8",
+  padding: "7px 12px",
+  borderRadius: "999px",
+  fontWeight: "bold",
+  whiteSpace: "nowrap",
+  fontSize: "13px",
+};
+
+const sectionBox = {
+  marginTop: "24px",
+  padding: "18px",
+  border: "1px solid #e5e7eb",
   borderRadius: "12px",
-  maxWidth: "850px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  background: "#ffffff",
+};
+
+const sectionHeader = {
+  marginBottom: "16px",
+};
+
+const sectionTitle = {
+  margin: 0,
+  color: "#111827",
+};
+
+const sectionDescription = {
+  marginTop: "6px",
+  marginBottom: 0,
+  color: "#667085",
+  fontSize: "14px",
 };
 
 const grid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-  gap: "15px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gap: "16px",
+};
+
+const labelStyle = {
+  display: "block",
+  fontWeight: "bold",
+  color: "#374151",
+  marginBottom: "6px",
+};
+
+const requiredMark = {
+  color: "#dc2626",
 };
 
 const inputStyle = {
   width: "100%",
-  padding: "10px",
-  marginTop: "6px",
-  border: "1px solid #ccc",
-  borderRadius: "8px",
+  padding: "11px",
+  border: "1px solid #d1d5db",
+  borderRadius: "9px",
   boxSizing: "border-box",
+  fontSize: "14px",
+};
+
+const helperTextStyle = {
+  display: "block",
+  color: "#667085",
+  fontSize: "12px",
+  marginTop: "5px",
+};
+
+const notesInput = {
+  ...inputStyle,
+  minHeight: "120px",
+  resize: "vertical",
+  background: "#fffbeb",
+  border: "1px solid #fde68a",
+  lineHeight: "1.5",
+};
+
+const buttonRow = {
+  display: "flex",
+  gap: "12px",
+  marginTop: "24px",
 };
 
 const buttonStyle = {
-  marginTop: "25px",
   background: "#0A1A2F",
   color: "white",
   padding: "12px 20px",
   border: "none",
-  borderRadius: "8px",
+  borderRadius: "9px",
   cursor: "pointer",
+  fontWeight: "bold",
+};
+
+const secondaryButtonStyle = {
+  background: "#e5e7eb",
+  color: "#111827",
+  padding: "12px 20px",
+  border: "none",
+  borderRadius: "9px",
+  cursor: "pointer",
+  fontWeight: "bold",
+};
+
+const messageBox = {
+  padding: "12px 14px",
+  borderRadius: "10px",
+  marginBottom: "18px",
+  fontWeight: "bold",
+};
+
+const successMessage = {
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #86efac",
+};
+
+const errorMessage = {
+  background: "#fee2e2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+};
+
+const infoBox = {
+  background: "#f8fafc",
+  border: "1px dashed #cbd5e1",
+  padding: "13px",
+  borderRadius: "10px",
+  color: "#475569",
+  marginBottom: "16px",
 };
 
 export default DealForm;

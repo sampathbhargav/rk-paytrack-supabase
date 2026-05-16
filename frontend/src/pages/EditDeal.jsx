@@ -102,6 +102,8 @@ function EditDeal() {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
+    const isRegistrationMoneyDeal = formData.dealType === "Registration Money";
+
     setMessage("");
     setMessageType("");
 
@@ -190,6 +192,32 @@ function EditDeal() {
 
     if (!data.totalAmount || Number(data.totalAmount) < 0) {
       return "Total amount is required and cannot be negative.";
+    }
+
+    if (name === "dealType" && value === "Registration Money") {
+      updated.term = "1";
+    
+      if (updated.totalAmount) {
+        updated.monthlyPayment = updated.totalAmount;
+      }
+    
+      if (updated.startDate) {
+        const dueDay = getDueDayFromStartDate(updated.startDate);
+        updated.dueDay = dueDay;
+        updated.maturityDate = updated.startDate;
+      }
+    }
+    
+    if (name === "totalAmount" && updated.dealType === "Registration Money") {
+      updated.monthlyPayment = value;
+      updated.term = "1";
+    }
+    
+    if (name === "startDate" && value && updated.dealType === "Registration Money") {
+      const dueDay = getDueDayFromStartDate(value);
+      updated.dueDay = dueDay;
+      updated.term = "1";
+      updated.maturityDate = value;
     }
 
     if (data.dealType !== "Cash") {
@@ -283,10 +311,25 @@ function EditDeal() {
         vin: data.vin,
         totalAmount: Number(data.totalAmount || 0),
         monthlyPayment:
-          data.dealType === "Cash" ? 0 : Number(data.monthlyPayment || 0),
-        dueDay: data.dealType === "Cash" ? null : Number(data.dueDay || 0),
-        term: data.dealType === "Cash" ? null : Number(data.term || 0),
-        maturityDate: data.dealType === "Cash" ? null : data.maturityDate,
+          data.dealType === "Cash"
+            ? 0
+            : data.dealType === "Registration Money"
+            ? Number(data.totalAmount || 0)
+            : Number(data.monthlyPayment || 0),
+
+        term:
+          data.dealType === "Cash"
+            ? null
+            : data.dealType === "Registration Money"
+            ? 1
+            : Number(data.term || 0),
+
+        maturityDate:
+          data.dealType === "Cash"
+            ? null
+            : data.dealType === "Registration Money"
+            ? data.startDate
+            : data.maturityDate,
         status: data.status,
         notes: data.notes,
       });
@@ -416,6 +459,7 @@ function EditDeal() {
                 "Down Finance",
                 "Borrow Money",
                 "Motor Finance",
+                "Registration Money",
                 "Cash",
               ]}
               required

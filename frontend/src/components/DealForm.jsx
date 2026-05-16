@@ -35,6 +35,9 @@ function DealForm() {
   const isCashDeal = formData.dealType === "Cash";
   const isInHouseDeal = formData.dealType === "In-house";
 
+  const isRegistrationMoneyDeal = formData.dealType === "Registration Money";
+  const isOneTimeScheduledDeal = isRegistrationMoneyDeal;
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -51,13 +54,39 @@ function DealForm() {
         if (value !== "In-house") {
           updated.dealSubtype = "";
         }
-
+      
         if (value === "Cash") {
           updated.monthlyPayment = "";
           updated.dueDay = "";
           updated.term = "";
           updated.maturityDate = "";
         }
+      
+        if (value === "Registration Money") {
+          updated.term = "1";
+      
+          if (updated.totalAmount) {
+            updated.monthlyPayment = updated.totalAmount;
+          }
+      
+          if (updated.startDate) {
+            const dueDay = getDueDayFromStartDate(updated.startDate);
+            updated.dueDay = dueDay;
+            updated.maturityDate = updated.startDate;
+          }
+        }
+      }
+
+      if (name === "totalAmount" && updated.dealType === "Registration Money") {
+        updated.monthlyPayment = value;
+        updated.term = "1";
+      }
+      
+      if (name === "startDate" && value && updated.dealType === "Registration Money") {
+        const dueDay = getDueDayFromStartDate(value);
+        updated.dueDay = dueDay;
+        updated.term = "1";
+        updated.maturityDate = value;
       }
 
       if (name === "startDate" && value && updated.dealType !== "Cash") {
@@ -141,6 +170,18 @@ function DealForm() {
 
     if (!data.totalAmount || Number(data.totalAmount) <= 0) {
       return "Total amount must be greater than 0.";
+    }
+
+    if (data.dealType === "Registration Money") {
+      if (!data.startDate) {
+        return "Tentative due date is required for Registration Money deals.";
+      }
+    
+      if (!data.totalAmount || Number(data.totalAmount) <= 0) {
+        return "Registration money amount must be greater than 0.";
+      }
+    
+      return "";
     }
 
     if (data.dealType !== "Cash") {
@@ -227,10 +268,28 @@ function DealForm() {
         vin: data.vin,
         totalAmount: Number(data.totalAmount || 0),
         monthlyPayment:
-          data.dealType === "Cash" ? 0 : Number(data.monthlyPayment || 0),
-        dueDay: data.dealType === "Cash" ? null : Number(data.dueDay || 0),
-        term: data.dealType === "Cash" ? null : Number(data.term || 0),
-        maturityDate: data.dealType === "Cash" ? null : data.maturityDate,
+        data.dealType === "Cash"
+          ? 0
+          : data.dealType === "Registration Money"
+          ? Number(data.totalAmount || 0)
+          : Number(data.monthlyPayment || 0),
+
+      dueDay:
+        data.dealType === "Cash" ? null : Number(data.dueDay || 0),
+
+      term:
+        data.dealType === "Cash"
+          ? null
+          : data.dealType === "Registration Money"
+          ? 1
+          : Number(data.term || 0),
+
+      maturityDate:
+        data.dealType === "Cash"
+          ? null
+          : data.dealType === "Registration Money"
+          ? data.startDate
+          : data.maturityDate,
         notes: data.notes,
       });
 
@@ -334,6 +393,7 @@ function DealForm() {
               "Down Finance",
               "Borrow Money",
               "Motor Finance",
+              "Registration Money",
               "Cash",
             ]}
             required
@@ -407,7 +467,7 @@ function DealForm() {
 
         <div style={grid}>
           <Input
-            label="Start Date"
+            label={isRegistrationMoneyDeal ? "Tentative Due Date" : "Start Date"}
             name="startDate"
             type="date"
             value={formData.startDate}
@@ -422,7 +482,7 @@ function DealForm() {
           />
 
           <Input
-            label="Monthly Payment"
+            label={isRegistrationMoneyDeal ? "One-Time Amount" : "Monthly Payment"}
             name="monthlyPayment"
             type="number"
             value={formData.monthlyPayment}
@@ -451,7 +511,7 @@ function DealForm() {
             value={formData.term}
             onChange={handleChange}
             required={!isCashDeal}
-            disabled={isCashDeal}
+            disabled={isCashDeal || isRegistrationMoneyDeal}
             placeholder="Example: 5"
           />
 
@@ -463,7 +523,11 @@ function DealForm() {
             onChange={handleChange}
             readOnly
             disabled={isCashDeal}
-            helperText="Auto-calculated from start date, due day, and term."
+            helperText={
+              isRegistrationMoneyDeal
+                ? "Same as tentative due date for Registration Money."
+                : "Auto-calculated from start date, due day, and term."
+            }
           />
         </div>
       </Section>

@@ -356,6 +356,10 @@ function Dashboard() {
           value={formatMoney(balanceByDealType["Motor Finance"] || 0)}
         />
         <Card
+          title="Registration Money Balance"
+          value={formatMoney(balanceByDealType["Registration Money"] || 0)}
+        />
+        <Card
           title="Cash Balance"
           value={formatMoney(balanceByDealType["Cash"] || 0)}
         />

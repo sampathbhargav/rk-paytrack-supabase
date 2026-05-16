@@ -93,19 +93,25 @@ function Promises() {
 
       <div style={cardGrid}>
         <Card title="Pending" value={pendingPromises.length} tone="info" />
+
         <Card
           title="Pending Amount"
           value={formatMoney(totalPendingAmount)}
           tone="info"
         />
+
         <Card title="Broken" value={brokenPromises.length} tone="danger" />
+
         <Card
           title="Broken Amount"
           value={formatMoney(totalBrokenAmount)}
           tone="danger"
         />
+
         <Card title="Paid" value={paidPromises.length} tone="success" />
+
         <Card title="Rescheduled" value={rescheduledPromises.length} />
+
         <Card
           title="Partial Paid"
           value={partialPaidPromises.length}
@@ -144,7 +150,8 @@ function Promises() {
         <div style={sectionHeader}>
           <h2 style={sectionTitle}>Promise History</h2>
           <p style={sectionDescription}>
-            Showing {filteredPromises.length} promise record(s).
+            Showing {filteredPromises.length} promise record(s). Deal Tag stays
+            locked. Scroll inside the table to view more columns or rows.
           </p>
         </div>
 
@@ -158,23 +165,23 @@ function Promises() {
             <table style={tableStyle}>
               <thead>
                 <tr>
-                  <th style={th}>Deal Tag</th>
-                  <th style={th}>Customer</th>
-                  <th style={th}>Phone</th>
-                  <th style={th}>Original Due</th>
-                  <th style={th}>Promised Date</th>
-                  <th style={th}>Due</th>
-                  <th style={th}>Paid Now</th>
-                  <th style={th}>Remaining</th>
-                  <th style={th}>Status</th>
-                  <th style={th}>Notes</th>
+                  <th style={stickyTh}>Deal Tag</th>
+                  <th style={{ ...th, width: "150px" }}>Customer</th>
+                  <th style={{ ...th, width: "105px" }}>Phone</th>
+                  <th style={{ ...th, width: "105px" }}>Original Due</th>
+                  <th style={{ ...th, width: "110px" }}>Promised Date</th>
+                  <th style={{ ...th, width: "90px" }}>Due</th>
+                  <th style={{ ...th, width: "90px" }}>Paid Now</th>
+                  <th style={{ ...th, width: "100px" }}>Remaining</th>
+                  <th style={{ ...th, width: "110px" }}>Status</th>
+                  <th style={{ ...th, width: "180px" }}>Notes</th>
                 </tr>
               </thead>
 
               <tbody>
                 {filteredPromises.map((promise) => (
                   <tr key={promise.id}>
-                    <td style={td}>
+                    <td style={stickyTd}>
                       {promise.deals?.id ? (
                         <Link
                           to={`/deals/${promise.deals.id}`}
@@ -183,7 +190,9 @@ function Promises() {
                           {promise.deals?.deal_tag || "—"}
                         </Link>
                       ) : (
-                        promise.deals?.deal_tag || "—"
+                        <span style={missingDealTag}>
+                          {promise.deals?.deal_tag || "—"}
+                        </span>
                       )}
                     </td>
 
@@ -203,9 +212,11 @@ function Promises() {
                       {formatDisplayDate(promise.promised_date)}
                     </td>
 
-                    <td style={td}>{formatMoney(promise.amount_due)}</td>
+                    <td style={moneyCell}>{formatMoney(promise.amount_due)}</td>
 
-                    <td style={td}>{formatMoney(promise.amount_paid_now)}</td>
+                    <td style={moneyCell}>
+                      {formatMoney(promise.amount_paid_now)}
+                    </td>
 
                     <td style={moneyCell}>
                       {formatMoney(promise.remaining_amount)}
@@ -232,10 +243,12 @@ function Promises() {
 function Card({ title, value, tone = "default" }) {
   return (
     <div style={{ ...cardStyle, ...getCardToneStyle(tone) }}>
-      <p style={{ margin: 0, color: "#667085", fontSize: "13px" }}>{title}</p>
-      <h2 style={{ marginTop: "8px", marginBottom: 0, fontSize: "22px" }}>
+      <p style={{ margin: 0, color: "#667085", fontSize: "12px" }}>
+        {title}
+      </p>
+      <h3 style={{ marginTop: "6px", marginBottom: 0, fontSize: "19px" }}>
         {value}
-      </h2>
+      </h3>
     </div>
   );
 }
@@ -250,17 +263,17 @@ function EmptyState({ title, message }) {
 }
 
 function getCardToneStyle(tone) {
-  if (tone === "danger") return { borderLeft: "5px solid #991b1b" };
-  if (tone === "warning") return { borderLeft: "5px solid #f59e0b" };
-  if (tone === "info") return { borderLeft: "5px solid #2563eb" };
-  if (tone === "success") return { borderLeft: "5px solid #16a34a" };
+  if (tone === "danger") return { borderLeft: "4px solid #991b1b" };
+  if (tone === "warning") return { borderLeft: "4px solid #f59e0b" };
+  if (tone === "info") return { borderLeft: "4px solid #2563eb" };
+  if (tone === "success") return { borderLeft: "4px solid #16a34a" };
 
-  return { borderLeft: "5px solid transparent" };
+  return { borderLeft: "4px solid transparent" };
 }
 
 function getStatusStyle(status) {
   const base = {
-    padding: "5px 10px",
+    padding: "5px 9px",
     borderRadius: "999px",
     fontSize: "12px",
     fontWeight: "bold",
@@ -304,8 +317,9 @@ function formatDisplayDate(dateString) {
 
 const pageWrapper = {
   width: "100%",
-  maxWidth: "100%",
+  maxWidth: "calc(100vw - 330px)",
   overflowX: "hidden",
+  boxSizing: "border-box",
 };
 
 const pageHeader = {
@@ -313,8 +327,9 @@ const pageHeader = {
   justifyContent: "space-between",
   alignItems: "flex-start",
   gap: "16px",
-  marginBottom: "18px",
+  marginBottom: "16px",
   flexWrap: "wrap",
+  maxWidth: "100%",
 };
 
 const pageTitle = {
@@ -325,7 +340,7 @@ const pageTitle = {
 const pageDescription = {
   marginTop: "6px",
   color: "#667085",
-  maxWidth: "760px",
+  maxWidth: "680px",
 };
 
 const refreshButton = {
@@ -333,45 +348,48 @@ const refreshButton = {
   color: "white",
   border: "none",
   borderRadius: "8px",
-  padding: "10px 14px",
+  padding: "9px 13px",
   cursor: "pointer",
   fontWeight: "bold",
 };
 
 const cardGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
-  gap: "14px",
-  marginBottom: "18px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+  gap: "10px",
+  marginBottom: "14px",
+  maxWidth: "100%",
 };
 
 const cardStyle = {
   background: "white",
-  padding: "16px",
-  borderRadius: "12px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  padding: "12px",
+  borderRadius: "10px",
+  boxShadow: "0 1px 5px rgba(0,0,0,0.07)",
 };
 
 const filterBox = {
   background: "white",
-  padding: "16px",
+  padding: "14px",
   borderRadius: "12px",
-  marginBottom: "18px",
+  marginBottom: "14px",
   display: "flex",
-  gap: "14px",
+  gap: "12px",
   alignItems: "flex-end",
   flexWrap: "wrap",
   boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
   maxWidth: "100%",
+  boxSizing: "border-box",
 };
 
 const searchBox = {
-  flex: "1 1 340px",
+  flex: "1 1 280px",
   minWidth: "220px",
+  maxWidth: "100%",
 };
 
 const filterControl = {
-  flex: "0 0 165px",
+  flex: "0 0 150px",
 };
 
 const labelStyle = {
@@ -386,32 +404,42 @@ const selectStyle = {
   padding: "10px",
   border: "1px solid #d1d5db",
   borderRadius: "8px",
+  boxSizing: "border-box",
 };
 
 const tableBox = {
   background: "white",
-  padding: "18px",
+  padding: "14px",
   borderRadius: "12px",
-  marginTop: "20px",
+  marginTop: "18px",
+  width: "100%",
   maxWidth: "100%",
   overflow: "hidden",
   boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+  boxSizing: "border-box",
 };
 
 const tableScroll = {
   width: "100%",
   maxWidth: "100%",
+  height: "500px",
   overflowX: "auto",
+  overflowY: "auto",
+  border: "1px solid #e5e7eb",
+  borderRadius: "10px",
+  boxSizing: "border-box",
 };
 
 const tableStyle = {
-  width: "100%",
-  minWidth: "880px",
-  borderCollapse: "collapse",
+  width: "1130px",
+  maxWidth: "1130px",
+  tableLayout: "fixed",
+  borderCollapse: "separate",
+  borderSpacing: 0,
 };
 
 const sectionHeader = {
-  marginBottom: "14px",
+  marginBottom: "12px",
 };
 
 const sectionTitle = {
@@ -435,25 +463,51 @@ const emptyState = {
 };
 
 const th = {
+  position: "sticky",
+  top: 0,
+  zIndex: 2,
   textAlign: "left",
   padding: "10px",
   borderBottom: "1px solid #ddd",
   background: "#f9fafb",
-  whiteSpace: "nowrap",
-  fontSize: "13px",
+  color: "#374151",
+  whiteSpace: "normal",
+  fontSize: "12px",
+  lineHeight: "1.25",
+};
+
+const stickyTh = {
+  ...th,
+  left: 0,
+  width: "90px",
+  zIndex: 5,
+  background: "#eef2ff",
+  boxShadow: "2px 0 6px rgba(0,0,0,0.08)",
 };
 
 const td = {
   padding: "10px",
   borderBottom: "1px solid #eee",
   whiteSpace: "nowrap",
-  fontSize: "13px",
+  fontSize: "12px",
+  background: "white",
+  verticalAlign: "top",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const stickyTd = {
+  ...td,
+  position: "sticky",
+  left: 0,
+  zIndex: 4,
+  width: "90px",
+  background: "#ffffff",
+  boxShadow: "2px 0 6px rgba(0,0,0,0.06)",
 };
 
 const customerCell = {
   ...td,
-  minWidth: "135px",
-  maxWidth: "175px",
   whiteSpace: "normal",
   wordBreak: "break-word",
   lineHeight: "1.35",
@@ -466,8 +520,6 @@ const moneyCell = {
 
 const notesCell = {
   ...td,
-  minWidth: "160px",
-  maxWidth: "210px",
   whiteSpace: "normal",
   wordBreak: "break-word",
   lineHeight: "1.35",
@@ -475,8 +527,15 @@ const notesCell = {
 
 const dealLink = {
   color: "#1d4ed8",
+  fontWeight: "800",
+  textDecoration: "underline",
+  textUnderlineOffset: "3px",
+  cursor: "pointer",
+};
+
+const missingDealTag = {
+  color: "#374151",
   fontWeight: "bold",
-  textDecoration: "none",
 };
 
 const errorBox = {

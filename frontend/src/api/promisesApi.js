@@ -6,9 +6,10 @@ export async function getPromises() {
     .select(`
       *,
       deals (
+        id,
         deal_tag,
-        truck,
-        year,
+        deal_type,
+        deal_subtype,
         customers (
           customer_name,
           phone
@@ -19,7 +20,7 @@ export async function getPromises() {
 
   if (error) throw error;
 
-  return markBrokenPromisesInUI(data);
+  return data;
 }
 
 export async function getPromisesByDealId(dealId) {

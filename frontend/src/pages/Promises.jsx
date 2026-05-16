@@ -317,7 +317,7 @@ function formatDisplayDate(dateString) {
 
 const pageWrapper = {
   width: "100%",
-  maxWidth: "calc(100vw - 330px)",
+  maxWidth: "100%",
   overflowX: "hidden",
   boxSizing: "border-box",
 };

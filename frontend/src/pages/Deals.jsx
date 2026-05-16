@@ -152,8 +152,9 @@ function getCardToneStyle(tone) {
 
 const pageWrapper = {
   width: "100%",
-  maxWidth: "calc(100vw - 330px)",
+  maxWidth: "100%",
   overflowX: "hidden",
+  boxSizing: "border-box",
 };
 
 const pageHeader = {
@@ -256,7 +257,6 @@ const tableBox = {
   background: "white",
   padding: "16px",
   borderRadius: "12px",
-  width: "100%",
   maxWidth: "100%",
   overflow: "hidden",
   boxShadow: "0 2px 8px rgba(0,0,0,0.06)",

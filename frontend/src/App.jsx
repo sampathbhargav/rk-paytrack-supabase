@@ -51,15 +51,12 @@ function AppLayout() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "Arial" }}>
+    <div style={appShell}>
       <aside
         style={{
+          ...sidebarStyle,
           width: collapsed ? "72px" : "250px",
-          background: "#0A1A2F",
-          color: "white",
           padding: collapsed ? "16px 10px" : "20px",
-          transition: "width 0.25s ease",
-          overflow: "hidden",
         }}
       >
         <div
@@ -148,7 +145,7 @@ function AppLayout() {
         </nav>
       </aside>
 
-      <main style={{ flex: 1, padding: "25px", background: "#f4f6f8" }}>
+      <main style={mainStyle}>
         <ConnectionStatus />
 
         <ErrorBoundary>
@@ -180,6 +177,35 @@ function getIcon(label) {
 
   return icons[label] || "•";
 }
+
+const appShell = {
+  display: "flex",
+  minHeight: "100vh",
+  width: "100vw",
+  maxWidth: "100vw",
+  fontFamily: "Arial",
+  overflow: "hidden",
+};
+
+const sidebarStyle = {
+  background: "#0A1A2F",
+  color: "white",
+  transition: "width 0.25s ease",
+  overflow: "hidden",
+  flexShrink: 0,
+  boxSizing: "border-box",
+};
+
+const mainStyle = {
+  flex: 1,
+  minWidth: 0,
+  maxWidth: "100%",
+  padding: "25px",
+  background: "#f4f6f8",
+  overflowX: "hidden",
+  overflowY: "auto",
+  boxSizing: "border-box",
+};
 
 const simpleLogoWrapper = {
   textAlign: "center",

@@ -40,12 +40,44 @@ export async function addPayment(paymentData) {
   const amountPaid = Number(paymentData.amountPaid || 0);
   const remainingAmount = Math.max(amountDue - amountPaid, 0);
 
+  if (!paymentData.dealId) {
+    throw new Error("Deal is required.");
+  }
+
+  if (!paymentData.dueDate) {
+    throw new Error("Due date is required.");
+  }
+
+  if (!amountPaid || amountPaid <= 0) {
+    throw new Error("Amount paid must be greater than 0.");
+  }
+
   const paymentType = calculatePaymentType({
     amountDue,
     amountPaid,
     promisedDate: paymentData.promisedDate,
   });
 
+  /*
+    Look for an existing active promise for the same deal + installment.
+    This prevents duplicate promises for the same due date.
+  */
+  const { data: existingPromise, error: existingPromiseError } = await supabase
+    .from("payment_promises")
+    .select("*")
+    .eq("deal_id", paymentData.dealId)
+    .eq("original_due_date", paymentData.dueDate)
+    .in("promise_status", ["Pending", "Broken", "Partial Paid"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingPromiseError) throw existingPromiseError;
+
+  /*
+    If there is an existing promise, this payment is related to that promise.
+    Store promise_id on the payment so void logic can reset the promise later.
+  */
   const { data: payment, error: paymentError } = await supabase
     .from("payments")
     .insert({
@@ -57,16 +89,23 @@ export async function addPayment(paymentData) {
       remaining_amount: remainingAmount,
       payment_method: paymentData.paymentMethod,
       payment_type: paymentType,
-      notes: paymentData.notes,
+      payment_status: "Active",
+      promise_id: existingPromise ? existingPromise.id : null,
+      notes: paymentData.notes || null,
     })
     .select()
     .single();
 
-  await updateDealPaidOffStatus(paymentData.dealId);
-
   if (paymentError) throw paymentError;
 
-  if (remainingAmount > 0 && paymentData.promisedDate) {
+  if (existingPromise) {
+    await updateExistingPromiseAfterPayment({
+      existingPromise,
+      amountPaid,
+      promisedDate: paymentData.promisedDate,
+      notes: paymentData.notes,
+    });
+  } else if (remainingAmount > 0 && paymentData.promisedDate) {
     const { error: promiseError } = await supabase
       .from("payment_promises")
       .insert({
@@ -77,13 +116,54 @@ export async function addPayment(paymentData) {
         remaining_amount: remainingAmount,
         promised_date: paymentData.promisedDate,
         promise_status: "Pending",
-        notes: paymentData.notes,
+        notes: paymentData.notes || null,
       });
 
     if (promiseError) throw promiseError;
   }
 
+  await updateDealPaidOffStatus(paymentData.dealId);
+
   return payment;
+}
+
+async function updateExistingPromiseAfterPayment({
+  existingPromise,
+  amountPaid,
+  promisedDate,
+  notes,
+}) {
+  const oldRemaining = Number(existingPromise.remaining_amount || 0);
+  const newRemaining = Math.max(oldRemaining - Number(amountPaid || 0), 0);
+
+  const oldPaidNow = Number(existingPromise.amount_paid_now || 0);
+  const newPaidNow = oldPaidNow + Number(amountPaid || 0);
+
+  const paymentNote = notes
+    ? `Additional payment received: ${amountPaid}. ${notes}`
+    : `Additional payment received: ${amountPaid}.`;
+
+  const updatedNotes = [existingPromise.notes, paymentNote]
+    .filter(Boolean)
+    .join("\n");
+
+  const updatePayload = {
+    amount_paid_now: newPaidNow,
+    remaining_amount: newRemaining,
+    promise_status: newRemaining <= 0 ? "Paid" : "Pending",
+    notes: updatedNotes,
+  };
+
+  if (newRemaining > 0 && promisedDate) {
+    updatePayload.promised_date = promisedDate;
+  }
+
+  const { error } = await supabase
+    .from("payment_promises")
+    .update(updatePayload)
+    .eq("id", existingPromise.id);
+
+  if (error) throw error;
 }
 
 export async function updateDealPaidOffStatus(dealId) {
@@ -110,7 +190,11 @@ export async function updateDealPaidOffStatus(dealId) {
 
   const totalAmount = Number(deal.total_amount || 0);
 
-  if (totalAmount > 0 && totalPaid >= totalAmount && deal.status !== "Paid Off") {
+  if (
+    totalAmount > 0 &&
+    totalPaid >= totalAmount &&
+    deal.status !== "Paid Off"
+  ) {
     const { error } = await supabase
       .from("deals")
       .update({ status: "Paid Off" })

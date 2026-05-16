@@ -40,19 +40,21 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
   });
 
   const handlePrint = () => {
-    const printContents = document.getElementById(
-      "account-summary-print"
-    ).innerHTML;
+    const printElement = document.getElementById("account-summary-print");
 
-    const logoUrl = new URL(logo, window.location.origin).href;
+    if (!printElement) {
+      alert("Print summary was not found.");
+      return;
+    }
+
+    const printContents = printElement.innerHTML;
 
     const printWindow = window.open("", "_blank", "width=1000,height=800");
-    const logoForPrint = logo;
 
-    const finalPrintContents = printContents.replace(
-        'src="' + logo + '"',
-        'src="' + logoForPrint + '"'
-      );
+    if (!printWindow) {
+      alert("Popup blocked. Please allow popups and try again.");
+      return;
+    }
 
     printWindow.document.write(`
       <html>
@@ -75,9 +77,34 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
               display: flex;
               justify-content: space-between;
               align-items: flex-start;
+              gap: 20px;
               border-bottom: 4px solid #0A1A2F;
               padding-bottom: 16px;
               margin-bottom: 22px;
+            }
+
+            .logo-row {
+              display: flex;
+              align-items: center;
+              gap: 14px;
+            }
+
+            .logo-print-box {
+              background: white;
+              border: 1px solid #e5e7eb;
+              border-radius: 8px;
+              padding: 3px;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+              width: fit-content;
+              flex-shrink: 0;
+            }
+
+            .logo-print {
+              width: 70px;
+              max-width: 70px;
+              height: auto;
+              display: block;
+              object-fit: contain;
             }
 
             .brand h1 {
@@ -96,6 +123,7 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
             .statement-box {
               text-align: right;
               color: #111827;
+              min-width: 230px;
             }
 
             .statement-box h2 {
@@ -140,11 +168,6 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
             .badge-paid {
               background: #dcfce7;
               color: #166534;
-            }
-
-            .badge-active {
-              background: #dbeafe;
-              color: #1d4ed8;
             }
 
             .badge-balance {
@@ -222,6 +245,7 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
             .info-value {
               font-weight: bold;
               color: #111827;
+              word-break: break-word;
             }
 
             table {
@@ -246,6 +270,7 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
               padding: 8px;
               border: 1px solid #e5e7eb;
               vertical-align: top;
+              word-break: break-word;
             }
 
             tr:nth-child(even) td {
@@ -280,16 +305,7 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
               border-radius: 0 0 8px 8px;
               min-height: 70px;
               background: #fff;
-            }
-
-            .footer {
-              margin-top: 35px;
-              padding-top: 15px;
-              border-top: 1px solid #e5e7eb;
-              color: #64748b;
-              font-size: 11px;
-              display: flex;
-              justify-content: space-between;
+              word-break: break-word;
             }
 
             .signature-row {
@@ -306,53 +322,46 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
               font-size: 12px;
             }
 
+            .footer {
+              margin-top: 35px;
+              padding-top: 15px;
+              border-top: 1px solid #e5e7eb;
+              color: #64748b;
+              font-size: 11px;
+              display: flex;
+              justify-content: space-between;
+            }
+
             @media print {
               body {
                 padding: 16px;
-              }
-
-              .no-print {
-                display: none !important;
               }
 
               .section {
                 page-break-inside: avoid;
               }
 
-              .logo-row {
-                display: flex;
-                align-items: center;
-                gap: 14px;
-              }
-              
-              .logo-print-box {
-                background: white;
-                border: 1px solid #e5e7eb;
-                border-radius: 8px;
-                padding: 3px;
-                box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-                width: fit-content;
-              }
-              
-              .logo-print {
-                width: 70px;
-                max-width: 70px;
-                height: auto;
-                display: block;
-                object-fit: contain;
+              .top-header {
+                page-break-inside: avoid;
               }
             }
           </style>
         </head>
         <body>
-          ${finalPrintContents}
+          ${printContents}
+          <script>
+            window.onload = function () {
+              setTimeout(function () {
+                window.focus();
+                window.print();
+              }, 300);
+            };
+          </script>
         </body>
       </html>
     `);
 
     printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
   };
 
   return (
@@ -361,36 +370,36 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
         🖨 Print Account Summary
       </button>
 
-      <div id="account-summary-print" style={{ display: "none" }}>
-      <div className="top-header">
-        <div className="logo-row">
+      <div id="account-summary-print" style={hiddenPrintContainer}>
+        <div className="top-header">
+          <div className="logo-row">
             <div className="logo-print-box">
-            <img
+              <img
                 src={logo}
                 alt="RK PayTrack Logo"
                 className="logo-print"
                 style={{
-                    width: "70px",
-                    maxWidth: "70px",
-                    height: "auto",
-                    display: "block",
-                    objectFit: "contain",
+                  width: "70px",
+                  maxWidth: "70px",
+                  height: "auto",
+                  display: "block",
+                  objectFit: "contain",
                 }}
-                />
+              />
             </div>
 
             <div className="brand">
-            <h1>RK PayTrack</h1>
-            <p>Dealer Payment Tracking System</p>
-            <p>Account Summary / Customer Statement</p>
+              <h1>RK PayTrack</h1>
+              <p>Dealer Payment Tracking System</p>
+              <p>Account Summary / Customer Statement</p>
             </div>
-        </div>
+          </div>
 
-        <div className="statement-box">
+          <div className="statement-box">
             <h2>ACCOUNT SUMMARY</h2>
             <p>Generated: {new Date().toLocaleString()}</p>
             <p>Deal Tag: {deal.deal_tag}</p>
-        </div>
+          </div>
         </div>
 
         <div className="customer-title">
@@ -454,7 +463,9 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
 
             <div className="info-item">
               <div className="info-label">Address</div>
-              <div className="info-value">{deal.customers?.address || "—"}</div>
+              <div className="info-value">
+                {deal.customers?.address || "—"}
+              </div>
             </div>
           </div>
         </div>
@@ -525,20 +536,26 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
             </thead>
 
             <tbody>
-              {schedule.map((item) => (
-                <tr key={item.installmentNumber}>
-                  <td>{item.installmentNumber}</td>
-                  <td>{formatDisplayDate(item.dueDate)}</td>
-                  <td>{formatMoney(item.amountDue)}</td>
-                  <td>{formatMoney(item.paidForDueDate)}</td>
-                  <td>{formatMoney(item.remaining)}</td>
-                  <td>
-                    <span className={getPrintStatusClass(item.status)}>
-                      {item.status}
-                    </span>
-                  </td>
+              {schedule.length === 0 ? (
+                <tr>
+                  <td colSpan="6">No due schedule available.</td>
                 </tr>
-              ))}
+              ) : (
+                schedule.map((item) => (
+                  <tr key={item.installmentNumber}>
+                    <td>{item.installmentNumber}</td>
+                    <td>{formatDisplayDate(item.dueDate)}</td>
+                    <td>{formatMoney(item.amountDue)}</td>
+                    <td>{formatMoney(item.paidForDueDate)}</td>
+                    <td>{formatMoney(item.remaining)}</td>
+                    <td>
+                      <span className={getPrintStatusClass(item.status)}>
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -651,14 +668,24 @@ function formatDisplayDate(dateString) {
 }
 
 const printButtonStyle = {
-    display: "inline-block",
-    background: "#166534",
-    color: "white",
-    padding: "8px 12px",
-    borderRadius: "8px",
-    border: "none",
-    cursor: "pointer",
-    fontWeight: "bold",
-  };
+  display: "inline-block",
+  background: "#166534",
+  color: "white",
+  padding: "8px 12px",
+  borderRadius: "8px",
+  border: "none",
+  cursor: "pointer",
+  fontWeight: "bold",
+};
+
+const hiddenPrintContainer = {
+  position: "absolute",
+  left: "-99999px",
+  top: 0,
+  width: "800px",
+  maxWidth: "800px",
+  height: "0px",
+  overflow: "hidden",
+};
 
 export default AccountSummaryPrint;

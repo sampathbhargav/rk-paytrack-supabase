@@ -2,12 +2,18 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getDealById, updateDeal } from "../api/dealsApi";
 import { updateCustomer } from "../api/customersApi";
+import {
+  getDueDayFromStartDate,
+  calculateMaturityDate,
+} from "../utils/dealDateUtils";
 
 function EditDeal() {
   const { dealId } = useParams();
   const navigate = useNavigate();
 
   const [customerId, setCustomerId] = useState("");
+  const [originalFormData, setOriginalFormData] = useState(null);
+
   const [formData, setFormData] = useState({
     customerName: "",
     phone: "",
@@ -30,6 +36,11 @@ function EditDeal() {
   });
 
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const isCashDeal = formData.dealType === "Cash";
+  const isInHouseDeal = formData.dealType === "In-house";
 
   useEffect(() => {
     loadDeal();
@@ -37,11 +48,14 @@ function EditDeal() {
 
   const loadDeal = async () => {
     try {
+      setMessage("");
+      setMessageType("");
+
       const deal = await getDealById(dealId);
 
       setCustomerId(deal.customer_id);
 
-      setFormData({
+      const loadedData = {
         customerName: deal.customers?.customer_name || "",
         phone: deal.customers?.phone || "",
         email: deal.customers?.email || "",
@@ -60,14 +74,36 @@ function EditDeal() {
         maturityDate: deal.maturity_date || "",
         status: deal.status || "Active",
         notes: deal.notes || "",
-      });
+      };
+
+      setFormData(loadedData);
+      setOriginalFormData(loadedData);
     } catch (error) {
       setMessage(`Failed to load deal: ${error.message}`);
+      setMessageType("error");
     }
+  };
+
+  const cleanFormData = (data) => {
+    return {
+      ...data,
+      customerName: data.customerName.trim(),
+      phone: data.phone.trim(),
+      email: data.email.trim(),
+      address: data.address.trim(),
+      dealTag: data.dealTag.trim(),
+      truck: data.truck.trim(),
+      year: data.year.trim(),
+      vin: data.vin.trim().toUpperCase(),
+      notes: data.notes.trim(),
+    };
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    setMessage("");
+    setMessageType("");
 
     setFormData((prev) => {
       const updated = {
@@ -75,312 +111,778 @@ function EditDeal() {
         [name]: value,
       };
 
-      if (name === "dealType" && value !== "In-house") {
-        updated.dealSubtype = "";
+      if (name === "dealType") {
+        if (value !== "In-house") {
+          updated.dealSubtype = "";
+        }
+
+        if (value === "Cash") {
+          updated.monthlyPayment = "";
+          updated.dueDay = "";
+          updated.term = "";
+          updated.maturityDate = "";
+        }
+      }
+
+      if (name === "startDate" && value && updated.dealType !== "Cash") {
+        const dueDay = getDueDayFromStartDate(value);
+        updated.dueDay = dueDay;
+
+        if (updated.term) {
+          updated.maturityDate = calculateMaturityDate(
+            value,
+            dueDay,
+            updated.term
+          );
+        }
+      }
+
+      if (name === "term" && updated.dealType !== "Cash") {
+        updated.maturityDate = calculateMaturityDate(
+          updated.startDate,
+          updated.dueDay,
+          value
+        );
+      }
+
+      if (name === "dueDay" && updated.dealType !== "Cash") {
+        updated.maturityDate = calculateMaturityDate(
+          updated.startDate,
+          value,
+          updated.term
+        );
       }
 
       return updated;
     });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessage("");
+  const validateForm = () => {
+    const data = cleanFormData(formData);
 
-    const scheduleChangingFields = [
+    if (!data.customerName) {
+      return "Customer name is required.";
+    }
+
+    if (!data.dealTag) {
+      return "Deal tag is required.";
+    }
+
+    if (!data.dealType) {
+      return "Deal type is required.";
+    }
+
+    if (data.dealType === "In-house" && !data.dealSubtype) {
+      return "Deal sub type is required for In-house deals.";
+    }
+
+    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      return "Please enter a valid email address.";
+    }
+
+    if (data.year && !/^\d{4}$/.test(data.year)) {
+      return "Year must be a 4-digit year, for example 2022.";
+    }
+
+    if (data.vin && data.vin.length > 17) {
+      return "VIN cannot be more than 17 characters.";
+    }
+
+    if (!data.totalAmount || Number(data.totalAmount) < 0) {
+      return "Total amount is required and cannot be negative.";
+    }
+
+    if (data.dealType !== "Cash") {
+      if (!data.startDate) {
+        return "Start date is required for payment deals.";
+      }
+
+      if (!data.monthlyPayment || Number(data.monthlyPayment) <= 0) {
+        return "Monthly payment must be greater than 0.";
+      }
+
+      if (!data.dueDay || Number(data.dueDay) < 1 || Number(data.dueDay) > 31) {
+        return "Due day must be between 1 and 31.";
+      }
+
+      if (!data.term || Number(data.term) <= 0) {
+        return "Term must be greater than 0.";
+      }
+
+      if (!Number.isInteger(Number(data.term))) {
+        return "Term must be a whole number.";
+      }
+
+      if (!data.maturityDate) {
+        return "Maturity date is required.";
+      }
+    }
+
+    return "";
+  };
+
+  const didScheduleChange = () => {
+    if (!originalFormData) return true;
+
+    const scheduleFields = [
       "totalAmount",
       "monthlyPayment",
       "term",
       "dueDay",
       "startDate",
+      "maturityDate",
+      "status",
     ];
-    
-    const confirmed = window.confirm(
-      "Are you sure you want to save these changes? If you changed total amount, monthly payment, term, due day, or start date, this may affect the payment schedule and balance."
+
+    return scheduleFields.some(
+      (field) => String(originalFormData[field] || "") !== String(formData[field] || "")
     );
-    
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    setMessage("");
+    setMessageType("");
+
+    const validationError = validateForm();
+
+    if (validationError) {
+      setMessage(validationError);
+      setMessageType("error");
+      return;
+    }
+
+    const data = cleanFormData(formData);
+
+    const confirmationMessage = didScheduleChange()
+      ? "Are you sure you want to save these changes? You changed important deal or schedule information. This may affect the payment schedule, balance, due payments, and paid-off status."
+      : "Are you sure you want to save these changes?";
+
+    const confirmed = window.confirm(confirmationMessage);
+
     if (!confirmed) return;
 
     try {
+      setIsSaving(true);
+
       await updateCustomer(customerId, {
-        customerName: formData.customerName,
-        phone: formData.phone,
-        email: formData.email,
-        address: formData.address,
+        customerName: data.customerName,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
       });
 
       await updateDeal(dealId, {
-        dealTag: formData.dealTag,
-        dealType: formData.dealType,
-        dealSubtype: formData.dealSubtype,
-        startDate: formData.startDate,
-        truck: formData.truck,
-        year: formData.year,
-        vin: formData.vin,
-        totalAmount: formData.totalAmount,
-        monthlyPayment: formData.monthlyPayment,
-        dueDay: formData.dueDay,
-        term: formData.term,
-        maturityDate: formData.maturityDate,
-        status: formData.status,
-        notes: formData.notes,
+        dealTag: data.dealTag,
+        dealType: data.dealType,
+        dealSubtype: data.dealType === "In-house" ? data.dealSubtype : null,
+        startDate: data.startDate || null,
+        truck: data.truck,
+        year: data.year,
+        vin: data.vin,
+        totalAmount: Number(data.totalAmount || 0),
+        monthlyPayment:
+          data.dealType === "Cash" ? 0 : Number(data.monthlyPayment || 0),
+        dueDay: data.dealType === "Cash" ? null : Number(data.dueDay || 0),
+        term: data.dealType === "Cash" ? null : Number(data.term || 0),
+        maturityDate: data.dealType === "Cash" ? null : data.maturityDate,
+        status: data.status,
+        notes: data.notes,
       });
 
       setMessage("Deal updated successfully.");
+      setMessageType("success");
 
       setTimeout(() => {
         navigate(`/deals/${dealId}`);
       }, 700);
     } catch (error) {
       setMessage(`Failed to update deal: ${error.message}`);
+      setMessageType("error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  if (!originalFormData && !message) {
+    return (
+      <div style={pageWrapper}>
+        <p>Loading deal...</p>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <Link to={`/deals/${dealId}`} style={{ color: "#0A1A2F" }}>
-        ← Back to Customer
-      </Link>
+    <div style={pageWrapper}>
+      <div style={topActionBar}>
+        <Link to={`/deals/${dealId}`} style={backLink}>
+          ← Back to Customer
+        </Link>
 
-      <h1>Edit Deal</h1>
-      <p>Update customer and deal information.</p>
+        <button
+          type="button"
+          onClick={loadDeal}
+          style={secondaryButtonStyle}
+          disabled={isSaving}
+        >
+          Reload
+        </button>
+      </div>
 
-      <form onSubmit={handleSubmit} style={formStyle}>
-        <h2>Customer Information</h2>
-
-        <div style={grid}>
-          <Input
-            label="Customer Name"
-            name="customerName"
-            value={formData.customerName}
-            onChange={handleChange}
-            required
-          />
-
-          <Input
-            label="Phone"
-            name="phone"
-            value={formData.phone}
-            onChange={handleChange}
-          />
-
-          <Input
-            label="Email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-          />
-
-          <Input
-            label="Address"
-            name="address"
-            value={formData.address}
-            onChange={handleChange}
-          />
+      <div style={pageHeader}>
+        <div>
+          <h1 style={pageTitle}>Edit Deal</h1>
+          <p style={pageDescription}>
+            Update customer information, deal details, schedule fields, status,
+            and internal notes.
+          </p>
         </div>
 
-        <h2 style={{ marginTop: "30px" }}>Deal Information</h2>
+        <div style={getStatusBadgeStyle(formData.status)}>
+          {formData.status || "Active"}
+        </div>
+      </div>
 
-        <div style={grid}>
-          <Input
-            label="Deal Tag"
-            name="dealTag"
-            value={formData.dealTag}
-            onChange={handleChange}
-            required
-          />
+      {message && (
+        <div
+          style={{
+            ...messageBox,
+            ...(messageType === "success" ? successMessage : errorMessage),
+          }}
+        >
+          {message}
+        </div>
+      )}
 
-          <div>
-            <label>Deal Type</label>
-            <select
+      <form onSubmit={handleSubmit} style={formStyle}>
+        <Section
+          title="Customer Information"
+          description="Basic customer contact details used for follow-up and records."
+        >
+          <div style={grid}>
+            <Input
+              label="Customer Name"
+              name="customerName"
+              value={formData.customerName}
+              onChange={handleChange}
+              required
+            />
+
+            <Input
+              label="Phone"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+            />
+
+            <Input
+              label="Email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+            />
+
+            <Input
+              label="Address"
+              name="address"
+              value={formData.address}
+              onChange={handleChange}
+            />
+          </div>
+        </Section>
+
+        <Section
+          title="Deal Information"
+          description="Truck, deal type, amount, and current deal status."
+        >
+          <div style={grid}>
+            <Input
+              label="Deal Tag"
+              name="dealTag"
+              value={formData.dealTag}
+              onChange={handleChange}
+              required
+            />
+
+            <Select
+              label="Deal Type"
               name="dealType"
               value={formData.dealType}
               onChange={handleChange}
-              style={inputStyle}
-            >
-              <option>In-house</option>
-              <option>Down Finance</option>
-              <option>Borrow Money</option>
-              <option>Motor Finance</option>
-              <option>Cash</option>
-            </select>
-          </div>
+              options={[
+                "In-house",
+                "Down Finance",
+                "Borrow Money",
+                "Motor Finance",
+                "Cash",
+              ]}
+              required
+            />
 
-          {formData.dealType === "In-house" && (
-            <div>
-              <label>Deal Sub Type</label>
-              <select
+            {isInHouseDeal && (
+              <Select
+                label="Deal Sub Type"
                 name="dealSubtype"
                 value={formData.dealSubtype}
                 onChange={handleChange}
-                style={inputStyle}
-              >
-                <option value="">Select Sub Type</option>
-                <option>Regular</option>
-                <option>Apportioned</option>
-                <option>Combination</option>
-              </select>
-            </div>
-          )}
+                options={["Regular", "Apportioned", "Combination"]}
+                placeholder="Select Sub Type"
+                required
+              />
+            )}
 
-          <Input
-            label="Start Date"
-            name="startDate"
-            type="date"
-            value={formData.startDate}
-            onChange={handleChange}
-          />
-
-          <Input
-            label="Truck"
-            name="truck"
-            value={formData.truck}
-            onChange={handleChange}
-          />
-
-          <Input
-            label="Year"
-            name="year"
-            value={formData.year}
-            onChange={handleChange}
-          />
-
-          <Input
-            label="VIN"
-            name="vin"
-            value={formData.vin}
-            onChange={handleChange}
-          />
-
-          <Input
-            label="Total Amount"
-            name="totalAmount"
-            type="number"
-            value={formData.totalAmount}
-            onChange={handleChange}
-          />
-
-          <Input
-            label="Monthly Payment"
-            name="monthlyPayment"
-            type="number"
-            value={formData.monthlyPayment}
-            onChange={handleChange}
-          />
-
-          <Input
-            label="Due Day"
-            name="dueDay"
-            type="number"
-            value={formData.dueDay}
-            onChange={handleChange}
-          />
-
-          <Input
-            label="Term"
-            name="term"
-            type="number"
-            value={formData.term}
-            onChange={handleChange}
-          />
-
-          <Input
-            label="Maturity Date"
-            name="maturityDate"
-            type="date"
-            value={formData.maturityDate}
-            onChange={handleChange}
-          />
-
-          <div>
-            <label>Status</label>
-            <select
+            <Select
+              label="Status"
               name="status"
               value={formData.status}
               onChange={handleChange}
-              style={inputStyle}
-            >
-              <option>Active</option>
-              <option>Paid Off</option>
-              <option>Closed</option>
-              <option>Repo</option>
-              <option>Cancelled</option>
-              <option>Defaulted</option>
-            </select>
-          </div>
-        </div>
+              options={[
+                "Active",
+                "Paid Off",
+                "Closed",
+                "Repo",
+                "Cancelled",
+                "Defaulted",
+              ]}
+              required
+            />
 
-        <div style={{ marginTop: "20px" }}>
-          <label>Deal Notes</label>
+            <Input
+              label="Truck"
+              name="truck"
+              value={formData.truck}
+              onChange={handleChange}
+            />
+
+            <Input
+              label="Year"
+              name="year"
+              value={formData.year}
+              onChange={handleChange}
+              maxLength={4}
+            />
+
+            <Input
+              label="VIN"
+              name="vin"
+              value={formData.vin}
+              onChange={handleChange}
+              maxLength={17}
+            />
+
+            <Input
+              label="Total Amount"
+              name="totalAmount"
+              type="number"
+              value={formData.totalAmount}
+              onChange={handleChange}
+              required
+              helperText="Changing this may affect balance and paid-off status."
+            />
+          </div>
+        </Section>
+
+        <Section
+          title="Payment Schedule"
+          description={
+            isCashDeal
+              ? "Cash deals do not need monthly schedule fields."
+              : "Schedule is calculated from start date, due day, term, and monthly payment."
+          }
+        >
+          {isCashDeal && (
+            <div style={infoBox}>
+              Cash deal selected. Monthly payment, due day, term, and maturity
+              date are not required.
+            </div>
+          )}
+
+          <div style={grid}>
+            <Input
+              label="Start Date"
+              name="startDate"
+              type="date"
+              value={formData.startDate}
+              onChange={handleChange}
+              disabled={isCashDeal}
+              required={!isCashDeal}
+              helperText="Due day will auto-fill from this date."
+            />
+
+            <Input
+              label="Monthly Payment"
+              name="monthlyPayment"
+              type="number"
+              value={formData.monthlyPayment}
+              onChange={handleChange}
+              disabled={isCashDeal}
+              required={!isCashDeal}
+            />
+
+            <Input
+              label="Due Day"
+              name="dueDay"
+              type="number"
+              value={formData.dueDay}
+              onChange={handleChange}
+              disabled={isCashDeal}
+              required={!isCashDeal}
+              helperText="Auto-filled from start date, but can be edited."
+            />
+
+            <Input
+              label="Term"
+              name="term"
+              type="number"
+              value={formData.term}
+              onChange={handleChange}
+              disabled={isCashDeal}
+              required={!isCashDeal}
+            />
+
+            <Input
+              label="Maturity Date"
+              name="maturityDate"
+              type="date"
+              value={formData.maturityDate}
+              onChange={handleChange}
+              disabled={isCashDeal}
+              readOnly
+              helperText="Auto-calculated from start date, due day, and term."
+            />
+          </div>
+        </Section>
+
+        <Section
+          title="Internal Deal Notes"
+          description="Special terms, title notes, payment notes, customer agreements, or internal dealership notes."
+        >
           <textarea
             name="notes"
             value={formData.notes}
             onChange={handleChange}
-            style={{
-              ...inputStyle,
-              height: "120px",
-              resize: "vertical",
-            }}
+            placeholder="Add internal notes for this deal..."
+            style={notesInput}
           />
+        </Section>
+
+        <div style={buttonRow}>
+          <button type="submit" style={buttonStyle} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save Changes"}
+          </button>
+
+          <Link to={`/deals/${dealId}`} style={cancelButtonStyle}>
+            Cancel
+          </Link>
         </div>
-
-        <button type="submit" style={buttonStyle}>
-          Save Changes
-        </button>
-
-        {message && <p>{message}</p>}
       </form>
     </div>
   );
 }
 
-function Input({ label, name, value, onChange, type = "text", required }) {
+function Section({ title, description, children }) {
+  return (
+    <section style={sectionBox}>
+      <div style={sectionHeader}>
+        <h2 style={sectionTitle}>{title}</h2>
+        <p style={sectionDescription}>{description}</p>
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+function Input({
+  label,
+  name,
+  value,
+  onChange,
+  type = "text",
+  required,
+  disabled,
+  readOnly,
+  helperText,
+  maxLength,
+}) {
   return (
     <div>
-      <label>{label}</label>
+      <label style={labelStyle}>
+        {label} {required && <span style={requiredMark}>*</span>}
+      </label>
+
       <input
         name={name}
         type={type}
         value={value}
         onChange={onChange}
         required={required}
-        style={inputStyle}
+        disabled={disabled}
+        readOnly={readOnly}
+        maxLength={maxLength}
+        style={{
+          ...inputStyle,
+          background: disabled || readOnly ? "#f3f4f6" : "white",
+          cursor: disabled ? "not-allowed" : "text",
+        }}
       />
+
+      {helperText && <small style={helperTextStyle}>{helperText}</small>}
     </div>
   );
 }
 
+function Select({
+  label,
+  name,
+  value,
+  onChange,
+  options,
+  placeholder,
+  required,
+}) {
+  return (
+    <div>
+      <label style={labelStyle}>
+        {label} {required && <span style={requiredMark}>*</span>}
+      </label>
+
+      <select
+        name={name}
+        value={value}
+        onChange={onChange}
+        required={required}
+        style={inputStyle}
+      >
+        {placeholder && <option value="">{placeholder}</option>}
+
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function getStatusBadgeStyle(status) {
+  const base = {
+    padding: "7px 12px",
+    borderRadius: "999px",
+    fontWeight: "bold",
+    fontSize: "13px",
+    whiteSpace: "nowrap",
+  };
+
+  if (status === "Paid Off") {
+    return { ...base, background: "#dcfce7", color: "#166534" };
+  }
+
+  if (status === "Defaulted") {
+    return { ...base, background: "#111827", color: "white" };
+  }
+
+  if (status === "Repo") {
+    return { ...base, background: "#fee2e2", color: "#991b1b" };
+  }
+
+  if (status === "Closed") {
+    return { ...base, background: "#e5e7eb", color: "#374151" };
+  }
+
+  if (status === "Cancelled") {
+    return { ...base, background: "#f3f4f6", color: "#6b7280" };
+  }
+
+  return { ...base, background: "#dbeafe", color: "#1d4ed8" };
+}
+
+const pageWrapper = {
+  width: "100%",
+  maxWidth: "100%",
+  overflowX: "hidden",
+  boxSizing: "border-box",
+};
+
+const topActionBar = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "14px",
+  marginBottom: "18px",
+  flexWrap: "wrap",
+};
+
+const backLink = {
+  color: "#0A1A2F",
+  textDecoration: "none",
+  fontWeight: "bold",
+};
+
+const pageHeader = {
+  background: "white",
+  padding: "20px",
+  borderRadius: "14px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "18px",
+  flexWrap: "wrap",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+  marginBottom: "20px",
+};
+
+const pageTitle = {
+  margin: 0,
+  color: "#111827",
+};
+
+const pageDescription = {
+  marginTop: "8px",
+  marginBottom: 0,
+  color: "#667085",
+};
+
 const formStyle = {
   background: "white",
-  padding: "25px",
+  padding: "22px",
+  borderRadius: "14px",
+  maxWidth: "100%",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+  boxSizing: "border-box",
+};
+
+const sectionBox = {
+  marginTop: "22px",
+  padding: "18px",
+  border: "1px solid #e5e7eb",
   borderRadius: "12px",
-  maxWidth: "900px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  background: "#ffffff",
+};
+
+const sectionHeader = {
+  marginBottom: "16px",
+};
+
+const sectionTitle = {
+  margin: 0,
+  color: "#111827",
+};
+
+const sectionDescription = {
+  marginTop: "6px",
+  marginBottom: 0,
+  color: "#667085",
+  fontSize: "14px",
 };
 
 const grid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-  gap: "15px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+  gap: "16px",
+};
+
+const labelStyle = {
+  display: "block",
+  fontWeight: "bold",
+  color: "#374151",
+  marginBottom: "6px",
+};
+
+const requiredMark = {
+  color: "#dc2626",
 };
 
 const inputStyle = {
   width: "100%",
-  padding: "10px",
-  marginTop: "6px",
-  border: "1px solid #ccc",
-  borderRadius: "8px",
+  padding: "11px",
+  border: "1px solid #d1d5db",
+  borderRadius: "9px",
   boxSizing: "border-box",
+  fontSize: "14px",
+};
+
+const helperTextStyle = {
+  display: "block",
+  color: "#667085",
+  fontSize: "12px",
+  marginTop: "5px",
+};
+
+const notesInput = {
+  ...inputStyle,
+  minHeight: "130px",
+  resize: "vertical",
+  background: "#fffbeb",
+  border: "1px solid #fde68a",
+  lineHeight: "1.5",
+};
+
+const infoBox = {
+  background: "#f8fafc",
+  border: "1px dashed #cbd5e1",
+  padding: "13px",
+  borderRadius: "10px",
+  color: "#475569",
+  marginBottom: "16px",
+};
+
+const buttonRow = {
+  display: "flex",
+  gap: "12px",
+  marginTop: "24px",
+  flexWrap: "wrap",
 };
 
 const buttonStyle = {
-  marginTop: "25px",
   background: "#0A1A2F",
   color: "white",
   padding: "12px 20px",
   border: "none",
-  borderRadius: "8px",
+  borderRadius: "9px",
   cursor: "pointer",
+  fontWeight: "bold",
+};
+
+const cancelButtonStyle = {
+  background: "#e5e7eb",
+  color: "#111827",
+  padding: "12px 20px",
+  borderRadius: "9px",
+  textDecoration: "none",
+  fontWeight: "bold",
+};
+
+const secondaryButtonStyle = {
+  background: "#e5e7eb",
+  color: "#111827",
+  padding: "9px 13px",
+  borderRadius: "8px",
+  border: "none",
+  cursor: "pointer",
+  fontWeight: "bold",
+};
+
+const messageBox = {
+  padding: "12px 14px",
+  borderRadius: "10px",
+  marginBottom: "18px",
+  fontWeight: "bold",
+};
+
+const successMessage = {
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #86efac",
+};
+
+const errorMessage = {
+  background: "#fee2e2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
 };
 
 export default EditDeal;

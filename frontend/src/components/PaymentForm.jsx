@@ -31,11 +31,19 @@ function PaymentForm() {
   }, []);
 
   const loadData = async () => {
-    const dealsData = await getDeals();
-    const paymentsData = await getPayments();
+    try {
+      setMessage("");
+      setMessageType("");
 
-    setDeals(dealsData);
-    setPayments(paymentsData);
+      const dealsData = await getDeals();
+      const paymentsData = await getPayments();
+
+      setDeals(dealsData);
+      setPayments(paymentsData);
+    } catch (error) {
+      setMessage(`Failed to load payment form data: ${error.message}`);
+      setMessageType("error");
+    }
   };
 
   const selectedDeal = deals.find((deal) => deal.id === formData.dealId);
@@ -156,6 +164,12 @@ function PaymentForm() {
       return;
     }
 
+    const confirmed = window.confirm(
+      "Are you sure you want to save this payment? This will affect the balance and payment schedule."
+    );
+
+    if (!confirmed) return;
+
     try {
       setIsSaving(true);
 
@@ -202,16 +216,18 @@ function PaymentForm() {
     <form onSubmit={handleSubmit} style={formStyle}>
       <div style={formHeader}>
         <div>
-          <h2 style={formTitle}>Add Payment</h2>
+          <h2 style={formTitle}>Payment Entry Form</h2>
           <p style={formDescription}>
             Record customer payments, partial payments, and promised remaining amounts.
           </p>
         </div>
 
-        {selectedDeal && (
+        {selectedDeal ? (
           <span style={getDealStatusBadgeStyle(selectedDeal.status)}>
             {selectedDeal.status || "Active"}
           </span>
+        ) : (
+          <span style={neutralBadge}>Select Deal</span>
         )}
       </div>
 
@@ -235,6 +251,7 @@ function PaymentForm() {
             <label style={labelStyle}>
               Deal / Customer <span style={requiredMark}>*</span>
             </label>
+
             <select
               name="dealId"
               value={formData.dealId}
@@ -243,6 +260,7 @@ function PaymentForm() {
               required
             >
               <option value="">Select Deal</option>
+
               {deals.map((deal) => (
                 <option key={deal.id} value={deal.id}>
                   {deal.deal_tag} - {deal.customers?.customer_name} -{" "}
@@ -250,6 +268,7 @@ function PaymentForm() {
                 </option>
               ))}
             </select>
+
             <small style={helperTextStyle}>
               Defaulted deals are still available for manual payment entry.
             </small>
@@ -268,6 +287,7 @@ function PaymentForm() {
             <label style={labelStyle}>
               Select Due Installment <span style={requiredMark}>*</span>
             </label>
+
             <select
               name="dueDate"
               value={formData.dueDate}
@@ -288,6 +308,7 @@ function PaymentForm() {
                 </option>
               ))}
             </select>
+
             <small style={helperTextStyle}>
               Only unpaid or partially paid installments are shown.
             </small>
@@ -301,6 +322,7 @@ function PaymentForm() {
             <strong>
               {selectedDeal.deal_tag} - {selectedDeal.customers?.customer_name}
             </strong>
+
             <span style={getDealStatusBadgeStyle(selectedDeal.status)}>
               {selectedDeal.status || "Active"}
             </span>
@@ -308,7 +330,10 @@ function PaymentForm() {
 
           <div style={selectedDealGrid}>
             <InfoItem label="Deal Type" value={selectedDeal.deal_type || "—"} />
-            <InfoItem label="Sub Type" value={selectedDeal.deal_subtype || "—"} />
+            <InfoItem
+              label="Sub Type"
+              value={selectedDeal.deal_subtype || "—"}
+            />
             <InfoItem
               label="Truck"
               value={`${selectedDeal.year || ""} ${selectedDeal.truck || ""}`}
@@ -317,7 +342,10 @@ function PaymentForm() {
               label="Monthly Payment"
               value={formatMoney(selectedDeal.monthly_payment)}
             />
-            <InfoItem label="Start Date" value={selectedDeal.start_date || "—"} />
+            <InfoItem
+              label="Start Date"
+              value={formatDisplayDate(selectedDeal.start_date)}
+            />
             <InfoItem label="Term" value={selectedDeal.term || "—"} />
           </div>
         </div>
@@ -353,6 +381,7 @@ function PaymentForm() {
             <label style={labelStyle}>
               Payment Method <span style={requiredMark}>*</span>
             </label>
+
             <select
               name="paymentMethod"
               value={formData.paymentMethod}
@@ -500,6 +529,7 @@ function Section({ title, description, children }) {
         <h3 style={sectionTitle}>{title}</h3>
         <p style={sectionDescription}>{description}</p>
       </div>
+
       {children}
     </section>
   );
@@ -520,6 +550,7 @@ function Input({
       <label style={labelStyle}>
         {label} {required && <span style={requiredMark}>*</span>}
       </label>
+
       <input
         name={name}
         type={type}
@@ -530,8 +561,10 @@ function Input({
         style={{
           ...inputStyle,
           background: readOnly ? "#f3f4f6" : "white",
+          cursor: readOnly ? "not-allowed" : "text",
         }}
       />
+
       {helperText && <small style={helperTextStyle}>{helperText}</small>}
     </div>
   );
@@ -575,7 +608,7 @@ function getDealStatusBadgeStyle(status) {
 }
 
 function formatDisplayDate(dateString) {
-  if (!dateString) return "";
+  if (!dateString) return "—";
 
   const [year, month, day] = dateString.split("-");
   return `${month}/${day}/${year}`;
@@ -583,10 +616,12 @@ function formatDisplayDate(dateString) {
 
 const formStyle = {
   background: "white",
-  padding: "26px",
+  padding: "22px",
   borderRadius: "14px",
-  maxWidth: "980px",
-  boxShadow: "0 3px 12px rgba(0,0,0,0.08)",
+  width: "100%",
+  maxWidth: "100%",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+  boxSizing: "border-box",
 };
 
 const formHeader = {
@@ -597,6 +632,7 @@ const formHeader = {
   marginBottom: "20px",
   borderBottom: "1px solid #e5e7eb",
   paddingBottom: "18px",
+  flexWrap: "wrap",
 };
 
 const formTitle = {
@@ -610,8 +646,18 @@ const formDescription = {
   color: "#667085",
 };
 
+const neutralBadge = {
+  background: "#e5e7eb",
+  color: "#374151",
+  padding: "5px 10px",
+  borderRadius: "999px",
+  fontSize: "12px",
+  fontWeight: "bold",
+  whiteSpace: "nowrap",
+};
+
 const sectionBox = {
-  marginTop: "24px",
+  marginTop: "22px",
   padding: "18px",
   border: "1px solid #e5e7eb",
   borderRadius: "12px",
@@ -636,7 +682,7 @@ const sectionDescription = {
 
 const grid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
   gap: "16px",
 };
 
@@ -681,6 +727,7 @@ const selectedDealHeader = {
   alignItems: "center",
   gap: "12px",
   marginBottom: "12px",
+  flexWrap: "wrap",
 };
 
 const selectedDealGrid = {
@@ -745,6 +792,7 @@ const buttonRow = {
   display: "flex",
   gap: "12px",
   marginTop: "24px",
+  flexWrap: "wrap",
 };
 
 const buttonStyle = {

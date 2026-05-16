@@ -60,11 +60,11 @@ function DealForm() {
         }
       }
 
-      if (name === "startDate" && value) {
+      if (name === "startDate" && value && updated.dealType !== "Cash") {
         const dueDay = getDueDayFromStartDate(value);
         updated.dueDay = dueDay;
 
-        if (updated.term && value !== "" && updated.dealType !== "Cash") {
+        if (updated.term) {
           updated.maturityDate = calculateMaturityDate(
             value,
             dueDay,
@@ -94,16 +94,13 @@ function DealForm() {
   };
 
   const cleanFormData = () => {
-    const cleanDealTag = formData.dealTag.trim();
-    const cleanCustomerName = formData.customerName.trim();
-
     return {
       ...formData,
-      customerName: cleanCustomerName,
+      customerName: formData.customerName.trim(),
       phone: formData.phone.trim(),
       email: formData.email.trim(),
       address: formData.address.trim(),
-      dealTag: cleanDealTag,
+      dealTag: formData.dealTag.trim(),
       truck: formData.truck.trim(),
       year: formData.year.trim(),
       vin: formData.vin.trim().toUpperCase(),
@@ -142,17 +139,13 @@ function DealForm() {
       return "VIN cannot be more than 17 characters.";
     }
 
-    if (data.totalAmount && Number(data.totalAmount) < 0) {
-      return "Total amount cannot be negative.";
+    if (!data.totalAmount || Number(data.totalAmount) <= 0) {
+      return "Total amount must be greater than 0.";
     }
 
     if (data.dealType !== "Cash") {
       if (!data.startDate) {
         return "Start date is required for payment deals.";
-      }
-
-      if (!data.totalAmount || Number(data.totalAmount) <= 0) {
-        return "Total amount must be greater than 0 for payment deals.";
       }
 
       if (!data.monthlyPayment || Number(data.monthlyPayment) <= 0) {
@@ -180,12 +173,6 @@ function DealForm() {
       }
     }
 
-    if (data.dealType === "Cash") {
-      if (!data.totalAmount || Number(data.totalAmount) <= 0) {
-        return "Total amount is required for Cash deals.";
-      }
-    }
-
     return "";
   };
 
@@ -204,6 +191,12 @@ function DealForm() {
     }
 
     const data = cleanFormData();
+
+    const confirmed = window.confirm(
+      "Are you sure you want to create this customer and deal?"
+    );
+
+    if (!confirmed) return;
 
     try {
       setIsSaving(true);
@@ -233,7 +226,8 @@ function DealForm() {
         year: data.year,
         vin: data.vin,
         totalAmount: Number(data.totalAmount || 0),
-        monthlyPayment: data.dealType === "Cash" ? 0 : Number(data.monthlyPayment || 0),
+        monthlyPayment:
+          data.dealType === "Cash" ? 0 : Number(data.monthlyPayment || 0),
         dueDay: data.dealType === "Cash" ? null : Number(data.dueDay || 0),
         term: data.dealType === "Cash" ? null : Number(data.term || 0),
         maturityDate: data.dealType === "Cash" ? null : data.maturityDate,
@@ -255,7 +249,7 @@ function DealForm() {
     <form onSubmit={handleSubmit} style={formStyle}>
       <div style={formHeader}>
         <div>
-          <h2 style={formTitle}>Add Customer / Deal</h2>
+          <h2 style={formTitle}>Deal Entry Form</h2>
           <p style={formDescription}>
             Enter customer details, deal information, and payment schedule setup.
           </p>
@@ -358,25 +352,11 @@ function DealForm() {
           )}
 
           <Input
-            label="Start Date"
-            name="startDate"
-            type="date"
-            value={formData.startDate}
-            onChange={handleChange}
-            required={!isCashDeal}
-            helperText={
-              isCashDeal
-                ? "Optional for Cash deals."
-                : "Due day will auto-fill from this date."
-            }
-          />
-
-          <Input
             label="Truck"
             name="truck"
             value={formData.truck}
             onChange={handleChange}
-            placeholder="Example: FRTLR"
+            placeholder="Example: FREIGHTLINER"
           />
 
           <Input
@@ -427,6 +407,21 @@ function DealForm() {
 
         <div style={grid}>
           <Input
+            label="Start Date"
+            name="startDate"
+            type="date"
+            value={formData.startDate}
+            onChange={handleChange}
+            required={!isCashDeal}
+            disabled={isCashDeal}
+            helperText={
+              isCashDeal
+                ? "Not required for Cash deals."
+                : "Due day will auto-fill from this date."
+            }
+          />
+
+          <Input
             label="Monthly Payment"
             name="monthlyPayment"
             type="number"
@@ -468,7 +463,7 @@ function DealForm() {
             onChange={handleChange}
             readOnly
             disabled={isCashDeal}
-            helperText="Auto-calculated from start date and term."
+            helperText="Auto-calculated from start date, due day, and term."
           />
         </div>
       </Section>
@@ -598,10 +593,12 @@ function Select({
 
 const formStyle = {
   background: "white",
-  padding: "26px",
+  padding: "22px",
   borderRadius: "14px",
-  maxWidth: "980px",
-  boxShadow: "0 3px 12px rgba(0,0,0,0.08)",
+  width: "100%",
+  maxWidth: "100%",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+  boxSizing: "border-box",
 };
 
 const formHeader = {
@@ -612,6 +609,7 @@ const formHeader = {
   marginBottom: "20px",
   borderBottom: "1px solid #e5e7eb",
   paddingBottom: "18px",
+  flexWrap: "wrap",
 };
 
 const formTitle = {
@@ -636,7 +634,7 @@ const dealTypeBadge = {
 };
 
 const sectionBox = {
-  marginTop: "24px",
+  marginTop: "22px",
   padding: "18px",
   border: "1px solid #e5e7eb",
   borderRadius: "12px",
@@ -661,7 +659,7 @@ const sectionDescription = {
 
 const grid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
   gap: "16px",
 };
 
@@ -705,6 +703,7 @@ const buttonRow = {
   display: "flex",
   gap: "12px",
   marginTop: "24px",
+  flexWrap: "wrap",
 };
 
 const buttonStyle = {

@@ -215,7 +215,7 @@ function DuePayments() {
                       {item.deal.deal_tag}
                     </Link>
                   </td>
-                  <td style={td}>{item.deal.customers?.customer_name || "—"}</td>
+                  <td style={customerCell}>{item.deal.customers?.customer_name || "—"}</td>
                   <td style={td}>{item.deal.customers?.phone || "—"}</td>
                   <td style={td}>{item.installmentNumber}</td>
                   <td style={td}>
@@ -280,7 +280,7 @@ function DuePayments() {
                       promise.deals?.deal_tag || "—"
                     )}
                   </td>
-                  <td style={td}>
+                  <td style={customerCell}>
                     {promise.deals?.customers?.customer_name || "—"}
                   </td>
                   <td style={td}>
@@ -592,6 +592,15 @@ const td = {
   padding: "12px",
   borderBottom: "1px solid #eee",
   whiteSpace: "nowrap",
+};
+
+const customerCell = {
+  ...td,
+  minWidth: "150px",
+  maxWidth: "190px",
+  whiteSpace: "normal",
+  wordBreak: "break-word",
+  lineHeight: "1.35",
 };
 
 const moneyCell = {

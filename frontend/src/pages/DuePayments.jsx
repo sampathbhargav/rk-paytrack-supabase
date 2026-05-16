@@ -78,12 +78,10 @@ function DuePayments() {
   const totalDue = totalScheduledDue + totalPromiseDue;
 
   const isToday = selectedDate === today;
-  const pageDateLabel = isToday
-    ? "Today"
-    : formatDisplayDate(selectedDate);
+  const pageDateLabel = isToday ? "Today" : formatDisplayDate(selectedDate);
 
   return (
-    <div>
+    <div style={pageWrapper}>
       <div style={pageHeader}>
         <div>
           <h1 style={pageTitle}>Due Payments</h1>
@@ -148,21 +146,13 @@ function DuePayments() {
           value={formatMoney(totalScheduledDue)}
           tone="warning"
         />
-        <Card
-          title="Promises Due"
-          value={promisesDue.length}
-          tone="info"
-        />
+        <Card title="Promises Due" value={promisesDue.length} tone="info" />
         <Card
           title="Promise Amount Due"
           value={formatMoney(totalPromiseDue)}
           tone="info"
         />
-        <Card
-          title="Total Due"
-          value={formatMoney(totalDue)}
-          tone="danger"
-        />
+        <Card title="Total Due" value={formatMoney(totalDue)} tone="danger" />
         <Card
           title="Broken Promises Due"
           value={brokenPromisesDue.length}
@@ -174,14 +164,17 @@ function DuePayments() {
         <SummaryItem label="Selected Date" value={formatDisplayDate(selectedDate)} />
         <SummaryItem label="Pending Promises" value={pendingPromisesDue.length} />
         <SummaryItem label="Broken Promises" value={brokenPromisesDue.length} />
-        <SummaryItem label="Total Follow-Ups" value={scheduledUnpaidOrPartial.length + promisesDue.length} />
+        <SummaryItem
+          label="Total Follow-Ups"
+          value={scheduledUnpaidOrPartial.length + promisesDue.length}
+        />
       </div>
 
       <div style={tableBox}>
         <div style={sectionHeader}>
           <h2 style={sectionTitle}>Scheduled Payments Due</h2>
           <p style={sectionDescription}>
-            Active scheduled installments due on this date that are unpaid or partially paid.
+            Deal Tag stays locked. Scroll inside the table to view more columns or rows.
           </p>
         </div>
 
@@ -191,52 +184,64 @@ function DuePayments() {
             message="There are no active scheduled installments that need payment follow-up for the selected date."
           />
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={th}>Deal Tag</th>
-                <th style={th}>Customer</th>
-                <th style={th}>Phone</th>
-                <th style={th}>Installment</th>
-                <th style={th}>Deal Type</th>
-                <th style={th}>Truck</th>
-                <th style={th}>Amount Due</th>
-                <th style={th}>Paid</th>
-                <th style={th}>Remaining</th>
-                <th style={th}>Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {scheduledUnpaidOrPartial.map((item) => (
-                <tr key={`${item.deal.id}-${item.dueDate}`}>
-                  <td style={td}>
-                    <Link to={`/deals/${item.deal.id}`} style={dealLink}>
-                      {item.deal.deal_tag}
-                    </Link>
-                  </td>
-                  <td style={customerCell}>{item.deal.customers?.customer_name || "—"}</td>
-                  <td style={td}>{item.deal.customers?.phone || "—"}</td>
-                  <td style={td}>{item.installmentNumber}</td>
-                  <td style={td}>
-                    {item.deal.deal_type}
-                    {item.deal.deal_subtype ? ` / ${item.deal.deal_subtype}` : ""}
-                  </td>
-                  <td style={td}>
-                    {item.deal.year || ""} {item.deal.truck || ""}
-                  </td>
-                  <td style={td}>{formatMoney(item.amountDue)}</td>
-                  <td style={td}>{formatMoney(item.paidForDueDate)}</td>
-                  <td style={moneyCell}>{formatMoney(item.remainingForDueDate)}</td>
-                  <td style={td}>
-                    <span style={getStatusStyle(item.status)}>
-                      {item.status}
-                    </span>
-                  </td>
+          <div style={tableScroll}>
+            <table style={scheduledTableStyle}>
+              <thead>
+                <tr>
+                  <th style={stickyTh}>Deal Tag</th>
+                  <th style={{ ...th, width: "165px" }}>Customer</th>
+                  <th style={{ ...th, width: "115px" }}>Phone</th>
+                  <th style={{ ...th, width: "90px" }}>Installment</th>
+                  <th style={{ ...th, width: "125px" }}>Deal Type</th>
+                  <th style={{ ...th, width: "145px" }}>Truck</th>
+                  <th style={{ ...th, width: "105px" }}>Amount Due</th>
+                  <th style={{ ...th, width: "95px" }}>Paid</th>
+                  <th style={{ ...th, width: "105px" }}>Remaining</th>
+                  <th style={{ ...th, width: "105px" }}>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+
+              <tbody>
+                {scheduledUnpaidOrPartial.map((item) => (
+                  <tr key={`${item.deal.id}-${item.dueDate}`}>
+                    <td style={stickyTd}>
+                      <Link to={`/deals/${item.deal.id}`} style={dealLink}>
+                        {item.deal.deal_tag}
+                      </Link>
+                    </td>
+
+                    <td style={customerCell}>
+                      {item.deal.customers?.customer_name || "—"}
+                    </td>
+
+                    <td style={td}>{item.deal.customers?.phone || "—"}</td>
+
+                    <td style={td}>{item.installmentNumber}</td>
+
+                    <td style={wrapCell}>{item.deal.deal_type || "—"}</td>
+
+                    <td style={wrapCell}>
+                      {item.deal.year || ""} {item.deal.truck || ""}
+                    </td>
+
+                    <td style={moneyCell}>{formatMoney(item.amountDue)}</td>
+
+                    <td style={moneyCell}>{formatMoney(item.paidForDueDate)}</td>
+
+                    <td style={moneyCell}>
+                      {formatMoney(item.remainingForDueDate)}
+                    </td>
+
+                    <td style={td}>
+                      <span style={getStatusStyle(item.status)}>
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -244,7 +249,7 @@ function DuePayments() {
         <div style={sectionHeader}>
           <h2 style={sectionTitle}>Promises Due</h2>
           <p style={sectionDescription}>
-            Customer promises due on this date, including pending and broken promise follow-ups.
+            Deal Tag stays locked. Customer promises due on this date, including pending and broken promise follow-ups.
           </p>
         </div>
 
@@ -254,57 +259,64 @@ function DuePayments() {
             message="There are no active customer promises to follow up for the selected date."
           />
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={th}>Deal Tag</th>
-                <th style={th}>Customer</th>
-                <th style={th}>Phone</th>
-                <th style={th}>Original Due Date</th>
-                <th style={th}>Promised Date</th>
-                <th style={th}>Amount Due</th>
-                <th style={th}>Status</th>
-                <th style={th}>Notes</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {promisesDue.map((promise) => (
-                <tr key={promise.id}>
-                  <td style={td}>
-                    {promise.deals?.id ? (
-                      <Link to={`/deals/${promise.deals.id}`} style={dealLink}>
-                        {promise.deals?.deal_tag || "—"}
-                      </Link>
-                    ) : (
-                      promise.deals?.deal_tag || "—"
-                    )}
-                  </td>
-                  <td style={customerCell}>
-                    {promise.deals?.customers?.customer_name || "—"}
-                  </td>
-                  <td style={td}>
-                    {promise.deals?.customers?.phone || "—"}
-                  </td>
-                  <td style={td}>
-                    {formatDisplayDate(promise.original_due_date)}
-                  </td>
-                  <td style={td}>
-                    {formatDisplayDate(promise.promised_date)}
-                  </td>
-                  <td style={moneyCell}>
-                    {formatMoney(promise.remaining_amount)}
-                  </td>
-                  <td style={td}>
-                    <span style={getPromiseStatusStyle(promise.promise_status)}>
-                      {promise.promise_status}
-                    </span>
-                  </td>
-                  <td style={notesCell}>{promise.notes || "—"}</td>
+          <div style={tableScroll}>
+            <table style={promiseTableStyle}>
+              <thead>
+                <tr>
+                  <th style={stickyTh}>Deal Tag</th>
+                  <th style={{ ...th, width: "165px" }}>Customer</th>
+                  <th style={{ ...th, width: "115px" }}>Phone</th>
+                  <th style={{ ...th, width: "120px" }}>Original Due</th>
+                  <th style={{ ...th, width: "120px" }}>Promised Date</th>
+                  <th style={{ ...th, width: "110px" }}>Amount Due</th>
+                  <th style={{ ...th, width: "115px" }}>Status</th>
+                  <th style={{ ...th, width: "220px" }}>Notes</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+
+              <tbody>
+                {promisesDue.map((promise) => (
+                  <tr key={promise.id}>
+                    <td style={stickyTd}>
+                      {promise.deals?.id ? (
+                        <Link to={`/deals/${promise.deals.id}`} style={dealLink}>
+                          {promise.deals?.deal_tag || "—"}
+                        </Link>
+                      ) : (
+                        <span style={missingDealTag}>
+                          {promise.deals?.deal_tag || "—"}
+                        </span>
+                      )}
+                    </td>
+
+                    <td style={customerCell}>
+                      {promise.deals?.customers?.customer_name || "—"}
+                    </td>
+
+                    <td style={td}>{promise.deals?.customers?.phone || "—"}</td>
+
+                    <td style={td}>
+                      {formatDisplayDate(promise.original_due_date)}
+                    </td>
+
+                    <td style={td}>{formatDisplayDate(promise.promised_date)}</td>
+
+                    <td style={moneyCell}>
+                      {formatMoney(promise.remaining_amount)}
+                    </td>
+
+                    <td style={td}>
+                      <span style={getPromiseStatusStyle(promise.promise_status)}>
+                        {promise.promise_status}
+                      </span>
+                    </td>
+
+                    <td style={notesCell}>{promise.notes || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
@@ -314,8 +326,10 @@ function DuePayments() {
 function Card({ title, value, tone = "default" }) {
   return (
     <div style={{ ...cardStyle, ...getCardToneStyle(tone) }}>
-      <p style={{ margin: 0, color: "#667085" }}>{title}</p>
-      <h2 style={{ marginTop: "10px", marginBottom: 0 }}>{value}</h2>
+      <p style={{ margin: 0, color: "#667085", fontSize: "12px" }}>{title}</p>
+      <h3 style={{ marginTop: "6px", marginBottom: 0, fontSize: "19px" }}>
+        {value}
+      </h3>
     </div>
   );
 }
@@ -339,28 +353,21 @@ function EmptyState({ title, message }) {
 }
 
 function getCardToneStyle(tone) {
-  if (tone === "danger") {
-    return { borderLeft: "5px solid #991b1b" };
-  }
+  if (tone === "danger") return { borderLeft: "4px solid #991b1b" };
+  if (tone === "warning") return { borderLeft: "4px solid #f59e0b" };
+  if (tone === "info") return { borderLeft: "4px solid #2563eb" };
 
-  if (tone === "warning") {
-    return { borderLeft: "5px solid #f59e0b" };
-  }
-
-  if (tone === "info") {
-    return { borderLeft: "5px solid #2563eb" };
-  }
-
-  return { borderLeft: "5px solid transparent" };
+  return { borderLeft: "4px solid transparent" };
 }
 
 function getStatusStyle(status) {
   const base = {
-    padding: "5px 10px",
+    padding: "5px 9px",
     borderRadius: "999px",
-    fontSize: "13px",
+    fontSize: "12px",
     fontWeight: "bold",
     whiteSpace: "nowrap",
+    display: "inline-block",
   };
 
   if (status === "Partial") {
@@ -388,11 +395,12 @@ function getStatusStyle(status) {
 
 function getPromiseStatusStyle(status) {
   const base = {
-    padding: "5px 10px",
+    padding: "5px 9px",
     borderRadius: "999px",
-    fontSize: "13px",
+    fontSize: "12px",
     fontWeight: "bold",
     whiteSpace: "nowrap",
+    display: "inline-block",
   };
 
   if (status === "Broken") {
@@ -444,12 +452,21 @@ function getDateOffset(dateString, offsetDays) {
   return `${year}-${month}-${day}`;
 }
 
+const pageWrapper = {
+  width: "100%",
+  maxWidth: "calc(100vw - 330px)",
+  overflowX: "hidden",
+  boxSizing: "border-box",
+};
+
 const pageHeader = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "flex-start",
-  gap: "20px",
-  marginBottom: "20px",
+  gap: "16px",
+  marginBottom: "16px",
+  flexWrap: "wrap",
+  maxWidth: "100%",
 };
 
 const pageTitle = {
@@ -460,6 +477,7 @@ const pageTitle = {
 const pageDescription = {
   marginTop: "6px",
   color: "#667085",
+  maxWidth: "680px",
 };
 
 const dateBadge = {
@@ -474,14 +492,15 @@ const dateBadge = {
 
 const controlBox = {
   background: "white",
-  padding: "18px",
+  padding: "14px",
   borderRadius: "12px",
-  marginBottom: "20px",
+  marginBottom: "14px",
   display: "flex",
   alignItems: "flex-end",
-  gap: "14px",
+  gap: "12px",
   flexWrap: "wrap",
   boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+  boxSizing: "border-box",
 };
 
 const labelStyle = {
@@ -492,7 +511,7 @@ const labelStyle = {
 };
 
 const inputStyle = {
-  width: "220px",
+  width: "210px",
   padding: "10px",
   border: "1px solid #d1d5db",
   borderRadius: "8px",
@@ -517,27 +536,28 @@ const secondaryButton = {
 
 const cardGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "20px",
-  marginBottom: "20px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+  gap: "10px",
+  marginBottom: "14px",
+  maxWidth: "100%",
 };
 
 const cardStyle = {
   background: "white",
-  padding: "20px",
-  borderRadius: "12px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  padding: "12px",
+  borderRadius: "10px",
+  boxShadow: "0 1px 5px rgba(0,0,0,0.07)",
 };
 
 const summaryStrip = {
   background: "#f8fafc",
   border: "1px solid #e5e7eb",
   borderRadius: "12px",
-  padding: "14px 18px",
+  padding: "12px 16px",
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: "14px",
-  marginBottom: "22px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  gap: "12px",
+  marginBottom: "16px",
 };
 
 const summaryLabel = {
@@ -549,15 +569,45 @@ const summaryLabel = {
 
 const tableBox = {
   background: "white",
-  padding: "20px",
+  padding: "14px",
   borderRadius: "12px",
-  marginTop: "25px",
-  overflowX: "auto",
+  marginTop: "18px",
+  width: "100%",
+  maxWidth: "100%",
+  overflow: "hidden",
   boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+  boxSizing: "border-box",
+};
+
+const tableScroll = {
+  width: "100%",
+  maxWidth: "100%",
+  height: "430px",
+  overflowX: "auto",
+  overflowY: "auto",
+  border: "1px solid #e5e7eb",
+  borderRadius: "10px",
+  boxSizing: "border-box",
+};
+
+const scheduledTableStyle = {
+  width: "1155px",
+  maxWidth: "1155px",
+  tableLayout: "fixed",
+  borderCollapse: "separate",
+  borderSpacing: 0,
+};
+
+const promiseTableStyle = {
+  width: "1070px",
+  maxWidth: "1070px",
+  tableLayout: "fixed",
+  borderCollapse: "separate",
+  borderSpacing: 0,
 };
 
 const sectionHeader = {
-  marginBottom: "14px",
+  marginBottom: "12px",
 };
 
 const sectionTitle = {
@@ -581,23 +631,58 @@ const emptyState = {
 };
 
 const th = {
+  position: "sticky",
+  top: 0,
+  zIndex: 2,
   textAlign: "left",
-  padding: "12px",
+  padding: "10px",
   borderBottom: "1px solid #ddd",
   background: "#f9fafb",
-  whiteSpace: "nowrap",
+  color: "#374151",
+  whiteSpace: "normal",
+  fontSize: "12px",
+  lineHeight: "1.25",
+};
+
+const stickyTh = {
+  ...th,
+  left: 0,
+  width: "95px",
+  zIndex: 5,
+  background: "#eef2ff",
+  boxShadow: "2px 0 6px rgba(0,0,0,0.08)",
 };
 
 const td = {
-  padding: "12px",
+  padding: "10px",
   borderBottom: "1px solid #eee",
   whiteSpace: "nowrap",
+  fontSize: "12px",
+  background: "white",
+  verticalAlign: "top",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const stickyTd = {
+  ...td,
+  position: "sticky",
+  left: 0,
+  zIndex: 4,
+  width: "95px",
+  background: "#ffffff",
+  boxShadow: "2px 0 6px rgba(0,0,0,0.06)",
 };
 
 const customerCell = {
   ...td,
-  minWidth: "150px",
-  maxWidth: "190px",
+  whiteSpace: "normal",
+  wordBreak: "break-word",
+  lineHeight: "1.35",
+};
+
+const wrapCell = {
+  ...td,
   whiteSpace: "normal",
   wordBreak: "break-word",
   lineHeight: "1.35",
@@ -610,15 +695,22 @@ const moneyCell = {
 
 const notesCell = {
   ...td,
-  maxWidth: "320px",
   whiteSpace: "normal",
-  lineHeight: "1.4",
+  wordBreak: "break-word",
+  lineHeight: "1.35",
 };
 
 const dealLink = {
   color: "#1d4ed8",
+  fontWeight: "800",
+  textDecoration: "underline",
+  textUnderlineOffset: "3px",
+  cursor: "pointer",
+};
+
+const missingDealTag = {
+  color: "#374151",
   fontWeight: "bold",
-  textDecoration: "none",
 };
 
 const errorBox = {

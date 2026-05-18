@@ -41,6 +41,7 @@ function EditDeal() {
 
   const isCashDeal = formData.dealType === "Cash";
   const isInHouseDeal = formData.dealType === "In-house";
+  const isRegistrationMoneyDeal = formData.dealType === "Registration Money";
 
   useEffect(() => {
     loadDeal();
@@ -102,8 +103,6 @@ function EditDeal() {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    const isRegistrationMoneyDeal = formData.dealType === "Registration Money";
-
     setMessage("");
     setMessageType("");
 
@@ -124,9 +123,44 @@ function EditDeal() {
           updated.term = "";
           updated.maturityDate = "";
         }
+
+        if (value === "Registration Money") {
+          updated.term = "1";
+
+          if (updated.totalAmount) {
+            updated.monthlyPayment = updated.totalAmount;
+          }
+
+          if (updated.startDate) {
+            const dueDay = getDueDayFromStartDate(updated.startDate);
+            updated.dueDay = dueDay;
+            updated.maturityDate = updated.startDate;
+          }
+        }
       }
 
-      if (name === "startDate" && value && updated.dealType !== "Cash") {
+      if (name === "totalAmount" && updated.dealType === "Registration Money") {
+        updated.monthlyPayment = value;
+        updated.term = "1";
+
+        if (updated.startDate) {
+          updated.maturityDate = updated.startDate;
+        }
+      }
+
+      if (name === "startDate" && value && updated.dealType === "Registration Money") {
+        const dueDay = getDueDayFromStartDate(value);
+        updated.dueDay = dueDay;
+        updated.term = "1";
+        updated.maturityDate = value;
+      }
+
+      if (
+        name === "startDate" &&
+        value &&
+        updated.dealType !== "Cash" &&
+        updated.dealType !== "Registration Money"
+      ) {
         const dueDay = getDueDayFromStartDate(value);
         updated.dueDay = dueDay;
 
@@ -139,7 +173,11 @@ function EditDeal() {
         }
       }
 
-      if (name === "term" && updated.dealType !== "Cash") {
+      if (
+        name === "term" &&
+        updated.dealType !== "Cash" &&
+        updated.dealType !== "Registration Money"
+      ) {
         updated.maturityDate = calculateMaturityDate(
           updated.startDate,
           updated.dueDay,
@@ -147,7 +185,11 @@ function EditDeal() {
         );
       }
 
-      if (name === "dueDay" && updated.dealType !== "Cash") {
+      if (
+        name === "dueDay" &&
+        updated.dealType !== "Cash" &&
+        updated.dealType !== "Registration Money"
+      ) {
         updated.maturityDate = calculateMaturityDate(
           updated.startDate,
           value,
@@ -194,30 +236,16 @@ function EditDeal() {
       return "Total amount is required and cannot be negative.";
     }
 
-    if (name === "dealType" && value === "Registration Money") {
-      updated.term = "1";
-    
-      if (updated.totalAmount) {
-        updated.monthlyPayment = updated.totalAmount;
+    if (data.dealType === "Registration Money") {
+      if (!data.startDate) {
+        return "Tentative due date is required for Registration Money deals.";
       }
-    
-      if (updated.startDate) {
-        const dueDay = getDueDayFromStartDate(updated.startDate);
-        updated.dueDay = dueDay;
-        updated.maturityDate = updated.startDate;
+
+      if (!data.totalAmount || Number(data.totalAmount) <= 0) {
+        return "Registration money amount must be greater than 0.";
       }
-    }
-    
-    if (name === "totalAmount" && updated.dealType === "Registration Money") {
-      updated.monthlyPayment = value;
-      updated.term = "1";
-    }
-    
-    if (name === "startDate" && value && updated.dealType === "Registration Money") {
-      const dueDay = getDueDayFromStartDate(value);
-      updated.dueDay = dueDay;
-      updated.term = "1";
-      updated.maturityDate = value;
+
+      return "";
     }
 
     if (data.dealType !== "Cash") {
@@ -263,7 +291,8 @@ function EditDeal() {
     ];
 
     return scheduleFields.some(
-      (field) => String(originalFormData[field] || "") !== String(formData[field] || "")
+      (field) =>
+        String(originalFormData[field] || "") !== String(formData[field] || "")
     );
   };
 
@@ -301,6 +330,37 @@ function EditDeal() {
         address: data.address,
       });
 
+      const finalDueDay =
+        data.dealType === "Cash"
+          ? null
+          : data.dueDay
+          ? Number(data.dueDay)
+          : data.startDate
+          ? Number(getDueDayFromStartDate(data.startDate))
+          : null;
+
+      const finalTerm =
+        data.dealType === "Cash"
+          ? null
+          : data.dealType === "Registration Money"
+          ? 1
+          : Number(data.term || 0);
+
+      const finalMonthlyPayment =
+        data.dealType === "Cash"
+          ? 0
+          : data.dealType === "Registration Money"
+          ? Number(data.totalAmount || 0)
+          : Number(data.monthlyPayment || 0);
+
+      const finalMaturityDate =
+        data.dealType === "Cash"
+          ? null
+          : data.dealType === "Registration Money"
+          ? data.startDate
+          : data.maturityDate ||
+            calculateMaturityDate(data.startDate, finalDueDay, finalTerm);
+
       await updateDeal(dealId, {
         dealTag: data.dealTag,
         dealType: data.dealType,
@@ -310,26 +370,10 @@ function EditDeal() {
         year: data.year,
         vin: data.vin,
         totalAmount: Number(data.totalAmount || 0),
-        monthlyPayment:
-          data.dealType === "Cash"
-            ? 0
-            : data.dealType === "Registration Money"
-            ? Number(data.totalAmount || 0)
-            : Number(data.monthlyPayment || 0),
-
-        term:
-          data.dealType === "Cash"
-            ? null
-            : data.dealType === "Registration Money"
-            ? 1
-            : Number(data.term || 0),
-
-        maturityDate:
-          data.dealType === "Cash"
-            ? null
-            : data.dealType === "Registration Money"
-            ? data.startDate
-            : data.maturityDate,
+        monthlyPayment: finalMonthlyPayment,
+        dueDay: finalDueDay,
+        term: finalTerm,
+        maturityDate: finalMaturityDate,
         status: data.status,
         notes: data.notes,
       });
@@ -517,7 +561,11 @@ function EditDeal() {
             />
 
             <Input
-              label="Total Amount"
+              label={
+                isRegistrationMoneyDeal
+                  ? "Registration Money Amount"
+                  : "Total Amount"
+              }
               name="totalAmount"
               type="number"
               value={formData.totalAmount}
@@ -533,6 +581,8 @@ function EditDeal() {
           description={
             isCashDeal
               ? "Cash deals do not need monthly schedule fields."
+              : isRegistrationMoneyDeal
+              ? "Registration Money is treated as a one-time scheduled receivable."
               : "Schedule is calculated from start date, due day, term, and monthly payment."
           }
         >
@@ -543,25 +593,43 @@ function EditDeal() {
             </div>
           )}
 
+          {isRegistrationMoneyDeal && (
+            <div style={infoBox}>
+              Registration Money selected. Use the tentative due date as the
+              date the customer is expected to pay title/registration money.
+              Term will stay 1 and monthly payment will match the total amount.
+            </div>
+          )}
+
           <div style={grid}>
             <Input
-              label="Start Date"
+              label={
+                isRegistrationMoneyDeal ? "Tentative Due Date" : "Start Date"
+              }
               name="startDate"
               type="date"
               value={formData.startDate}
               onChange={handleChange}
               disabled={isCashDeal}
               required={!isCashDeal}
-              helperText="Due day will auto-fill from this date."
+              helperText={
+                isRegistrationMoneyDeal
+                  ? "This is the expected sticker pickup / registration money due date."
+                  : "Due day will auto-fill from this date."
+              }
             />
 
             <Input
-              label="Monthly Payment"
+              label={
+                isRegistrationMoneyDeal
+                  ? "One-Time Amount"
+                  : "Monthly Payment"
+              }
               name="monthlyPayment"
               type="number"
               value={formData.monthlyPayment}
               onChange={handleChange}
-              disabled={isCashDeal}
+              disabled={isCashDeal || isRegistrationMoneyDeal}
               required={!isCashDeal}
             />
 
@@ -571,9 +639,9 @@ function EditDeal() {
               type="number"
               value={formData.dueDay}
               onChange={handleChange}
-              disabled={isCashDeal}
+              disabled={isCashDeal || isRegistrationMoneyDeal}
               required={!isCashDeal}
-              helperText="Auto-filled from start date, but can be edited."
+              helperText="Auto-filled from start date, but can be edited for normal payment deals."
             />
 
             <Input
@@ -582,7 +650,7 @@ function EditDeal() {
               type="number"
               value={formData.term}
               onChange={handleChange}
-              disabled={isCashDeal}
+              disabled={isCashDeal || isRegistrationMoneyDeal}
               required={!isCashDeal}
             />
 
@@ -592,9 +660,13 @@ function EditDeal() {
               type="date"
               value={formData.maturityDate}
               onChange={handleChange}
-              disabled={isCashDeal}
+              disabled={isCashDeal || isRegistrationMoneyDeal}
               readOnly
-              helperText="Auto-calculated from start date, due day, and term."
+              helperText={
+                isRegistrationMoneyDeal
+                  ? "Same as tentative due date for Registration Money."
+                  : "Auto-calculated from start date, due day, and term."
+              }
             />
           </div>
         </Section>

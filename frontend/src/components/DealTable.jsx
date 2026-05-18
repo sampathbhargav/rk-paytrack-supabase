@@ -17,19 +17,33 @@ function DealTable({ deals }) {
     <div style={tableOuter}>
       <div style={tableScroll}>
         <table style={tableStyle}>
+          <colgroup>
+            <col style={{ width: "120px" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "8%" }} />
+          </colgroup>
+
           <thead>
             <tr>
               <th style={stickyTh}>Deal Tag</th>
-              <th style={{ ...th, width: "180px" }}>Customer</th>
-              <th style={{ ...th, width: "120px" }}>Phone</th>
-              <th style={{ ...th, width: "110px" }}>Status</th>
-              <th style={{ ...th, width: "130px" }}>Deal Type</th>
-              <th style={{ ...th, width: "160px" }}>Truck</th>
-              <th style={{ ...th, width: "120px" }}>Total</th>
-              <th style={{ ...th, width: "115px" }}>Monthly</th>
-              <th style={{ ...th, width: "75px" }}>Due</th>
-              <th style={{ ...th, width: "75px" }}>Term</th>
-              <th style={{ ...th, width: "85px" }}>Action</th>
+              <th style={th}>Customer</th>
+              <th style={th}>Phone</th>
+              <th style={th}>Status</th>
+              <th style={th}>Deal Type</th>
+              <th style={th}>Truck</th>
+              <th style={th}>Total</th>
+              <th style={th}>Monthly</th>
+              <th style={th}>Due</th>
+              <th style={th}>Term</th>
+              <th style={th}>Action</th>
             </tr>
           </thead>
 
@@ -166,7 +180,8 @@ const tableScroll = {
 };
 
 const tableStyle = {
-  width: "1100px",
+  width: "100%",
+  minWidth: "1050px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -184,12 +199,13 @@ const th = {
   fontSize: "12px",
   whiteSpace: "normal",
   lineHeight: "1.25",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 
 const stickyTh = {
   ...th,
   left: 0,
-  width: "115px",
   zIndex: 5,
   background: "#eef2ff",
   boxShadow: "2px 0 6px rgba(0,0,0,0.08)",
@@ -212,7 +228,6 @@ const stickyTd = {
   position: "sticky",
   left: 0,
   zIndex: 4,
-  width: "115px",
   background: "#ffffff",
   boxShadow: "2px 0 6px rgba(0,0,0,0.06)",
   fontSize: "15px",

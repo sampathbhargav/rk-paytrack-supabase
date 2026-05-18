@@ -10,12 +10,9 @@
     "dev": "vite",
     "preview": "vite preview",
     "lint": "eslint .",
-  
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-  
     "build": "vite build",
     "electron:build": "npm run build && electron-builder",
-  
     "build:mac": "rm -rf dist release && xattr -cr public src electron build-assets package.json vite.config.js index.html && find public src electron build-assets -name '._*' -delete && npm run build && COPYFILE_DISABLE=1 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --universal",
     "build:mac:intel": "rm -rf dist release && npm run build && COPYFILE_DISABLE=1 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --x64",
     "build:mac:apple": "rm -rf dist release && npm run build && COPYFILE_DISABLE=1 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --arm64",
@@ -33,7 +30,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
-    "electron": "^41.5.1",
+    "electron": "^41.6.1",
     "electron-builder": "^26.8.1",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",

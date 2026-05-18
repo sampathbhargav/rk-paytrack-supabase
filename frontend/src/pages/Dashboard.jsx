@@ -716,24 +716,24 @@ const tableScroll = {
 };
 
 const pastDueTableStyle = {
-  width: "1145px",
-  maxWidth: "1145px",
+  width: "100%",
+  minWidth: "1145px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
 };
 
 const dueTodayTableStyle = {
-  width: "930px",
-  maxWidth: "930px",
+  width: "100%",
+  minWidth: "930px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
 };
 
 const promiseTableStyle = {
-  width: "980px",
-  maxWidth: "980px",
+  width: "100%",
+  minWidth: "980px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,

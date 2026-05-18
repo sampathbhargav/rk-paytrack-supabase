@@ -431,8 +431,8 @@ const tableScroll = {
 };
 
 const tableStyle = {
-  width: "1130px",
-  maxWidth: "1130px",
+  width: "100%",
+  minWidth: "1130px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -479,7 +479,8 @@ const th = {
 const stickyTh = {
   ...th,
   left: 0,
-  width: "90px",
+  width: "95px",
+  minWidth: "95px",
   zIndex: 5,
   background: "#eef2ff",
   boxShadow: "2px 0 6px rgba(0,0,0,0.08)",
@@ -501,7 +502,8 @@ const stickyTd = {
   position: "sticky",
   left: 0,
   zIndex: 4,
-  width: "90px",
+  width: "95px",
+  minWidth: "95px",
   background: "#ffffff",
   boxShadow: "2px 0 6px rgba(0,0,0,0.06)",
 };

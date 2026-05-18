@@ -65,6 +65,21 @@ function DuePayments() {
     (promise) => promise.promise_status === "Pending"
   );
 
+  const missingScheduleDeals = deals.filter((deal) => {
+    const isActivePaymentDeal =
+      deal.status === "Active" && deal.deal_type !== "Cash";
+
+    const missingSchedule =
+      !deal.start_date ||
+      !deal.due_day ||
+      !deal.monthly_payment ||
+      Number(deal.monthly_payment || 0) <= 0 ||
+      !deal.term ||
+      Number(deal.term || 0) <= 0;
+
+    return isActivePaymentDeal && missingSchedule;
+  });
+
   const totalScheduledDue = scheduledUnpaidOrPartial.reduce(
     (sum, item) => sum + Number(item.remainingForDueDate || 0),
     0
@@ -96,6 +111,16 @@ function DuePayments() {
       </div>
 
       {error && <div style={errorBox}>{error}</div>}
+
+      {missingScheduleDeals.length > 0 && (
+        <div style={warningBox}>
+          <strong>{missingScheduleDeals.length} active deal(s) missing schedule setup.</strong>
+          <p style={{ margin: "6px 0 0" }}>
+            These deals will not show in due payments until Start Date, Due Day,
+            Monthly Payment, and Term are completed.
+          </p>
+        </div>
+      )}
 
       <div style={controlBox}>
         <div>
@@ -133,6 +158,10 @@ function DuePayments() {
             Yesterday
           </button>
         </div>
+
+        <button type="button" onClick={loadData} style={refreshButton}>
+          Refresh
+        </button>
       </div>
 
       <div style={cardGrid}>
@@ -158,6 +187,11 @@ function DuePayments() {
           value={brokenPromisesDue.length}
           tone="danger"
         />
+        <Card
+          title="Missing Schedule"
+          value={missingScheduleDeals.length}
+          tone="warning"
+        />
       </div>
 
       <div style={summaryStrip}>
@@ -169,6 +203,57 @@ function DuePayments() {
           value={scheduledUnpaidOrPartial.length + promisesDue.length}
         />
       </div>
+
+      {missingScheduleDeals.length > 0 && (
+        <div style={tableBox}>
+          <div style={sectionHeader}>
+            <h2 style={sectionTitle}>Missing Schedule Setup</h2>
+            <p style={sectionDescription}>
+              These active deals cannot generate due payments until schedule fields are completed.
+            </p>
+          </div>
+
+          <div style={tableScrollSmall}>
+            <table style={missingScheduleTableStyle}>
+              <thead>
+                <tr>
+                  <th style={stickyTh}>Deal Tag</th>
+                  <th style={{ ...th, width: "180px" }}>Customer</th>
+                  <th style={{ ...th, width: "120px" }}>Deal Type</th>
+                  <th style={{ ...th, width: "100px" }}>Start Date</th>
+                  <th style={{ ...th, width: "80px" }}>Due Day</th>
+                  <th style={{ ...th, width: "110px" }}>Monthly</th>
+                  <th style={{ ...th, width: "80px" }}>Term</th>
+                  <th style={{ ...th, width: "220px" }}>Missing Fields</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {missingScheduleDeals.map((deal) => (
+                  <tr key={deal.id}>
+                    <td style={stickyTd}>
+                      <Link to={`/deals/${deal.id}/edit`} style={dealLink}>
+                        {deal.deal_tag}
+                      </Link>
+                    </td>
+
+                    <td style={customerCell}>
+                      {deal.customers?.customer_name || "—"}
+                    </td>
+
+                    <td style={td}>{deal.deal_type || "—"}</td>
+                    <td style={td}>{formatDisplayDate(deal.start_date)}</td>
+                    <td style={td}>{deal.due_day || "—"}</td>
+                    <td style={moneyCell}>{formatMoney(deal.monthly_payment)}</td>
+                    <td style={td}>{deal.term || "—"}</td>
+                    <td style={notesCell}>{getMissingScheduleText(deal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div style={tableBox}>
         <div style={sectionHeader}>
@@ -215,9 +300,7 @@ function DuePayments() {
                     </td>
 
                     <td style={td}>{item.deal.customers?.phone || "—"}</td>
-
                     <td style={td}>{item.installmentNumber}</td>
-
                     <td style={wrapCell}>{item.deal.deal_type || "—"}</td>
 
                     <td style={wrapCell}>
@@ -225,7 +308,6 @@ function DuePayments() {
                     </td>
 
                     <td style={moneyCell}>{formatMoney(item.amountDue)}</td>
-
                     <td style={moneyCell}>{formatMoney(item.paidForDueDate)}</td>
 
                     <td style={moneyCell}>
@@ -321,6 +403,19 @@ function DuePayments() {
       </div>
     </div>
   );
+}
+
+function getMissingScheduleText(deal) {
+  const missing = [];
+
+  if (!deal.start_date) missing.push("Start Date");
+  if (!deal.due_day) missing.push("Due Day");
+  if (!deal.monthly_payment || Number(deal.monthly_payment || 0) <= 0) {
+    missing.push("Monthly Payment");
+  }
+  if (!deal.term || Number(deal.term || 0) <= 0) missing.push("Term");
+
+  return missing.join(", ");
 }
 
 function Card({ title, value, tone = "default" }) {
@@ -490,6 +585,15 @@ const dateBadge = {
   whiteSpace: "nowrap",
 };
 
+const warningBox = {
+  background: "#fff7ed",
+  border: "1px solid #fed7aa",
+  color: "#9a3412",
+  padding: "13px",
+  borderRadius: "12px",
+  marginBottom: "14px",
+};
+
 const controlBox = {
   background: "white",
   padding: "14px",
@@ -527,6 +631,16 @@ const quickDateButtons = {
 const secondaryButton = {
   background: "#e5e7eb",
   color: "#111827",
+  border: "none",
+  padding: "10px 12px",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontWeight: "bold",
+};
+
+const refreshButton = {
+  background: "#0A1A2F",
+  color: "white",
   border: "none",
   padding: "10px 12px",
   borderRadius: "8px",
@@ -590,17 +704,30 @@ const tableScroll = {
   boxSizing: "border-box",
 };
 
+const tableScrollSmall = {
+  ...tableScroll,
+  height: "260px",
+};
+
 const scheduledTableStyle = {
-  width: "1155px",
-  maxWidth: "1155px",
+  width: "100%",
+  minWidth: "1155px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
 };
 
 const promiseTableStyle = {
-  width: "1070px",
-  maxWidth: "1070px",
+  width: "100%",
+  minWidth: "1070px",
+  tableLayout: "fixed",
+  borderCollapse: "separate",
+  borderSpacing: 0,
+};
+
+const missingScheduleTableStyle = {
+  width: "100%",
+  minWidth: "1120px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,

@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import { getDeals } from "../api/dealsApi";
+import { getPayments } from "../api/paymentsApi";
+import { getPromises } from "../api/promisesApi";
 import DealTable from "../components/DealTable";
 import SearchBar from "../components/SearchBar";
+import { exportToCsv } from "../utils/exportUtils";
 
 function Deals() {
   const [deals, setDeals] = useState([]);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     loadDeals();
@@ -47,6 +51,125 @@ function Deals() {
   const defaultedDeals = deals.filter((deal) => deal.status === "Defaulted");
   const repoDeals = deals.filter((deal) => deal.status === "Repo");
 
+  const handleExportDeals = async () => {
+    try {
+      setIsExporting(true);
+      setError("");
+
+      const payments = await getPayments();
+      const promises = await getPromises();
+
+      const activePayments = payments.filter(
+        (payment) => payment.payment_status !== "Voided"
+      );
+
+      const exportRows = filteredDeals.map((deal) => {
+        const dealPayments = activePayments.filter(
+          (payment) => payment.deal_id === deal.id
+        );
+
+        const dealPromises = promises.filter(
+          (promise) => promise.deal_id === deal.id
+        );
+
+        const totalPaid = dealPayments.reduce(
+          (sum, payment) => sum + Number(payment.amount_paid || 0),
+          0
+        );
+
+        const totalAmount = Number(deal.total_amount || 0);
+        const balance = Math.max(totalAmount - totalPaid, 0);
+
+        const sortedPayments = [...dealPayments].sort((a, b) =>
+          String(b.payment_date || "").localeCompare(
+            String(a.payment_date || "")
+          )
+        );
+
+        const lastPayment = sortedPayments[0];
+
+        const paymentHistory = sortedPayments
+          .map((payment) => {
+            return `${payment.payment_date || "No Date"} - ${
+              payment.amount_paid || 0
+            } - ${payment.payment_method || "Other"} - Due: ${
+              payment.due_date || ""
+            } - ${payment.payment_type || ""}`;
+          })
+          .join(" | ");
+
+        const activePromises = dealPromises.filter(
+          (promise) =>
+            promise.promise_status !== "Paid" &&
+            promise.promise_status !== "Cancelled" &&
+            promise.promise_status !== "Rescheduled"
+        );
+
+        const promiseHistory = dealPromises
+          .map((promise) => {
+            return `${promise.promise_status || ""} - Original Due: ${
+              promise.original_due_date || ""
+            } - Promised: ${promise.promised_date || ""} - Remaining: ${
+              promise.remaining_amount || 0
+            }`;
+          })
+          .join(" | ");
+
+        const activePromiseAmount = activePromises.reduce(
+          (sum, promise) => sum + Number(promise.remaining_amount || 0),
+          0
+        );
+
+        return {
+          Deal_Tag: deal.deal_tag || "",
+          Customer: deal.customers?.customer_name || "",
+          Phone: deal.customers?.phone || "",
+          Email: deal.customers?.email || "",
+          Address: deal.customers?.address || "",
+
+          Status: deal.status || "Active",
+          Deal_Type: deal.deal_type || "",
+          Deal_Sub_Type: deal.deal_subtype || "",
+
+          Year: deal.year || "",
+          Truck: deal.truck || "",
+          VIN: deal.vin || "",
+
+          Start_Date: deal.start_date || "",
+          Due_Day: deal.due_day || "",
+          Monthly_Payment: deal.monthly_payment || 0,
+          Term: deal.term || "",
+          Maturity_Date: deal.maturity_date || "",
+
+          Total_Amount: totalAmount,
+          Total_Paid: totalPaid,
+          Balance: balance,
+
+          Last_Payment_Date: lastPayment?.payment_date || "",
+          Last_Payment_Amount: lastPayment?.amount_paid || "",
+          Last_Payment_Method: lastPayment?.payment_method || "",
+
+          Payment_Count: dealPayments.length,
+          Payment_History: paymentHistory,
+
+          Active_Promise_Count: activePromises.length,
+          Active_Promise_Amount: activePromiseAmount,
+          Promise_History: promiseHistory,
+
+          Notes: deal.notes || "",
+        };
+      });
+
+      const today = new Date().toISOString().split("T")[0];
+
+      exportToCsv(`rk-paytrack-full-deals-export-${today}.csv`, exportRows);
+    } catch (error) {
+      setError(`Export failed: ${error.message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div style={pageWrapper}>
       <div style={pageHeader}>
@@ -57,9 +180,20 @@ function Deals() {
           </p>
         </div>
 
-        <button type="button" onClick={loadDeals} style={refreshButton}>
-          Refresh
-        </button>
+        <div style={headerActions}>
+          <button type="button" onClick={loadDeals} style={refreshButton}>
+            Refresh
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportDeals}
+            style={exportButton}
+            disabled={isExporting}
+          >
+            {isExporting ? "Exporting..." : "Export Deals"}
+          </button>
+        </div>
       </div>
 
       {error && <div style={errorBox}>{error}</div>}
@@ -176,8 +310,24 @@ const pageDescription = {
   color: "#667085",
 };
 
+const headerActions = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+
 const refreshButton = {
   background: "#0A1A2F",
+  color: "white",
+  border: "none",
+  borderRadius: "8px",
+  padding: "10px 14px",
+  cursor: "pointer",
+  fontWeight: "bold",
+};
+
+const exportButton = {
+  background: "#166534",
   color: "white",
   border: "none",
   borderRadius: "8px",

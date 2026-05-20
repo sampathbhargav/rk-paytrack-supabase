@@ -194,12 +194,17 @@ const sidebarStyle = {
   overflow: "hidden",
   flexShrink: 0,
   boxSizing: "border-box",
+  height: "100vh",
+  position: "sticky",
+  top: 0,
+  alignSelf: "flex-start",
 };
 
 const mainStyle = {
   flex: 1,
   minWidth: 0,
   maxWidth: "100%",
+  height: "100vh",
   padding: "25px",
   background: "#f4f6f8",
   overflowX: "hidden",

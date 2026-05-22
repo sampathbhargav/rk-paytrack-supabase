@@ -7,6 +7,11 @@ import {
 } from "../api/paymentsApi";
 import { getPromisesByDealId, updateBrokenPromises } from "../api/promisesApi";
 import { formatMoney } from "../utils/moneyUtils";
+import { getDealDueSchedule } from "../utils/duePaymentsUtils";
+import {
+  createGoogleCollectionReminderBatch,
+  createIcsCollectionReminderBatch,
+} from "../utils/calendarUtils";
 import PaymentHistory from "../components/PaymentHistory";
 import PromiseHistory from "../components/PromiseHistory";
 import DueSchedule from "../components/DueSchedule";
@@ -22,6 +27,7 @@ function CustomerDetail() {
   const [error, setError] = useState("");
 
   const [receipt, setReceipt] = useState(null);
+  const [showReminderMenu, setShowReminderMenu] = useState(false);
 
   useEffect(() => {
     loadCustomerDetail();
@@ -88,36 +94,91 @@ function CustomerDetail() {
   );
 
   const openPaymentReceipt = (payment) => {
-  const activePayments = payments.filter(
-    (p) => p.payment_status !== "Voided"
-  );
+    const activePaymentsForReceipt = payments.filter(
+      (p) => p.payment_status !== "Voided"
+    );
 
-  const totalPaid = activePayments.reduce(
-    (sum, p) => sum + Number(p.amount_paid || 0),
-    0
-  );
+    const totalPaidForReceipt = activePaymentsForReceipt.reduce(
+      (sum, p) => sum + Number(p.amount_paid || 0),
+      0
+    );
 
-  const totalAmount = Number(deal.total_amount || 0);
-  const remainingBalance = Math.max(totalAmount - totalPaid, 0);
+    const totalAmountForReceipt = Number(deal.total_amount || 0);
+    const remainingBalance = Math.max(
+      totalAmountForReceipt - totalPaidForReceipt,
+      0
+    );
 
-  setReceipt({
-    paymentId: payment.id,
-    customerName: deal.customers?.customer_name || "",
-    phone: deal.customers?.phone || "",
-    dealTag: deal.deal_tag || "",
-    dealType: deal.deal_type || "",
-    truck: `${deal.year || ""} ${deal.truck || ""}`,
-    vin: deal.vin || "",
-    amountPaid: payment.amount_paid || 0,
-    paymentMethod: payment.payment_method || "Other",
-    paymentDate: payment.payment_date || "",
-    dueDate: payment.due_date || "",
-    paymentType: payment.payment_type || "",
-    paymentStatus: payment.payment_status || "Paid",
-    remainingBalance,
-    notes: payment.notes || "",
-  });
-};
+    setReceipt({
+      paymentId: payment.id,
+      customerName: deal.customers?.customer_name || "",
+      phone: deal.customers?.phone || "",
+      dealTag: deal.deal_tag || "",
+      dealType: deal.deal_type || "",
+      truck: `${deal.year || ""} ${deal.truck || ""}`,
+      vin: deal.vin || "",
+      amountPaid: payment.amount_paid || 0,
+      paymentMethod: payment.payment_method || "Other",
+      paymentDate: payment.payment_date || "",
+      dueDate: payment.due_date || "",
+      paymentType: payment.payment_type || "",
+      paymentStatus: payment.payment_status || "Paid",
+      remainingBalance,
+      notes: payment.notes || "",
+    });
+  };
+
+  const getAllUnpaidReminderItems = () => {
+    const schedule = getDealDueSchedule(deal);
+
+    return schedule
+      .map((installment) => {
+        const paymentsForDueDate = activePayments.filter(
+          (payment) =>
+            payment.deal_id === deal.id &&
+            payment.due_date === installment.dueDate &&
+            payment.payment_status !== "Voided"
+        );
+
+        const paidForDueDate = paymentsForDueDate.reduce(
+          (sum, payment) => sum + Number(payment.amount_paid || 0),
+          0
+        );
+
+        const remaining = Math.max(
+          Number(installment.amountDue || 0) - paidForDueDate,
+          0
+        );
+
+        return {
+          customerName: deal.customers?.customer_name || "",
+          phone: deal.customers?.phone || "",
+          dealTag: deal.deal_tag || "",
+          truck: `${deal.year || ""} ${deal.truck || ""}`.trim(),
+          dueDate: installment.dueDate,
+          installmentNumber: installment.installmentNumber,
+          amountDue: installment.amountDue,
+          paidAmount: paidForDueDate,
+          remainingAmount: remaining,
+          notes: `Collection reminder for installment ${installment.installmentNumber}`,
+        };
+      })
+      .filter((item) => Number(item.remainingAmount || 0) > 0);
+  };
+
+  const handleAddAllToGoogleCalendar = () => {
+    createGoogleCollectionReminderBatch(
+      getAllUnpaidReminderItems(),
+      deal.deal_tag || "customer"
+    );
+  };
+
+  const handleDownloadAllIcs = () => {
+    createIcsCollectionReminderBatch(
+      getAllUnpaidReminderItems(),
+      deal.deal_tag || "customer"
+    );
+  };
 
   return (
     <div style={pageWrapper}>
@@ -130,6 +191,42 @@ function CustomerDetail() {
           <Link to={`/deals/${dealId}/edit`} style={editButtonStyle}>
             Edit Deal
           </Link>
+
+          <div style={reminderDropdownWrapper}>
+            <button
+              type="button"
+              onClick={() => setShowReminderMenu((prev) => !prev)}
+              style={reminderDropdownButton}
+            >
+              📅 Collection Reminders ▾
+            </button>
+
+            {showReminderMenu && (
+              <div style={reminderDropdownMenu}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAddAllToGoogleCalendar();
+                    setShowReminderMenu(false);
+                  }}
+                  style={reminderDropdownItem}
+                >
+                  📅 Add All to Google Calendar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDownloadAllIcs();
+                    setShowReminderMenu(false);
+                  }}
+                  style={reminderDropdownItem}
+                >
+                  🗓️ Download All ICS
+                </button>
+              </div>
+            )}
+          </div>
 
           <AccountSummaryPrint
             deal={deal}
@@ -234,6 +331,7 @@ function CustomerDetail() {
           onPromiseUpdated={loadCustomerDetail}
         />
       </div>
+
       <PaymentReceipt receipt={receipt} onClose={() => setReceipt(null)} />
     </div>
   );
@@ -343,6 +441,45 @@ const editButtonStyle = {
   borderRadius: "8px",
   textDecoration: "none",
   fontWeight: "bold",
+};
+
+const reminderDropdownWrapper = {
+  position: "relative",
+  display: "inline-block",
+};
+
+const reminderDropdownButton = {
+  background: "#2563eb",
+  color: "white",
+  border: "none",
+  borderRadius: "8px",
+  padding: "8px 12px",
+  cursor: "pointer",
+  fontWeight: "bold",
+};
+
+const reminderDropdownMenu = {
+  position: "absolute",
+  top: "42px",
+  right: 0,
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "10px",
+  boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
+  minWidth: "230px",
+  zIndex: 20,
+  overflow: "hidden",
+};
+
+const reminderDropdownItem = {
+  width: "100%",
+  background: "white",
+  border: "none",
+  padding: "12px",
+  textAlign: "left",
+  cursor: "pointer",
+  fontWeight: "bold",
+  color: "#374151",
 };
 
 const customerHeader = {

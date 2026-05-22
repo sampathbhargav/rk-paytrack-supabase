@@ -16,6 +16,7 @@ import Promises from "./pages/Promises";
 import CustomerDetail from "./pages/CustomerDetail";
 import EditDeal from "./pages/EditDeal";
 import Reports from "./pages/Reports";
+import LegalPolicies from "./pages/LegalPolicies";
 
 import ConnectionStatus from "./components/ConnectionStatus";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -42,6 +43,7 @@ function AppLayout() {
     { label: "Due Payments", path: "/due-payments" },
     { label: "Promises", path: "/promises" },
     { label: "Reports", path: "/reports" },
+    { label: "Policy Center", path: "/legal-policies" },
   ];
 
   const isActive = (path) => {
@@ -161,6 +163,7 @@ function AppLayout() {
             <Route path="/due-payments" element={<DuePayments />} />
             <Route path="/promises" element={<Promises />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/legal-policies" element={<LegalPolicies />} />
           </Routes>
         </ErrorBoundary>
       </main>
@@ -177,6 +180,7 @@ function getIcon(label) {
     "Due Payments": "📅",
     Promises: "🤝",
     Reports: "📈",
+    "Policy Center": "📘"
   };
 
   return icons[label] || "•";

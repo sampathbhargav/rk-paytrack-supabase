@@ -2,7 +2,7 @@ import { formatMoney } from "../utils/moneyUtils";
 import { useState } from "react";
 import { voidPayment } from "../api/paymentsApi";
 
-function PaymentHistory({ payments, onPaymentUpdated }) {
+function PaymentHistory({ payments, onPaymentUpdated, openPaymentReceipt }) {
 
   const [voidReason, setVoidReason] = useState("");
   const [selectedPayment, setSelectedPayment] = useState(null);
@@ -107,6 +107,7 @@ function PaymentHistory({ payments, onPaymentUpdated }) {
               <th style={th}>Notes</th>
               <th style={th}>Status</th>
               <th style={th}>Action</th>
+              {/* <th style={th}>Receipt</th> */}
             </tr>
           </thead>
 
@@ -147,17 +148,47 @@ function PaymentHistory({ payments, onPaymentUpdated }) {
                 </td>
 
                 <td style={td}>
-                  {payment.payment_status === "Voided" ? (
-                    <span>{payment.void_reason || "Voided"}</span>
-                  ) : (
+                {payment.payment_status === "Voided" ? (
+                  <span style={{ color: "#991b1b", fontWeight: "bold" }}>
+                    {payment.void_reason || "Voided"}
+                  </span>
+                ) : (
+                  <div style={actionButtonRow}>
                     <button
+                      type="button"
                       onClick={() => setSelectedPayment(payment)}
                       style={buttonStyle}
+                      title="Void Payment"
                     >
                       Void
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => openPaymentReceipt(payment)}
+                      style={receiptIconButton}
+                      title="Print Receipt"
+                    >
+                      🧾
+                    </button>
+                  </div>
+                )}
+              </td>
+
+                {/* <td style={td}>
+                  {payment.payment_status !== "Voided" ? (
+                    <button
+                      type="button"
+                      onClick={() => openPaymentReceipt(payment)}
+                      style={receiptButton}
+                    >
+                      Receipt
+                    </button>
+                  ) : (
+                    <span style={{ color: "#991b1b", fontWeight: "bold" }}>Voided</span>
                   )}
-                </td>
+                </td> */}
+
               </tr>
             ))}
           </tbody>
@@ -247,6 +278,37 @@ const sectionDescription = {
   marginBottom: 0,
   color: "#667085",
   fontSize: "14px",
+};
+
+const receiptButton = {
+  background: "#166534",
+  color: "white",
+  border: "none",
+  borderRadius: "7px",
+  padding: "7px 10px",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: "bold",
+};
+
+const actionButtonRow = {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+};
+
+const receiptIconButton = {
+  background: "#166534",
+  color: "white",
+  border: "none",
+  borderRadius: "8px",
+  width: "34px",
+  height: "34px",
+  cursor: "pointer",
+  fontSize: "17px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 export default PaymentHistory;

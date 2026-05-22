@@ -189,13 +189,21 @@ function PaymentForm() {
       );
 
       setReceipt({
-        customerName: selectedDealData?.customers?.customer_name || "",
-        dealTag: selectedDealData?.deal_tag || "",
-        amountPaid: Number(formData.amountPaid || 0),
-        paymentMethod: formData.paymentMethod,
-        paymentDate: formData.paymentDate,
-        dueDate: formData.dueDate,
-        remainingBalance,
+        paymentId: payment.id,
+        customerName: deal.customers?.customer_name || "",
+        phone: deal.customers?.phone || "",
+        dealTag: deal.deal_tag || "",
+        dealType: deal.deal_type || "",
+        truck: `${deal.year || ""} ${deal.truck || ""}`,
+        vin: deal.vin || "",
+        amountPaid: payment.amount_paid || 0,
+        paymentMethod: payment.payment_method || "Other",
+        paymentDate: payment.payment_date || "",
+        dueDate: payment.due_date || "",
+        paymentType: payment.payment_type || "",
+        paymentStatus: payment.payment_status || "Paid",
+        remainingBalance: remainingBalance,
+        notes: payment.notes || "",
       });
 
       setMessage("Payment saved successfully.");

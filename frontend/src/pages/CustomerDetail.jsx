@@ -11,6 +11,7 @@ import PaymentHistory from "../components/PaymentHistory";
 import PromiseHistory from "../components/PromiseHistory";
 import DueSchedule from "../components/DueSchedule";
 import AccountSummaryPrint from "../components/AccountSummaryPrint";
+import PaymentReceipt from "../components/PaymentReceipt";
 
 function CustomerDetail() {
   const { dealId } = useParams();
@@ -19,6 +20,8 @@ function CustomerDetail() {
   const [payments, setPayments] = useState([]);
   const [promises, setPromises] = useState([]);
   const [error, setError] = useState("");
+
+  const [receipt, setReceipt] = useState(null);
 
   useEffect(() => {
     loadCustomerDetail();
@@ -83,6 +86,38 @@ function CustomerDetail() {
   const brokenPromises = promises.filter(
     (promise) => promise.promise_status === "Broken"
   );
+
+  const openPaymentReceipt = (payment) => {
+  const activePayments = payments.filter(
+    (p) => p.payment_status !== "Voided"
+  );
+
+  const totalPaid = activePayments.reduce(
+    (sum, p) => sum + Number(p.amount_paid || 0),
+    0
+  );
+
+  const totalAmount = Number(deal.total_amount || 0);
+  const remainingBalance = Math.max(totalAmount - totalPaid, 0);
+
+  setReceipt({
+    paymentId: payment.id,
+    customerName: deal.customers?.customer_name || "",
+    phone: deal.customers?.phone || "",
+    dealTag: deal.deal_tag || "",
+    dealType: deal.deal_type || "",
+    truck: `${deal.year || ""} ${deal.truck || ""}`,
+    vin: deal.vin || "",
+    amountPaid: payment.amount_paid || 0,
+    paymentMethod: payment.payment_method || "Other",
+    paymentDate: payment.payment_date || "",
+    dueDate: payment.due_date || "",
+    paymentType: payment.payment_type || "",
+    paymentStatus: payment.payment_status || "Paid",
+    remainingBalance,
+    notes: payment.notes || "",
+  });
+};
 
   return (
     <div style={pageWrapper}>
@@ -189,6 +224,7 @@ function CustomerDetail() {
         <PaymentHistory
           payments={payments}
           onPaymentUpdated={loadCustomerDetail}
+          openPaymentReceipt={openPaymentReceipt}
         />
       </div>
 
@@ -198,6 +234,7 @@ function CustomerDetail() {
           onPromiseUpdated={loadCustomerDetail}
         />
       </div>
+      <PaymentReceipt receipt={receipt} onClose={() => setReceipt(null)} />
     </div>
   );
 }

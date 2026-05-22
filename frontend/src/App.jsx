@@ -15,6 +15,7 @@ import DuePayments from "./pages/DuePayments";
 import Promises from "./pages/Promises";
 import CustomerDetail from "./pages/CustomerDetail";
 import EditDeal from "./pages/EditDeal";
+import Reports from "./pages/Reports";
 
 import ConnectionStatus from "./components/ConnectionStatus";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -40,6 +41,7 @@ function AppLayout() {
     { label: "Add Payment", path: "/add-payment" },
     { label: "Due Payments", path: "/due-payments" },
     { label: "Promises", path: "/promises" },
+    { label: "Reports", path: "/reports" },
   ];
 
   const isActive = (path) => {
@@ -158,6 +160,7 @@ function AppLayout() {
             <Route path="/add-payment" element={<AddPayment />} />
             <Route path="/due-payments" element={<DuePayments />} />
             <Route path="/promises" element={<Promises />} />
+            <Route path="/reports" element={<Reports />} />
           </Routes>
         </ErrorBoundary>
       </main>
@@ -173,6 +176,7 @@ function getIcon(label) {
     "Add Payment": "💵",
     "Due Payments": "📅",
     Promises: "🤝",
+    Reports: "📈",
   };
 
   return icons[label] || "•";

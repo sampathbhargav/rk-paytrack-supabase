@@ -15,25 +15,32 @@ function DuePayments() {
   const [promises, setPromises] = useState([]);
   const [error, setError] = useState("");
 
+  const [loading, setLoading] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
     try {
+      setLoading(true);
       setError("");
-
+  
       await updateBrokenPromises();
-
+  
       const dealsData = await getDeals();
       const paymentsData = await getPayments();
       const promisesData = await getPromises();
-
-      setDeals(dealsData);
-      setPayments(paymentsData);
-      setPromises(promisesData);
+  
+      setDeals(dealsData || []);
+      setPayments(paymentsData || []);
+      setPromises(promisesData || []);
+      setLastRefreshedAt(new Date());
     } catch (error) {
       setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -103,6 +110,12 @@ function DuePayments() {
           <p style={pageDescription}>
             View scheduled installments and customer promises due on a selected date.
           </p>
+
+          {lastRefreshedAt && (
+            <p style={lastRefreshedText}>
+              Last Refreshed: {lastRefreshedAt.toLocaleString()}
+            </p>
+          )}
         </div>
 
         <div style={dateBadge}>
@@ -159,8 +172,17 @@ function DuePayments() {
           </button>
         </div>
 
-        <button type="button" onClick={loadData} style={refreshButton}>
-          Refresh
+        <button
+          type="button"
+          onClick={loadData}
+          style={{
+            ...refreshButton,
+            opacity: loading ? 0.7 : 1,
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
+          disabled={loading}
+        >
+          {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
@@ -847,6 +869,13 @@ const errorBox = {
   padding: "12px",
   borderRadius: "10px",
   marginBottom: "15px",
+  fontWeight: "bold",
+};
+
+const lastRefreshedText = {
+  marginTop: "6px",
+  color: "#166534",
+  fontSize: "13px",
   fontWeight: "bold",
 };
 

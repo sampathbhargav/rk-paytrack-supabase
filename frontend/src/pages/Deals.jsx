@@ -13,17 +13,26 @@ function Deals() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [isExporting, setIsExporting] = useState(false);
 
+  const [loading, setLoading] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+
   useEffect(() => {
     loadDeals();
   }, []);
 
   const loadDeals = async () => {
     try {
+      setLoading(true);
       setError("");
+  
       const data = await getDeals();
-      setDeals(data);
+  
+      setDeals(data || []);
+      setLastRefreshedAt(new Date());
     } catch (error) {
       setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -178,12 +187,26 @@ function Deals() {
           <p style={pageDescription}>
             View, search, and manage all customer deals.
           </p>
+          {lastRefreshedAt && (
+              <p style={lastRefreshedText}>
+                Last Refreshed: {lastRefreshedAt.toLocaleString()}
+              </p>
+            )}
         </div>
 
         <div style={headerActions}>
-          <button type="button" onClick={loadDeals} style={refreshButton}>
-            Refresh
-          </button>
+        <button
+          type="button"
+          onClick={loadDeals}
+          style={{
+            ...refreshButton,
+            opacity: loading ? 0.7 : 1,
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
+          disabled={loading}
+        >
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
 
           <button
             type="button"
@@ -436,6 +459,13 @@ const errorBox = {
   padding: "12px",
   borderRadius: "10px",
   marginBottom: "15px",
+  fontWeight: "bold",
+};
+
+const lastRefreshedText = {
+  marginTop: "6px",
+  color: "#166534",
+  fontSize: "13px",
   fontWeight: "bold",
 };
 

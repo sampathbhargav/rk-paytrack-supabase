@@ -15,25 +15,32 @@ function Dashboard() {
   const [promises, setPromises] = useState([]);
   const [error, setError] = useState("");
 
+  const [loading, setLoading] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+
   useEffect(() => {
     loadDashboard();
   }, []);
 
   const loadDashboard = async () => {
     try {
+      setLoading(true);
       setError("");
-
+  
       await updateBrokenPromises();
-
+  
       const dealsData = await getDeals();
       const paymentsData = await getPayments();
       const promisesData = await getPromises();
-
-      setDeals(dealsData);
-      setPayments(paymentsData);
-      setPromises(promisesData);
+  
+      setDeals(dealsData || []);
+      setPayments(paymentsData || []);
+      setPromises(promisesData || []);
+      setLastRefreshedAt(new Date());
     } catch (error) {
       setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -137,10 +144,25 @@ function Dashboard() {
           <p style={pageDescription}>
             Daily customer payment follow-up and finance overview.
           </p>
+
+          {lastRefreshedAt && (
+            <p style={lastRefreshedText}>
+              Last Refreshed: {lastRefreshedAt.toLocaleString()}
+            </p>
+          )}
         </div>
 
-        <button type="button" onClick={loadDashboard} style={refreshButton}>
-          Refresh
+        <button
+          type="button"
+          onClick={loadDashboard}
+          style={{
+            ...refreshButton,
+            opacity: loading ? 0.7 : 1,
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
+          disabled={loading}
+        >
+          {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
@@ -843,6 +865,13 @@ const errorBox = {
   padding: "12px",
   borderRadius: "10px",
   marginBottom: "15px",
+  fontWeight: "bold",
+};
+
+const lastRefreshedText = {
+  marginTop: "6px",
+  color: "#166534",
+  fontSize: "13px",
   fontWeight: "bold",
 };
 

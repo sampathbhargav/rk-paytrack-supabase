@@ -10,20 +10,28 @@ function Promises() {
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
+  const [loading, setLoading] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+
   useEffect(() => {
     loadPromises();
   }, []);
 
   const loadPromises = async () => {
     try {
+      setLoading(true);
       setError("");
-
+  
       await updateBrokenPromises();
-
+  
       const data = await getPromises();
-      setPromises(data);
+  
+      setPromises(data || []);
+      setLastRefreshedAt(new Date());
     } catch (error) {
       setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -82,10 +90,24 @@ function Promises() {
             Track deferred payments, partial payments, broken promises, and
             rescheduled commitments.
           </p>
+          {lastRefreshedAt && (
+            <p style={lastRefreshedText}>
+              Last Refreshed: {lastRefreshedAt.toLocaleString()}
+            </p>
+          )}
         </div>
 
-        <button type="button" onClick={loadPromises} style={refreshButton}>
-          Refresh
+        <button
+          type="button"
+          onClick={loadPromises}
+          style={{
+            ...refreshButton,
+            opacity: loading ? 0.7 : 1,
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
+          disabled={loading}
+        >
+          {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
@@ -547,6 +569,13 @@ const errorBox = {
   padding: "12px",
   borderRadius: "10px",
   marginBottom: "15px",
+  fontWeight: "bold",
+};
+
+const lastRefreshedText = {
+  marginTop: "6px",
+  color: "#166534",
+  fontSize: "13px",
   fontWeight: "bold",
 };
 

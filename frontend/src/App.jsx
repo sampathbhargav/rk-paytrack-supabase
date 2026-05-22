@@ -17,6 +17,7 @@ import CustomerDetail from "./pages/CustomerDetail";
 import EditDeal from "./pages/EditDeal";
 import Reports from "./pages/Reports";
 import LegalPolicies from "./pages/LegalPolicies";
+import HelpCenter from "./pages/HelpCenter";
 
 import ConnectionStatus from "./components/ConnectionStatus";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -43,6 +44,7 @@ function AppLayout() {
     { label: "Due Payments", path: "/due-payments" },
     { label: "Promises", path: "/promises" },
     { label: "Reports", path: "/reports" },
+    { label: "Help Center", path: "/help-center" },
     { label: "Policy Center", path: "/legal-policies" },
   ];
 
@@ -163,6 +165,7 @@ function AppLayout() {
             <Route path="/due-payments" element={<DuePayments />} />
             <Route path="/promises" element={<Promises />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/help-center" element={<HelpCenter />} />
             <Route path="/legal-policies" element={<LegalPolicies />} />
           </Routes>
         </ErrorBoundary>
@@ -180,6 +183,7 @@ function getIcon(label) {
     "Due Payments": "📅",
     Promises: "🤝",
     Reports: "📈",
+    "Help Center": "📚",
     "Policy Center": "📘"
   };
 

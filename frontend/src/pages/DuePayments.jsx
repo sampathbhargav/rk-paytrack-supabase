@@ -26,13 +26,13 @@ function DuePayments() {
     try {
       setLoading(true);
       setError("");
-  
+
       await updateBrokenPromises();
-  
+
       const dealsData = await getDeals();
       const paymentsData = await getPayments();
       const promisesData = await getPromises();
-  
+
       setDeals(dealsData || []);
       setPayments(paymentsData || []);
       setPromises(promisesData || []);
@@ -101,14 +101,17 @@ function DuePayments() {
 
   const isToday = selectedDate === today;
   const pageDateLabel = isToday ? "Today" : formatDisplayDate(selectedDate);
+  const totalFollowUps = scheduledUnpaidOrPartial.length + promisesDue.length;
 
   return (
     <div style={pageWrapper}>
-      <div style={pageHeader}>
+      <div style={heroCard}>
         <div>
+          <div style={eyebrow}>Collections Follow-Up</div>
           <h1 style={pageTitle}>Due Payments</h1>
           <p style={pageDescription}>
-            View scheduled installments and customer promises due on a selected date.
+            View scheduled installments, customer promises, and collection
+            follow-ups for any selected date.
           </p>
 
           {lastRefreshedAt && (
@@ -118,8 +121,24 @@ function DuePayments() {
           )}
         </div>
 
-        <div style={dateBadge}>
-          Viewing: <strong>{pageDateLabel}</strong>
+        <div style={heroActions}>
+          <div style={dateBadge}>
+            <span style={dateBadgeLabel}>Viewing</span>
+            <strong>{pageDateLabel}</strong>
+          </div>
+
+          <button
+            type="button"
+            onClick={loadData}
+            style={{
+              ...refreshButton,
+              opacity: loading ? 0.7 : 1,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+            disabled={loading}
+          >
+            {loading ? "Refreshing..." : "↻ Refresh"}
+          </button>
         </div>
       </div>
 
@@ -127,91 +146,122 @@ function DuePayments() {
 
       {missingScheduleDeals.length > 0 && (
         <div style={warningBox}>
-          <strong>{missingScheduleDeals.length} active deal(s) missing schedule setup.</strong>
-          <p style={{ margin: "6px 0 0" }}>
-            These deals will not show in due payments until Start Date, Due Day,
-            Monthly Payment, and Term are completed.
-          </p>
+          <div style={warningIcon}>⚠️</div>
+          <div>
+            <strong>
+              {missingScheduleDeals.length} active deal(s) missing schedule
+              setup.
+            </strong>
+            <p style={{ margin: "6px 0 0" }}>
+              These deals will not show in due payments until Start Date, Due
+              Day, Monthly Payment, and Term are completed.
+            </p>
+          </div>
         </div>
       )}
 
-      <div style={controlBox}>
+      <div style={controlPanel}>
         <div>
-          <label style={labelStyle}>Select Due Date</label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            style={inputStyle}
-          />
+          <h2 style={controlTitle}>Select Collection Date</h2>
+          <p style={controlDescription}>
+            Choose a date to view scheduled payments and promises that need
+            follow-up.
+          </p>
         </div>
 
-        <div style={quickDateButtons}>
-          <button
-            type="button"
-            style={secondaryButton}
-            onClick={() => setSelectedDate(today)}
-          >
-            Today
-          </button>
+        <div style={controlActions}>
+          <div>
+            <label style={labelStyle}>Due Date</label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
 
-          <button
-            type="button"
-            style={secondaryButton}
-            onClick={() => setSelectedDate(getDateOffset(today, 1))}
-          >
-            Tomorrow
-          </button>
+          <div style={quickDateButtons}>
+            <button
+              type="button"
+              style={secondaryButton}
+              onClick={() => setSelectedDate(today)}
+            >
+              Today
+            </button>
 
-          <button
-            type="button"
-            style={secondaryButton}
-            onClick={() => setSelectedDate(getDateOffset(today, -1))}
-          >
-            Yesterday
-          </button>
+            <button
+              type="button"
+              style={secondaryButton}
+              onClick={() => setSelectedDate(getDateOffset(today, 1))}
+            >
+              Tomorrow
+            </button>
+
+            <button
+              type="button"
+              style={secondaryButton}
+              onClick={() => setSelectedDate(getDateOffset(today, -1))}
+            >
+              Yesterday
+            </button>
+          </div>
         </div>
-
-        <button
-          type="button"
-          onClick={loadData}
-          style={{
-            ...refreshButton,
-            opacity: loading ? 0.7 : 1,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-          disabled={loading}
-        >
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
       </div>
 
       <div style={cardGrid}>
-        <Card
-          title="Scheduled Payments Due"
+        <MetricCard
+          icon="📅"
+          title="Scheduled Payments"
           value={scheduledUnpaidOrPartial.length}
+          subtitle="Unpaid or partial"
           tone="warning"
         />
-        <Card
-          title="Scheduled Amount Due"
+
+        <MetricCard
+          icon="💵"
+          title="Scheduled Amount"
           value={formatMoney(totalScheduledDue)}
+          subtitle="Remaining due"
           tone="warning"
         />
-        <Card title="Promises Due" value={promisesDue.length} tone="info" />
-        <Card
-          title="Promise Amount Due"
-          value={formatMoney(totalPromiseDue)}
+
+        <MetricCard
+          icon="🤝"
+          title="Promises Due"
+          value={promisesDue.length}
+          subtitle="Customer promises"
           tone="info"
         />
-        <Card title="Total Due" value={formatMoney(totalDue)} tone="danger" />
-        <Card
-          title="Broken Promises Due"
-          value={brokenPromisesDue.length}
+
+        <MetricCard
+          icon="📌"
+          title="Promise Amount"
+          value={formatMoney(totalPromiseDue)}
+          subtitle="Promise balance"
+          tone="info"
+        />
+
+        <MetricCard
+          icon="🚨"
+          title="Total Due"
+          value={formatMoney(totalDue)}
+          subtitle="Scheduled + promises"
           tone="danger"
         />
-        <Card
+
+        <MetricCard
+          icon="⚠️"
+          title="Broken Promises"
+          value={brokenPromisesDue.length}
+          subtitle="Needs attention"
+          tone="danger"
+        />
+
+        <MetricCard
+          icon="🧩"
           title="Missing Schedule"
           value={missingScheduleDeals.length}
+          subtitle="Setup incomplete"
           tone="warning"
         />
       </div>
@@ -220,40 +270,45 @@ function DuePayments() {
         <SummaryItem label="Selected Date" value={formatDisplayDate(selectedDate)} />
         <SummaryItem label="Pending Promises" value={pendingPromisesDue.length} />
         <SummaryItem label="Broken Promises" value={brokenPromisesDue.length} />
-        <SummaryItem
-          label="Total Follow-Ups"
-          value={scheduledUnpaidOrPartial.length + promisesDue.length}
-        />
+        <SummaryItem label="Total Follow-Ups" value={totalFollowUps} />
       </div>
 
       {missingScheduleDeals.length > 0 && (
-        <div style={tableBox}>
-          <div style={sectionHeader}>
-            <h2 style={sectionTitle}>Missing Schedule Setup</h2>
-            <p style={sectionDescription}>
-              These active deals cannot generate due payments until schedule fields are completed.
-            </p>
-          </div>
-
+        <DashboardSection
+          title="Missing Schedule Setup"
+          description="These active deals cannot generate due payments until schedule fields are completed."
+          count={missingScheduleDeals.length}
+          tone="warning"
+        >
           <div style={tableScrollSmall}>
             <table style={missingScheduleTableStyle}>
               <thead>
                 <tr>
                   <th style={stickyTh}>Deal Tag</th>
-                  <th style={{ ...th, width: "180px" }}>Customer</th>
-                  <th style={{ ...th, width: "120px" }}>Deal Type</th>
-                  <th style={{ ...th, width: "100px" }}>Start Date</th>
-                  <th style={{ ...th, width: "80px" }}>Due Day</th>
-                  <th style={{ ...th, width: "110px" }}>Monthly</th>
-                  <th style={{ ...th, width: "80px" }}>Term</th>
-                  <th style={{ ...th, width: "220px" }}>Missing Fields</th>
+                  <th style={{ ...th, width: "190px" }}>Customer</th>
+                  <th style={{ ...th, width: "130px" }}>Deal Type</th>
+                  <th style={{ ...th, width: "115px" }}>Start Date</th>
+                  <th style={{ ...th, width: "90px" }}>Due Day</th>
+                  <th style={{ ...th, width: "120px" }}>Monthly</th>
+                  <th style={{ ...th, width: "90px" }}>Term</th>
+                  <th style={{ ...th, width: "240px" }}>Missing Fields</th>
                 </tr>
               </thead>
 
               <tbody>
-                {missingScheduleDeals.map((deal) => (
-                  <tr key={deal.id}>
-                    <td style={stickyTd}>
+                {missingScheduleDeals.map((deal, index) => (
+                  <tr
+                    key={deal.id}
+                    style={{
+                      background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                    }}
+                  >
+                    <td
+                      style={{
+                        ...stickyTd,
+                        background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                      }}
+                    >
                       <Link to={`/deals/${deal.id}/edit`} style={dealLink}>
                         {deal.deal_tag}
                       </Link>
@@ -266,7 +321,9 @@ function DuePayments() {
                     <td style={td}>{deal.deal_type || "—"}</td>
                     <td style={td}>{formatDisplayDate(deal.start_date)}</td>
                     <td style={td}>{deal.due_day || "—"}</td>
-                    <td style={moneyCell}>{formatMoney(deal.monthly_payment)}</td>
+                    <td style={moneyCell}>
+                      {formatMoney(deal.monthly_payment)}
+                    </td>
                     <td style={td}>{deal.term || "—"}</td>
                     <td style={notesCell}>{getMissingScheduleText(deal)}</td>
                   </tr>
@@ -274,19 +331,18 @@ function DuePayments() {
               </tbody>
             </table>
           </div>
-        </div>
+        </DashboardSection>
       )}
 
-      <div style={tableBox}>
-        <div style={sectionHeader}>
-          <h2 style={sectionTitle}>Scheduled Payments Due</h2>
-          <p style={sectionDescription}>
-            Deal Tag stays locked. Scroll inside the table to view more columns or rows.
-          </p>
-        </div>
-
+      <DashboardSection
+        title="Scheduled Payments Due"
+        description="Scheduled installments due on the selected date that are still unpaid or partially paid."
+        count={scheduledUnpaidOrPartial.length}
+        tone="warning"
+      >
         {scheduledUnpaidOrPartial.length === 0 ? (
           <EmptyState
+            icon="✅"
             title="No scheduled payments due for this date."
             message="There are no active scheduled installments that need payment follow-up for the selected date."
           />
@@ -296,22 +352,32 @@ function DuePayments() {
               <thead>
                 <tr>
                   <th style={stickyTh}>Deal Tag</th>
-                  <th style={{ ...th, width: "165px" }}>Customer</th>
-                  <th style={{ ...th, width: "115px" }}>Phone</th>
-                  <th style={{ ...th, width: "90px" }}>Installment</th>
-                  <th style={{ ...th, width: "125px" }}>Deal Type</th>
-                  <th style={{ ...th, width: "145px" }}>Truck</th>
-                  <th style={{ ...th, width: "105px" }}>Amount Due</th>
-                  <th style={{ ...th, width: "95px" }}>Paid</th>
-                  <th style={{ ...th, width: "105px" }}>Remaining</th>
-                  <th style={{ ...th, width: "105px" }}>Status</th>
+                  <th style={{ ...th, width: "180px" }}>Customer</th>
+                  <th style={{ ...th, width: "125px" }}>Phone</th>
+                  <th style={{ ...th, width: "105px" }}>Installment</th>
+                  <th style={{ ...th, width: "130px" }}>Deal Type</th>
+                  <th style={{ ...th, width: "160px" }}>Truck</th>
+                  <th style={{ ...th, width: "115px" }}>Amount Due</th>
+                  <th style={{ ...th, width: "105px" }}>Paid</th>
+                  <th style={{ ...th, width: "120px" }}>Remaining</th>
+                  <th style={{ ...th, width: "120px" }}>Status</th>
                 </tr>
               </thead>
 
               <tbody>
-                {scheduledUnpaidOrPartial.map((item) => (
-                  <tr key={`${item.deal.id}-${item.dueDate}`}>
-                    <td style={stickyTd}>
+                {scheduledUnpaidOrPartial.map((item, index) => (
+                  <tr
+                    key={`${item.deal.id}-${item.dueDate}`}
+                    style={{
+                      background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                    }}
+                  >
+                    <td
+                      style={{
+                        ...stickyTd,
+                        background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                      }}
+                    >
                       <Link to={`/deals/${item.deal.id}`} style={dealLink}>
                         {item.deal.deal_tag}
                       </Link>
@@ -323,16 +389,23 @@ function DuePayments() {
 
                     <td style={td}>{item.deal.customers?.phone || "—"}</td>
                     <td style={td}>{item.installmentNumber}</td>
-                    <td style={wrapCell}>{item.deal.deal_type || "—"}</td>
 
                     <td style={wrapCell}>
-                      {item.deal.year || ""} {item.deal.truck || ""}
+                      <span style={dealTypeBadge}>
+                        {item.deal.deal_type || "—"}
+                      </span>
+                    </td>
+
+                    <td style={wrapCell}>
+                      {`${item.deal.year || ""} ${
+                        item.deal.truck || ""
+                      }`.trim() || "—"}
                     </td>
 
                     <td style={moneyCell}>{formatMoney(item.amountDue)}</td>
                     <td style={moneyCell}>{formatMoney(item.paidForDueDate)}</td>
 
-                    <td style={moneyCell}>
+                    <td style={warningMoneyCell}>
                       {formatMoney(item.remainingForDueDate)}
                     </td>
 
@@ -347,18 +420,17 @@ function DuePayments() {
             </table>
           </div>
         )}
-      </div>
+      </DashboardSection>
 
-      <div style={tableBox}>
-        <div style={sectionHeader}>
-          <h2 style={sectionTitle}>Promises Due</h2>
-          <p style={sectionDescription}>
-            Deal Tag stays locked. Customer promises due on this date, including pending and broken promise follow-ups.
-          </p>
-        </div>
-
+      <DashboardSection
+        title="Promises Due"
+        description="Customer promises due on the selected date, including pending and broken promise follow-ups."
+        count={promisesDue.length}
+        tone="info"
+      >
         {promisesDue.length === 0 ? (
           <EmptyState
+            icon="🤝"
             title="No promises due for this date."
             message="There are no active customer promises to follow up for the selected date."
           />
@@ -368,22 +440,35 @@ function DuePayments() {
               <thead>
                 <tr>
                   <th style={stickyTh}>Deal Tag</th>
-                  <th style={{ ...th, width: "165px" }}>Customer</th>
-                  <th style={{ ...th, width: "115px" }}>Phone</th>
-                  <th style={{ ...th, width: "120px" }}>Original Due</th>
-                  <th style={{ ...th, width: "120px" }}>Promised Date</th>
-                  <th style={{ ...th, width: "110px" }}>Amount Due</th>
-                  <th style={{ ...th, width: "115px" }}>Status</th>
-                  <th style={{ ...th, width: "220px" }}>Notes</th>
+                  <th style={{ ...th, width: "180px" }}>Customer</th>
+                  <th style={{ ...th, width: "125px" }}>Phone</th>
+                  <th style={{ ...th, width: "130px" }}>Original Due</th>
+                  <th style={{ ...th, width: "135px" }}>Promised Date</th>
+                  <th style={{ ...th, width: "120px" }}>Amount Due</th>
+                  <th style={{ ...th, width: "130px" }}>Status</th>
+                  <th style={{ ...th, width: "240px" }}>Notes</th>
                 </tr>
               </thead>
 
               <tbody>
-                {promisesDue.map((promise) => (
-                  <tr key={promise.id}>
-                    <td style={stickyTd}>
+                {promisesDue.map((promise, index) => (
+                  <tr
+                    key={promise.id}
+                    style={{
+                      background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                    }}
+                  >
+                    <td
+                      style={{
+                        ...stickyTd,
+                        background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                      }}
+                    >
                       {promise.deals?.id ? (
-                        <Link to={`/deals/${promise.deals.id}`} style={dealLink}>
+                        <Link
+                          to={`/deals/${promise.deals.id}`}
+                          style={dealLink}
+                        >
                           {promise.deals?.deal_tag || "—"}
                         </Link>
                       ) : (
@@ -403,7 +488,9 @@ function DuePayments() {
                       {formatDisplayDate(promise.original_due_date)}
                     </td>
 
-                    <td style={td}>{formatDisplayDate(promise.promised_date)}</td>
+                    <td style={td}>
+                      {formatDisplayDate(promise.promised_date)}
+                    </td>
 
                     <td style={moneyCell}>
                       {formatMoney(promise.remaining_amount)}
@@ -422,7 +509,24 @@ function DuePayments() {
             </table>
           </div>
         )}
+      </DashboardSection>
+    </div>
+  );
+}
+
+function DashboardSection({ title, description, count, tone, children }) {
+  return (
+    <div style={tableBox}>
+      <div style={sectionHeader}>
+        <div>
+          <h2 style={sectionTitle}>{title}</h2>
+          <p style={sectionDescription}>{description}</p>
+        </div>
+
+        <span style={getSectionBadgeStyle(tone)}>{count}</span>
       </div>
+
+      {children}
     </div>
   );
 }
@@ -432,37 +536,45 @@ function getMissingScheduleText(deal) {
 
   if (!deal.start_date) missing.push("Start Date");
   if (!deal.due_day) missing.push("Due Day");
+
   if (!deal.monthly_payment || Number(deal.monthly_payment || 0) <= 0) {
     missing.push("Monthly Payment");
   }
-  if (!deal.term || Number(deal.term || 0) <= 0) missing.push("Term");
+
+  if (!deal.term || Number(deal.term || 0) <= 0) {
+    missing.push("Term");
+  }
 
   return missing.join(", ");
 }
 
-function Card({ title, value, tone = "default" }) {
+function MetricCard({ icon, title, value, subtitle, tone = "default" }) {
   return (
-    <div style={{ ...cardStyle, ...getCardToneStyle(tone) }}>
-      <p style={{ margin: 0, color: "#667085", fontSize: "12px" }}>{title}</p>
-      <h3 style={{ marginTop: "6px", marginBottom: 0, fontSize: "19px" }}>
-        {value}
-      </h3>
+    <div style={{ ...metricCard, ...getCardToneStyle(tone) }}>
+      <div style={metricTop}>
+        <span style={metricIcon}>{icon}</span>
+        <span style={metricTitle}>{title}</span>
+      </div>
+
+      <h3 style={metricValue}>{value}</h3>
+      <p style={metricSubtitle}>{subtitle}</p>
     </div>
   );
 }
 
 function SummaryItem({ label, value }) {
   return (
-    <div>
+    <div style={summaryItem}>
       <span style={summaryLabel}>{label}</span>
-      <strong>{value}</strong>
+      <strong style={summaryValue}>{value}</strong>
     </div>
   );
 }
 
-function EmptyState({ title, message }) {
+function EmptyState({ icon, title, message }) {
   return (
     <div style={emptyState}>
+      <div style={emptyIcon}>{icon}</div>
       <strong>{title}</strong>
       <p style={{ margin: "6px 0 0" }}>{message}</p>
     </div>
@@ -470,19 +582,63 @@ function EmptyState({ title, message }) {
 }
 
 function getCardToneStyle(tone) {
-  if (tone === "danger") return { borderLeft: "4px solid #991b1b" };
-  if (tone === "warning") return { borderLeft: "4px solid #f59e0b" };
-  if (tone === "info") return { borderLeft: "4px solid #2563eb" };
+  if (tone === "danger") return { borderTop: "4px solid #991b1b" };
+  if (tone === "warning") return { borderTop: "4px solid #f59e0b" };
+  if (tone === "info") return { borderTop: "4px solid #2563eb" };
 
-  return { borderLeft: "4px solid transparent" };
+  return { borderTop: "4px solid #cbd5e1" };
+}
+
+function getSectionBadgeStyle(tone) {
+  const base = {
+    minWidth: "36px",
+    height: "32px",
+    padding: "0 10px",
+    borderRadius: "999px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: "900",
+    fontSize: "14px",
+  };
+
+  if (tone === "danger") {
+    return {
+      ...base,
+      background: "#fee2e2",
+      color: "#991b1b",
+    };
+  }
+
+  if (tone === "warning") {
+    return {
+      ...base,
+      background: "#fef3c7",
+      color: "#92400e",
+    };
+  }
+
+  if (tone === "info") {
+    return {
+      ...base,
+      background: "#dbeafe",
+      color: "#1d4ed8",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#e5e7eb",
+    color: "#374151",
+  };
 }
 
 function getStatusStyle(status) {
   const base = {
-    padding: "5px 9px",
+    padding: "6px 10px",
     borderRadius: "999px",
     fontSize: "12px",
-    fontWeight: "bold",
+    fontWeight: "800",
     whiteSpace: "nowrap",
     display: "inline-block",
   };
@@ -492,6 +648,7 @@ function getStatusStyle(status) {
       ...base,
       background: "#fef9c3",
       color: "#854d0e",
+      border: "1px solid #fde68a",
     };
   }
 
@@ -500,6 +657,7 @@ function getStatusStyle(status) {
       ...base,
       background: "#dcfce7",
       color: "#166534",
+      border: "1px solid #bbf7d0",
     };
   }
 
@@ -507,15 +665,16 @@ function getStatusStyle(status) {
     ...base,
     background: "#fee2e2",
     color: "#991b1b",
+    border: "1px solid #fecaca",
   };
 }
 
 function getPromiseStatusStyle(status) {
   const base = {
-    padding: "5px 9px",
+    padding: "6px 10px",
     borderRadius: "999px",
     fontSize: "12px",
-    fontWeight: "bold",
+    fontWeight: "800",
     whiteSpace: "nowrap",
     display: "inline-block",
   };
@@ -525,6 +684,7 @@ function getPromiseStatusStyle(status) {
       ...base,
       background: "#fee2e2",
       color: "#991b1b",
+      border: "1px solid #fecaca",
     };
   }
 
@@ -533,6 +693,7 @@ function getPromiseStatusStyle(status) {
       ...base,
       background: "#dbeafe",
       color: "#1d4ed8",
+      border: "1px solid #bfdbfe",
     };
   }
 
@@ -541,6 +702,7 @@ function getPromiseStatusStyle(status) {
       ...base,
       background: "#fef9c3",
       color: "#854d0e",
+      border: "1px solid #fde68a",
     };
   }
 
@@ -548,6 +710,7 @@ function getPromiseStatusStyle(status) {
     ...base,
     background: "#e5e7eb",
     color: "#374151",
+    border: "1px solid #d1d5db",
   };
 }
 
@@ -576,72 +739,156 @@ const pageWrapper = {
   boxSizing: "border-box",
 };
 
-const pageHeader = {
+const heroCard = {
+  background: "linear-gradient(135deg, #0A1A2F 0%, #102A4C 55%, #1d4ed8 100%)",
+  borderRadius: "18px",
+  padding: "24px",
+  color: "white",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "flex-start",
-  gap: "16px",
-  marginBottom: "16px",
+  gap: "18px",
   flexWrap: "wrap",
-  maxWidth: "100%",
+  boxShadow: "0 14px 35px rgba(15, 23, 42, 0.22)",
+  marginBottom: "18px",
+};
+
+const eyebrow = {
+  fontSize: "12px",
+  fontWeight: "900",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#bfdbfe",
+  marginBottom: "8px",
 };
 
 const pageTitle = {
   margin: 0,
-  color: "#111827",
+  fontSize: "30px",
+  lineHeight: "1.1",
+  color: "white",
 };
 
 const pageDescription = {
-  marginTop: "6px",
-  color: "#667085",
-  maxWidth: "680px",
+  marginTop: "8px",
+  marginBottom: 0,
+  color: "#dbeafe",
+  maxWidth: "720px",
+  lineHeight: "1.5",
+};
+
+const lastRefreshedText = {
+  marginTop: "10px",
+  marginBottom: 0,
+  color: "#bbf7d0",
+  fontSize: "13px",
+  fontWeight: "800",
+};
+
+const heroActions = {
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap",
 };
 
 const dateBadge = {
+  background: "rgba(255,255,255,0.12)",
+  border: "1px solid rgba(255,255,255,0.24)",
+  borderRadius: "14px",
+  padding: "10px 14px",
+  minWidth: "130px",
+};
+
+const dateBadgeLabel = {
+  display: "block",
+  fontSize: "11px",
+  color: "#bfdbfe",
+  marginBottom: "4px",
+  fontWeight: "800",
+  textTransform: "uppercase",
+};
+
+const refreshButton = {
   background: "white",
-  border: "1px solid #e5e7eb",
-  borderRadius: "999px",
-  padding: "9px 14px",
-  color: "#374151",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-  whiteSpace: "nowrap",
+  color: "#0A1A2F",
+  border: "none",
+  borderRadius: "12px",
+  padding: "11px 15px",
+  cursor: "pointer",
+  fontWeight: "900",
+  boxShadow: "0 6px 18px rgba(0,0,0,0.18)",
 };
 
 const warningBox = {
   background: "#fff7ed",
   border: "1px solid #fed7aa",
   color: "#9a3412",
-  padding: "13px",
-  borderRadius: "12px",
-  marginBottom: "14px",
+  padding: "14px",
+  borderRadius: "16px",
+  marginBottom: "16px",
+  display: "flex",
+  alignItems: "flex-start",
+  gap: "12px",
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
 };
 
-const controlBox = {
+const warningIcon = {
+  fontSize: "22px",
+  lineHeight: 1,
+};
+
+const controlPanel = {
   background: "white",
-  padding: "14px",
-  borderRadius: "12px",
-  marginBottom: "14px",
+  border: "1px solid #e5e7eb",
+  borderRadius: "16px",
+  padding: "16px",
+  marginBottom: "16px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  gap: "16px",
+  flexWrap: "wrap",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.07)",
+  boxSizing: "border-box",
+};
+
+const controlTitle = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "18px",
+};
+
+const controlDescription = {
+  margin: "6px 0 0",
+  color: "#667085",
+  fontSize: "14px",
+  lineHeight: "1.45",
+};
+
+const controlActions = {
   display: "flex",
   alignItems: "flex-end",
   gap: "12px",
   flexWrap: "wrap",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-  boxSizing: "border-box",
 };
 
 const labelStyle = {
   display: "block",
-  fontWeight: "bold",
+  fontWeight: "800",
   color: "#374151",
-  marginBottom: "6px",
+  marginBottom: "7px",
+  fontSize: "13px",
 };
 
 const inputStyle = {
   width: "210px",
-  padding: "10px",
+  padding: "11px",
   border: "1px solid #d1d5db",
-  borderRadius: "8px",
+  borderRadius: "10px",
   boxSizing: "border-box",
+  fontWeight: "700",
+  color: "#111827",
 };
 
 const quickDateButtons = {
@@ -651,49 +898,85 @@ const quickDateButtons = {
 };
 
 const secondaryButton = {
-  background: "#e5e7eb",
-  color: "#111827",
-  border: "none",
+  background: "#f8fafc",
+  color: "#374151",
+  border: "1px solid #d1d5db",
   padding: "10px 12px",
-  borderRadius: "8px",
+  borderRadius: "10px",
   cursor: "pointer",
-  fontWeight: "bold",
-};
-
-const refreshButton = {
-  background: "#0A1A2F",
-  color: "white",
-  border: "none",
-  padding: "10px 12px",
-  borderRadius: "8px",
-  cursor: "pointer",
-  fontWeight: "bold",
+  fontWeight: "800",
 };
 
 const cardGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-  gap: "10px",
-  marginBottom: "14px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+  gap: "14px",
+  marginBottom: "16px",
   maxWidth: "100%",
 };
 
-const cardStyle = {
+const metricCard = {
   background: "white",
-  padding: "12px",
-  borderRadius: "10px",
-  boxShadow: "0 1px 5px rgba(0,0,0,0.07)",
+  padding: "16px",
+  borderRadius: "16px",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.07)",
+  border: "1px solid #e5e7eb",
+};
+
+const metricTop = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "10px",
+  marginBottom: "12px",
+};
+
+const metricIcon = {
+  fontSize: "22px",
+};
+
+const metricTitle = {
+  background: "#f8fafc",
+  color: "#334155",
+  border: "1px solid #e2e8f0",
+  borderRadius: "999px",
+  padding: "5px 9px",
+  fontSize: "11px",
+  fontWeight: "900",
+  whiteSpace: "nowrap",
+};
+
+const metricValue = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "24px",
+  fontWeight: "900",
+};
+
+const metricSubtitle = {
+  margin: "6px 0 0",
+  color: "#667085",
+  fontSize: "13px",
+  fontWeight: "700",
 };
 
 const summaryStrip = {
-  background: "#f8fafc",
+  background: "white",
   border: "1px solid #e5e7eb",
-  borderRadius: "12px",
-  padding: "12px 16px",
+  borderRadius: "16px",
+  padding: "14px",
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
   gap: "12px",
-  marginBottom: "16px",
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.06)",
+  marginBottom: "18px",
+};
+
+const summaryItem = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "12px",
 };
 
 const summaryLabel = {
@@ -701,18 +984,47 @@ const summaryLabel = {
   color: "#667085",
   fontSize: "12px",
   marginBottom: "5px",
+  fontWeight: "700",
+};
+
+const summaryValue = {
+  color: "#111827",
+  fontSize: "15px",
 };
 
 const tableBox = {
   background: "white",
-  padding: "14px",
-  borderRadius: "12px",
+  padding: "16px",
+  borderRadius: "16px",
   marginTop: "18px",
   width: "100%",
   maxWidth: "100%",
   overflow: "hidden",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.07)",
+  border: "1px solid #e5e7eb",
   boxSizing: "border-box",
+};
+
+const sectionHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "14px",
+  marginBottom: "14px",
+};
+
+const sectionTitle = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "19px",
+};
+
+const sectionDescription = {
+  marginTop: "6px",
+  marginBottom: 0,
+  color: "#667085",
+  fontSize: "14px",
+  lineHeight: "1.45",
 };
 
 const tableScroll = {
@@ -722,7 +1034,7 @@ const tableScroll = {
   overflowX: "auto",
   overflowY: "auto",
   border: "1px solid #e5e7eb",
-  borderRadius: "10px",
+  borderRadius: "12px",
   boxSizing: "border-box",
 };
 
@@ -733,7 +1045,7 @@ const tableScrollSmall = {
 
 const scheduledTableStyle = {
   width: "100%",
-  minWidth: "1155px",
+  minWidth: "1230px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -741,7 +1053,7 @@ const scheduledTableStyle = {
 
 const promiseTableStyle = {
   width: "100%",
-  minWidth: "1070px",
+  minWidth: "1120px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -749,34 +1061,10 @@ const promiseTableStyle = {
 
 const missingScheduleTableStyle = {
   width: "100%",
-  minWidth: "1120px",
+  minWidth: "1130px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
-};
-
-const sectionHeader = {
-  marginBottom: "12px",
-};
-
-const sectionTitle = {
-  margin: 0,
-  color: "#111827",
-};
-
-const sectionDescription = {
-  marginTop: "6px",
-  marginBottom: 0,
-  color: "#667085",
-  fontSize: "14px",
-};
-
-const emptyState = {
-  background: "#f9fafb",
-  border: "1px dashed #cbd5e1",
-  padding: "16px",
-  borderRadius: "10px",
-  color: "#475569",
 };
 
 const th = {
@@ -784,33 +1072,37 @@ const th = {
   top: 0,
   zIndex: 2,
   textAlign: "left",
-  padding: "10px",
-  borderBottom: "1px solid #ddd",
-  background: "#f9fafb",
-  color: "#374151",
+  padding: "12px",
+  borderBottom: "1px solid #d1d5db",
+  background: "#f1f5f9",
+  color: "#334155",
   whiteSpace: "normal",
   fontSize: "12px",
   lineHeight: "1.25",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
 };
 
 const stickyTh = {
   ...th,
   left: 0,
-  width: "95px",
+  width: "105px",
   zIndex: 5,
-  background: "#eef2ff",
-  boxShadow: "2px 0 6px rgba(0,0,0,0.08)",
+  background: "#e0e7ff",
+  color: "#1e1b4b",
+  boxShadow: "3px 0 8px rgba(0,0,0,0.08)",
 };
 
 const td = {
-  padding: "10px",
-  borderBottom: "1px solid #eee",
+  padding: "11px 12px",
+  borderBottom: "1px solid #edf2f7",
   whiteSpace: "nowrap",
   fontSize: "12px",
-  background: "white",
-  verticalAlign: "top",
+  background: "transparent",
+  verticalAlign: "middle",
   overflow: "hidden",
   textOverflow: "ellipsis",
+  color: "#374151",
 };
 
 const stickyTd = {
@@ -818,9 +1110,8 @@ const stickyTd = {
   position: "sticky",
   left: 0,
   zIndex: 4,
-  width: "95px",
-  background: "#ffffff",
-  boxShadow: "2px 0 6px rgba(0,0,0,0.06)",
+  width: "105px",
+  boxShadow: "3px 0 8px rgba(0,0,0,0.06)",
 };
 
 const customerCell = {
@@ -828,6 +1119,8 @@ const customerCell = {
   whiteSpace: "normal",
   wordBreak: "break-word",
   lineHeight: "1.35",
+  color: "#111827",
+  fontWeight: "800",
 };
 
 const wrapCell = {
@@ -839,7 +1132,13 @@ const wrapCell = {
 
 const moneyCell = {
   ...td,
-  fontWeight: "bold",
+  fontWeight: "900",
+  color: "#111827",
+};
+
+const warningMoneyCell = {
+  ...moneyCell,
+  color: "#92400e",
 };
 
 const notesCell = {
@@ -851,10 +1150,20 @@ const notesCell = {
 
 const dealLink = {
   color: "#1d4ed8",
-  fontWeight: "800",
-  textDecoration: "underline",
-  textUnderlineOffset: "3px",
+  fontWeight: "900",
+  textDecoration: "none",
   cursor: "pointer",
+};
+
+const dealTypeBadge = {
+  display: "inline-block",
+  background: "#f8fafc",
+  color: "#334155",
+  border: "1px solid #e2e8f0",
+  borderRadius: "999px",
+  padding: "5px 9px",
+  fontSize: "12px",
+  fontWeight: "800",
 };
 
 const missingDealTag = {
@@ -862,20 +1171,27 @@ const missingDealTag = {
   fontWeight: "bold",
 };
 
+const emptyState = {
+  background: "#f8fafc",
+  border: "1px dashed #cbd5e1",
+  padding: "24px",
+  borderRadius: "14px",
+  color: "#475569",
+  textAlign: "center",
+};
+
+const emptyIcon = {
+  fontSize: "28px",
+  marginBottom: "8px",
+};
+
 const errorBox = {
   background: "#fee2e2",
   color: "#991b1b",
   border: "1px solid #fecaca",
-  padding: "12px",
-  borderRadius: "10px",
+  padding: "13px",
+  borderRadius: "12px",
   marginBottom: "15px",
-  fontWeight: "bold",
-};
-
-const lastRefreshedText = {
-  marginTop: "6px",
-  color: "#166534",
-  fontSize: "13px",
   fontWeight: "bold",
 };
 

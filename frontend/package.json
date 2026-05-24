@@ -19,7 +19,8 @@
     "build:win": "npm run build && npx electron-builder --win"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.105.4",
+    "@supabase/supabase-js": "^2.45.4",
+    "iceberg-js": "^0.8.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.15.0"

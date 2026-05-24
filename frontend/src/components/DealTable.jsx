@@ -5,92 +5,157 @@ function DealTable({ deals }) {
   if (!deals || deals.length === 0) {
     return (
       <div style={emptyState}>
+        <div style={emptyIcon}>🚚</div>
         <strong>No deals found.</strong>
         <p style={{ margin: "6px 0 0" }}>
-          Try changing the search text or status filter.
+          Try changing the search text, deal type, or status filter.
         </p>
       </div>
     );
   }
 
+  const sortedDeals = [...deals].sort((a, b) => {
+    const aTag = Number(a.deal_tag);
+    const bTag = Number(b.deal_tag);
+  
+    if (!Number.isNaN(aTag) && !Number.isNaN(bTag)) {
+      return bTag - aTag;
+    }
+  
+    return String(b.deal_tag || "").localeCompare(String(a.deal_tag || ""));
+  });
+
   return (
-    <div style={tableOuter}>
-      <div style={tableScroll}>
-        <table style={tableStyle}>
-          <colgroup>
-            <col style={{ width: "120px" }} />
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "13%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "8%" }} />
-          </colgroup>
+    <div style={tableCard}>
+      <div style={tableTopBar}>
+        <div>
+          <h3 style={tableTitle}>Deal List</h3>
+          <p style={tableSubtitle}>
+          Showing {sortedDeals.length} customer deal
+          {sortedDeals.length === 1 ? "" : "s"}
+          </p>
+        </div>
 
-          <thead>
-            <tr>
-              <th style={stickyTh}>Deal Tag</th>
-              <th style={th}>Customer</th>
-              <th style={th}>Phone</th>
-              <th style={th}>Status</th>
-              <th style={th}>Deal Type</th>
-              <th style={th}>Truck</th>
-              <th style={th}>Total</th>
-              <th style={th}>Monthly</th>
-              <th style={th}>Due</th>
-              <th style={th}>Term</th>
-              <th style={th}>Action</th>
-            </tr>
-          </thead>
+        <div style={tableHint}>Scroll table horizontally if needed</div>
+      </div>
 
-          <tbody>
-            {deals.map((deal) => (
-              <tr key={deal.id}>
-                <td style={stickyTd}>
-                  <Link to={`/deals/${deal.id}`} style={dealLink}>
-                    {deal.deal_tag}
-                  </Link>
-                </td>
+      <div style={tableOuter}>
+        <div style={tableScroll}>
+          <table style={tableStyle}>
+            <colgroup>
+              <col style={{ width: "125px" }} />
+              <col style={{ width: "210px" }} />
+              <col style={{ width: "135px" }} />
+              <col style={{ width: "125px" }} />
+              <col style={{ width: "145px" }} />
+              <col style={{ width: "180px" }} />
+              <col style={{ width: "125px" }} />
+              <col style={{ width: "125px" }} />
+              <col style={{ width: "85px" }} />
+              <col style={{ width: "85px" }} />
+              <col style={{ width: "150px" }} />
+            </colgroup>
 
-                <td style={wrapCell}>
-                  {deal.customers?.customer_name || "—"}
-                </td>
-
-                <td style={td}>{deal.customers?.phone || "—"}</td>
-
-                <td style={td}>
-                  <span style={getStatusStyle(deal.status)}>
-                    {deal.status || "Active"}
-                  </span>
-                </td>
-
-                <td style={wrapCell}>{deal.deal_type || "—"}</td>
-
-                <td style={wrapCell}>
-                  {deal.year || ""} {deal.truck || ""}
-                </td>
-
-                <td style={moneyCell}>{formatMoney(deal.total_amount)}</td>
-
-                <td style={moneyCell}>{formatMoney(deal.monthly_payment)}</td>
-
-                <td style={td}>{deal.due_day || "—"}</td>
-
-                <td style={td}>{deal.term || "—"}</td>
-
-                <td style={td}>
-                  <Link to={`/deals/${deal.id}/edit`} style={editLink}>
-                    Edit
-                  </Link>
-                </td>
+            <thead>
+              <tr>
+                <th style={stickyTh}>Deal Tag</th>
+                <th style={th}>Customer</th>
+                <th style={th}>Phone</th>
+                <th style={th}>Status</th>
+                <th style={th}>Deal Type</th>
+                <th style={th}>Truck</th>
+                <th style={rightTh}>Total</th>
+                <th style={rightTh}>Monthly</th>
+                <th style={centerTh}>Due</th>
+                <th style={centerTh}>Term</th>
+                <th style={centerTh}>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              {sortedDeals.map((deal, index) => (
+                <tr
+                  key={deal.id}
+                  style={{
+                    ...tableRow,
+                    background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#eef2ff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background =
+                      index % 2 === 0 ? "#ffffff" : "#f8fafc";
+                  }}
+                >
+                  <td
+                    style={{
+                      ...stickyTd,
+                      background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "#eef2ff";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background =
+                        index % 2 === 0 ? "#ffffff" : "#f8fafc";
+                    }}
+                  >
+                    <Link to={`/deals/${deal.id}`} style={dealLink}>
+                      {deal.deal_tag || "—"}
+                    </Link>
+                  </td>
+
+                  <td style={customerCell}>
+                    <strong>{deal.customers?.customer_name || "—"}</strong>
+                  </td>
+
+                  <td style={td}>{deal.customers?.phone || "—"}</td>
+
+                  <td style={td}>
+                    <span style={getStatusStyle(deal.status)}>
+                      {deal.status || "Active"}
+                    </span>
+                  </td>
+
+                  <td style={wrapCell}>
+                    <span style={dealTypeBadge}>{deal.deal_type || "—"}</span>
+                  </td>
+
+                  <td style={wrapCell}>
+                    <span style={truckText}>
+                      {`${deal.year || ""} ${deal.truck || ""}`.trim() || "—"}
+                    </span>
+                  </td>
+
+                  <td style={rightMoneyCell}>
+                    {formatMoney(deal.total_amount)}
+                  </td>
+
+                  <td style={rightMoneyCell}>
+                    {formatMoney(deal.monthly_payment)}
+                  </td>
+
+                  <td style={centerCell}>{deal.due_day || "—"}</td>
+
+                  <td style={centerCell}>{deal.term || "—"}</td>
+
+                  <td style={centerCell}>
+                    <div style={actionGroup}>
+                      <Link to={`/deals/${deal.id}`} style={viewLink}>
+                        View
+                      </Link>
+
+                      <Link to={`/deals/${deal.id}/edit`} style={editLink}>
+                        Edit
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -98,19 +163,23 @@ function DealTable({ deals }) {
 
 function getStatusStyle(status) {
   const base = {
-    padding: "5px 9px",
+    padding: "6px 10px",
     borderRadius: "999px",
     fontSize: "12px",
-    fontWeight: "bold",
-    display: "inline-block",
+    fontWeight: "800",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
     whiteSpace: "nowrap",
+    minWidth: "78px",
   };
 
-  if (status === "Active") {
+  if (!status || status === "Active") {
     return {
       ...base,
       background: "#dbeafe",
       color: "#1d4ed8",
+      border: "1px solid #bfdbfe",
     };
   }
 
@@ -119,6 +188,7 @@ function getStatusStyle(status) {
       ...base,
       background: "#dcfce7",
       color: "#166534",
+      border: "1px solid #bbf7d0",
     };
   }
 
@@ -127,6 +197,7 @@ function getStatusStyle(status) {
       ...base,
       background: "#111827",
       color: "#ffffff",
+      border: "1px solid #111827",
     };
   }
 
@@ -135,6 +206,7 @@ function getStatusStyle(status) {
       ...base,
       background: "#fee2e2",
       color: "#991b1b",
+      border: "1px solid #fecaca",
     };
   }
 
@@ -143,6 +215,7 @@ function getStatusStyle(status) {
       ...base,
       background: "#e5e7eb",
       color: "#374151",
+      border: "1px solid #d1d5db",
     };
   }
 
@@ -151,6 +224,7 @@ function getStatusStyle(status) {
       ...base,
       background: "#f3f4f6",
       color: "#6b7280",
+      border: "1px solid #e5e7eb",
     };
   }
 
@@ -158,15 +232,55 @@ function getStatusStyle(status) {
     ...base,
     background: "#e5e7eb",
     color: "#374151",
+    border: "1px solid #d1d5db",
   };
 }
+
+const tableCard = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "16px",
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+  overflow: "hidden",
+};
+
+const tableTopBar = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "14px",
+  padding: "16px 18px",
+  borderBottom: "1px solid #e5e7eb",
+  background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+  flexWrap: "wrap",
+};
+
+const tableTitle = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "18px",
+};
+
+const tableSubtitle = {
+  margin: "4px 0 0",
+  color: "#667085",
+  fontSize: "13px",
+};
+
+const tableHint = {
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  padding: "7px 11px",
+  fontSize: "12px",
+  fontWeight: "700",
+};
 
 const tableOuter = {
   width: "100%",
   maxWidth: "100%",
-  height: "560px",
-  border: "1px solid #e5e7eb",
-  borderRadius: "12px",
+  height: "590px",
   overflow: "hidden",
   background: "white",
   boxSizing: "border-box",
@@ -181,7 +295,7 @@ const tableScroll = {
 
 const tableStyle = {
   width: "100%",
-  minWidth: "1050px",
+  minWidth: "1490px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -192,32 +306,45 @@ const th = {
   top: 0,
   zIndex: 2,
   textAlign: "left",
-  padding: "10px",
-  borderBottom: "1px solid #ddd",
-  background: "#f9fafb",
-  color: "#374151",
+  padding: "13px 12px",
+  borderBottom: "1px solid #d1d5db",
+  background: "#f1f5f9",
+  color: "#334155",
   fontSize: "12px",
-  whiteSpace: "normal",
-  lineHeight: "1.25",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  whiteSpace: "nowrap",
+};
+
+const rightTh = {
+  ...th,
+  textAlign: "right",
+};
+
+const centerTh = {
+  ...th,
+  textAlign: "center",
 };
 
 const stickyTh = {
   ...th,
   left: 0,
-  zIndex: 5,
-  background: "#eef2ff",
-  boxShadow: "2px 0 6px rgba(0,0,0,0.08)",
-  fontSize: "13px",
+  zIndex: 6,
+  background: "#e0e7ff",
+  color: "#1e1b4b",
+  boxShadow: "3px 0 8px rgba(0,0,0,0.08)",
+};
+
+const tableRow = {
+  transition: "background 0.15s ease",
 };
 
 const td = {
-  padding: "10px",
-  borderBottom: "1px solid #eee",
-  fontSize: "12px",
-  background: "white",
-  verticalAlign: "top",
+  padding: "13px 12px",
+  borderBottom: "1px solid #edf2f7",
+  fontSize: "13px",
+  color: "#374151",
+  verticalAlign: "middle",
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
@@ -227,10 +354,16 @@ const stickyTd = {
   ...td,
   position: "sticky",
   left: 0,
-  zIndex: 4,
-  background: "#ffffff",
-  boxShadow: "2px 0 6px rgba(0,0,0,0.06)",
-  fontSize: "15px",
+  zIndex: 5,
+  boxShadow: "3px 0 8px rgba(0,0,0,0.06)",
+};
+
+const customerCell = {
+  ...td,
+  whiteSpace: "normal",
+  wordBreak: "break-word",
+  lineHeight: "1.4",
+  color: "#111827",
 };
 
 const wrapCell = {
@@ -240,37 +373,83 @@ const wrapCell = {
   lineHeight: "1.35",
 };
 
-const moneyCell = {
+const centerCell = {
   ...td,
-  fontWeight: "bold",
-  whiteSpace: "nowrap",
+  textAlign: "center",
+};
+
+const rightMoneyCell = {
+  ...td,
+  textAlign: "right",
+  fontWeight: "800",
+  color: "#111827",
 };
 
 const dealLink = {
   color: "#1d4ed8",
-  fontWeight: "800",
-  textDecoration: "underline",
-  textUnderlineOffset: "3px",
+  fontWeight: "900",
+  textDecoration: "none",
   fontSize: "15px",
   cursor: "pointer",
+};
+
+const dealTypeBadge = {
+  display: "inline-block",
+  background: "#f8fafc",
+  color: "#334155",
+  border: "1px solid #e2e8f0",
+  borderRadius: "999px",
+  padding: "5px 9px",
+  fontSize: "12px",
+  fontWeight: "700",
+};
+
+const truckText = {
+  color: "#374151",
+  fontWeight: "700",
+};
+
+const actionGroup = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+};
+
+const viewLink = {
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+  padding: "7px 10px",
+  borderRadius: "8px",
+  textDecoration: "none",
+  fontSize: "12px",
+  fontWeight: "800",
 };
 
 const editLink = {
   background: "#0A1A2F",
   color: "white",
-  padding: "6px 9px",
-  borderRadius: "7px",
+  border: "1px solid #0A1A2F",
+  padding: "7px 10px",
+  borderRadius: "8px",
   textDecoration: "none",
   fontSize: "12px",
-  fontWeight: "bold",
+  fontWeight: "800",
 };
 
 const emptyState = {
   background: "#f9fafb",
   border: "1px dashed #cbd5e1",
-  padding: "16px",
-  borderRadius: "10px",
+  padding: "28px",
+  borderRadius: "14px",
   color: "#475569",
+  textAlign: "center",
+};
+
+const emptyIcon = {
+  fontSize: "34px",
+  marginBottom: "10px",
 };
 
 export default DealTable;

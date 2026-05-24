@@ -24,9 +24,9 @@ function Deals() {
     try {
       setLoading(true);
       setError("");
-  
+
       const data = await getDeals();
-  
+
       setDeals(data || []);
       setLastRefreshedAt(new Date());
     } catch (error) {
@@ -59,6 +59,13 @@ function Deals() {
   const paidOffDeals = deals.filter((deal) => deal.status === "Paid Off");
   const defaultedDeals = deals.filter((deal) => deal.status === "Defaulted");
   const repoDeals = deals.filter((deal) => deal.status === "Repo");
+  const closedDeals = deals.filter((deal) => deal.status === "Closed");
+  const cancelledDeals = deals.filter((deal) => deal.status === "Cancelled");
+
+  const totalFinanced = deals.reduce(
+    (sum, deal) => sum + Number(deal.total_amount || 0),
+    0
+  );
 
   const handleExportDeals = async () => {
     try {
@@ -179,42 +186,54 @@ function Deals() {
     }
   };
 
+  const handleClearFilters = () => {
+    setSearch("");
+    setStatusFilter("All");
+  };
+
   return (
     <div style={pageWrapper}>
-      <div style={pageHeader}>
+      <div style={heroCard}>
         <div>
+          <div style={eyebrow}>Deal Management</div>
           <h1 style={pageTitle}>Deals</h1>
           <p style={pageDescription}>
-            View, search, and manage all customer deals.
+            Search, filter, review, export, and manage all customer dealership
+            deals from one place.
           </p>
+
           {lastRefreshedAt && (
-              <p style={lastRefreshedText}>
-                Last Refreshed: {lastRefreshedAt.toLocaleString()}
-              </p>
-            )}
+            <p style={lastRefreshedText}>
+              Last Refreshed: {lastRefreshedAt.toLocaleString()}
+            </p>
+          )}
         </div>
 
         <div style={headerActions}>
-        <button
-          type="button"
-          onClick={loadDeals}
-          style={{
-            ...refreshButton,
-            opacity: loading ? 0.7 : 1,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-          disabled={loading}
-        >
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
+          <button
+            type="button"
+            onClick={loadDeals}
+            style={{
+              ...refreshButton,
+              opacity: loading ? 0.7 : 1,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+            disabled={loading}
+          >
+            {loading ? "Refreshing..." : "↻ Refresh"}
+          </button>
 
           <button
             type="button"
             onClick={handleExportDeals}
-            style={exportButton}
+            style={{
+              ...exportButton,
+              opacity: isExporting ? 0.7 : 1,
+              cursor: isExporting ? "not-allowed" : "pointer",
+            }}
             disabled={isExporting}
           >
-            {isExporting ? "Exporting..." : "Export Deals"}
+            {isExporting ? "Exporting..." : "⬇ Export Deals"}
           </button>
         </div>
       </div>
@@ -222,52 +241,119 @@ function Deals() {
       {error && <div style={errorBox}>{error}</div>}
 
       <div style={cardGrid}>
-        <Card title="Total Deals" value={deals.length} />
-        <Card title="Active" value={activeDeals.length} tone="info" />
-        <Card title="Paid Off" value={paidOffDeals.length} tone="success" />
-        <Card title="Defaulted" value={defaultedDeals.length} tone="dark" />
-        <Card title="Repo" value={repoDeals.length} tone="danger" />
+        <MetricCard
+          icon="📁"
+          title="Total Deals"
+          value={deals.length}
+          subtitle="All records"
+        />
+
+        <MetricCard
+          icon="✅"
+          title="Active"
+          value={activeDeals.length}
+          subtitle="Currently collecting"
+          tone="info"
+        />
+
+        <MetricCard
+          icon="💵"
+          title="Paid Off"
+          value={paidOffDeals.length}
+          subtitle="Completed deals"
+          tone="success"
+        />
+
+        <MetricCard
+          icon="⚫"
+          title="Defaulted"
+          value={defaultedDeals.length}
+          subtitle="Default status"
+          tone="dark"
+        />
+
+        <MetricCard
+          icon="🚨"
+          title="Repo"
+          value={repoDeals.length}
+          subtitle="Repossession"
+          tone="danger"
+        />
+
+        <MetricCard
+          icon="💰"
+          title="Total Financed"
+          value={formatCompactMoney(totalFinanced)}
+          subtitle="All deal totals"
+          tone="money"
+        />
       </div>
 
-      <div style={filterBox}>
-        <div style={searchBox}>
-          <SearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder="Search deal tag, customer, phone, truck, year, VIN, or type..."
-          />
+      <div style={filterPanel}>
+        <div style={filterHeader}>
+          <div>
+            <h2 style={filterTitle}>Find a Deal</h2>
+            <p style={filterDescription}>
+              Search by deal tag, customer, phone, truck, year, VIN, deal type,
+              or subtype.
+            </p>
+          </div>
+
+          <button type="button" onClick={handleClearFilters} style={clearButton}>
+            Clear Filters
+          </button>
         </div>
 
-        <div style={filterControl}>
-          <label style={labelStyle}>Status Filter</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={selectStyle}
-          >
-            <option>All</option>
-            <option>Active</option>
-            <option>Paid Off</option>
-            <option>Closed</option>
-            <option>Repo</option>
-            <option>Cancelled</option>
-            <option>Defaulted</option>
-          </select>
+        <div style={filterGrid}>
+          <div style={searchBox}>
+            <label style={labelStyle}>Search Deals</label>
+            <SearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="Search deal tag, customer, phone, truck, year, VIN, or type..."
+            />
+          </div>
+
+          <div style={filterControl}>
+            <label style={labelStyle}>Status Filter</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={selectStyle}
+            >
+              <option>All</option>
+              <option>Active</option>
+              <option>Paid Off</option>
+              <option>Closed</option>
+              <option>Repo</option>
+              <option>Cancelled</option>
+              <option>Defaulted</option>
+            </select>
+          </div>
         </div>
       </div>
 
       <div style={summaryStrip}>
         <SummaryItem label="Showing" value={filteredDeals.length} />
-        <SummaryItem label="Search" value={search || "All"} />
+        <SummaryItem label="Search" value={search || "All Deals"} />
         <SummaryItem label="Status" value={statusFilter} />
+        <SummaryItem label="Closed" value={closedDeals.length} />
+        <SummaryItem label="Cancelled" value={cancelledDeals.length} />
       </div>
 
-      <div style={tableBox}>
+      <div style={tableSection}>
         <div style={sectionHeader}>
-          <h2 style={sectionTitle}>Deal List</h2>
-          <p style={sectionDescription}>
-            Table is fixed in size. Scroll inside the table to view more records.
-          </p>
+          <div>
+            <h2 style={sectionTitle}>Deal List</h2>
+            <p style={sectionDescription}>
+              Highest deal tags appear first. Click the deal tag or View to open
+              the customer account.
+            </p>
+          </div>
+
+          <div style={tableCountBadge}>
+            {filteredDeals.length} result{filteredDeals.length === 1 ? "" : "s"}
+          </div>
         </div>
 
         <DealTable deals={filteredDeals} />
@@ -276,35 +362,77 @@ function Deals() {
   );
 }
 
-function Card({ title, value, tone = "default" }) {
+function MetricCard({ icon, title, value, subtitle, tone = "default" }) {
   return (
-    <div style={{ ...cardStyle, ...getCardToneStyle(tone) }}>
-      <p style={{ margin: 0, color: "#667085", fontSize: "12px" }}>
-        {title}
-      </p>
-      <h3 style={{ marginTop: "6px", marginBottom: 0, fontSize: "20px" }}>
-        {value}
-      </h3>
+    <div style={{ ...metricCard, ...getCardToneStyle(tone) }}>
+      <div style={metricTop}>
+        <span style={metricIcon}>{icon}</span>
+        <span style={metricTitle}>{title}</span>
+      </div>
+
+      <h3 style={metricValue}>{value}</h3>
+      <p style={metricSubtitle}>{subtitle}</p>
     </div>
   );
 }
 
 function SummaryItem({ label, value }) {
   return (
-    <div>
+    <div style={summaryItem}>
       <span style={summaryLabel}>{label}</span>
-      <strong>{value}</strong>
+      <strong style={summaryValue}>{value}</strong>
     </div>
   );
 }
 
 function getCardToneStyle(tone) {
-  if (tone === "danger") return { borderLeft: "4px solid #991b1b" };
-  if (tone === "success") return { borderLeft: "4px solid #16a34a" };
-  if (tone === "info") return { borderLeft: "4px solid #2563eb" };
-  if (tone === "dark") return { borderLeft: "4px solid #111827" };
+  if (tone === "danger") {
+    return {
+      borderTop: "4px solid #991b1b",
+    };
+  }
 
-  return { borderLeft: "4px solid transparent" };
+  if (tone === "success") {
+    return {
+      borderTop: "4px solid #16a34a",
+    };
+  }
+
+  if (tone === "info") {
+    return {
+      borderTop: "4px solid #2563eb",
+    };
+  }
+
+  if (tone === "dark") {
+    return {
+      borderTop: "4px solid #111827",
+    };
+  }
+
+  if (tone === "money") {
+    return {
+      borderTop: "4px solid #166534",
+    };
+  }
+
+  return {
+    borderTop: "4px solid #cbd5e1",
+  };
+}
+
+function formatCompactMoney(value) {
+  const amount = Number(value || 0);
+
+  if (amount >= 1000000) {
+    return `$${(amount / 1000000).toFixed(1)}M`;
+  }
+
+  if (amount >= 1000) {
+    return `$${(amount / 1000).toFixed(1)}K`;
+  }
+
+  return `$${amount.toFixed(0)}`;
 }
 
 const pageWrapper = {
@@ -314,23 +442,50 @@ const pageWrapper = {
   boxSizing: "border-box",
 };
 
-const pageHeader = {
+const heroCard = {
+  background: "linear-gradient(135deg, #0A1A2F 0%, #102A4C 55%, #1d4ed8 100%)",
+  borderRadius: "18px",
+  padding: "24px",
+  color: "white",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "flex-start",
-  gap: "16px",
-  marginBottom: "16px",
+  gap: "18px",
   flexWrap: "wrap",
+  boxShadow: "0 14px 35px rgba(15, 23, 42, 0.22)",
+  marginBottom: "18px",
+};
+
+const eyebrow = {
+  fontSize: "12px",
+  fontWeight: "900",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#bfdbfe",
+  marginBottom: "8px",
 };
 
 const pageTitle = {
   margin: 0,
-  color: "#111827",
+  fontSize: "30px",
+  lineHeight: "1.1",
+  color: "white",
 };
 
 const pageDescription = {
-  marginTop: "6px",
-  color: "#667085",
+  marginTop: "8px",
+  marginBottom: 0,
+  color: "#dbeafe",
+  maxWidth: "720px",
+  lineHeight: "1.5",
+};
+
+const lastRefreshedText = {
+  marginTop: "10px",
+  marginBottom: 0,
+  color: "#bbf7d0",
+  fontSize: "13px",
+  fontWeight: "800",
 };
 
 const headerActions = {
@@ -340,83 +495,171 @@ const headerActions = {
 };
 
 const refreshButton = {
-  background: "#0A1A2F",
-  color: "white",
+  background: "white",
+  color: "#0A1A2F",
   border: "none",
-  borderRadius: "8px",
-  padding: "10px 14px",
+  borderRadius: "12px",
+  padding: "11px 15px",
   cursor: "pointer",
-  fontWeight: "bold",
+  fontWeight: "900",
+  boxShadow: "0 6px 18px rgba(0,0,0,0.18)",
 };
 
 const exportButton = {
-  background: "#166534",
+  background: "#16a34a",
   color: "white",
   border: "none",
-  borderRadius: "8px",
-  padding: "10px 14px",
+  borderRadius: "12px",
+  padding: "11px 15px",
   cursor: "pointer",
-  fontWeight: "bold",
+  fontWeight: "900",
+  boxShadow: "0 6px 18px rgba(0,0,0,0.18)",
 };
 
 const cardGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-  gap: "10px",
-  marginBottom: "14px",
-};
-
-const cardStyle = {
-  background: "white",
-  padding: "12px",
-  borderRadius: "10px",
-  boxShadow: "0 1px 5px rgba(0,0,0,0.07)",
-};
-
-const filterBox = {
-  background: "white",
-  padding: "14px",
-  borderRadius: "12px",
-  marginBottom: "14px",
-  display: "flex",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
   gap: "14px",
-  alignItems: "flex-end",
+  marginBottom: "18px",
+};
+
+const metricCard = {
+  background: "white",
+  padding: "16px",
+  borderRadius: "16px",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.07)",
+  border: "1px solid #e5e7eb",
+};
+
+const metricTop = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "10px",
+  marginBottom: "12px",
+};
+
+const metricIcon = {
+  fontSize: "22px",
+};
+
+const metricTitle = {
+  background: "#f8fafc",
+  color: "#334155",
+  border: "1px solid #e2e8f0",
+  borderRadius: "999px",
+  padding: "5px 9px",
+  fontSize: "11px",
+  fontWeight: "900",
+  whiteSpace: "nowrap",
+};
+
+const metricValue = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "26px",
+  fontWeight: "900",
+};
+
+const metricSubtitle = {
+  margin: "6px 0 0",
+  color: "#667085",
+  fontSize: "13px",
+  fontWeight: "700",
+};
+
+const filterPanel = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "16px",
+  padding: "16px",
+  marginBottom: "16px",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.07)",
+};
+
+const filterHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "14px",
+  marginBottom: "14px",
   flexWrap: "wrap",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+};
+
+const filterTitle = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "18px",
+};
+
+const filterDescription = {
+  margin: "6px 0 0",
+  color: "#667085",
+  fontSize: "14px",
+  lineHeight: "1.45",
+};
+
+const filterGrid = {
+  display: "grid",
+  gridTemplateColumns: "minmax(260px, 1fr) 220px",
+  gap: "14px",
+  alignItems: "end",
 };
 
 const searchBox = {
-  flex: "1 1 360px",
   minWidth: "240px",
 };
 
 const filterControl = {
-  flex: "0 0 190px",
+  minWidth: "190px",
 };
 
 const labelStyle = {
   display: "block",
-  fontWeight: "bold",
+  fontWeight: "800",
   color: "#374151",
-  marginBottom: "6px",
+  marginBottom: "7px",
+  fontSize: "13px",
 };
 
 const selectStyle = {
   width: "100%",
-  padding: "10px",
+  padding: "11px",
   border: "1px solid #d1d5db",
-  borderRadius: "8px",
+  borderRadius: "10px",
+  outline: "none",
+  background: "white",
+  color: "#111827",
+  fontWeight: "700",
+};
+
+const clearButton = {
+  background: "#f8fafc",
+  color: "#374151",
+  border: "1px solid #d1d5db",
+  borderRadius: "10px",
+  padding: "10px 13px",
+  cursor: "pointer",
+  fontWeight: "800",
 };
 
 const summaryStrip = {
-  background: "#f8fafc",
+  background: "white",
   border: "1px solid #e5e7eb",
-  borderRadius: "12px",
-  padding: "12px 16px",
+  borderRadius: "16px",
+  padding: "14px",
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
   gap: "12px",
-  marginBottom: "16px",
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.06)",
+  marginBottom: "18px",
+};
+
+const summaryItem = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "12px",
 };
 
 const summaryLabel = {
@@ -424,25 +667,37 @@ const summaryLabel = {
   color: "#667085",
   fontSize: "12px",
   marginBottom: "5px",
+  fontWeight: "700",
 };
 
-const tableBox = {
+const summaryValue = {
+  color: "#111827",
+  fontSize: "15px",
+};
+
+const tableSection = {
   background: "white",
   padding: "16px",
-  borderRadius: "12px",
+  borderRadius: "16px",
   maxWidth: "100%",
   overflow: "hidden",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.07)",
+  border: "1px solid #e5e7eb",
   boxSizing: "border-box",
 };
 
 const sectionHeader = {
-  marginBottom: "12px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "14px",
+  marginBottom: "14px",
 };
 
 const sectionTitle = {
   margin: 0,
   color: "#111827",
+  fontSize: "19px",
 };
 
 const sectionDescription = {
@@ -450,22 +705,27 @@ const sectionDescription = {
   marginBottom: 0,
   color: "#667085",
   fontSize: "14px",
+  lineHeight: "1.45",
+};
+
+const tableCountBadge = {
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  padding: "8px 12px",
+  fontSize: "13px",
+  fontWeight: "900",
+  whiteSpace: "nowrap",
 };
 
 const errorBox = {
   background: "#fee2e2",
   color: "#991b1b",
   border: "1px solid #fecaca",
-  padding: "12px",
-  borderRadius: "10px",
+  padding: "13px",
+  borderRadius: "12px",
   marginBottom: "15px",
-  fontWeight: "bold",
-};
-
-const lastRefreshedText = {
-  marginTop: "6px",
-  color: "#166534",
-  fontSize: "13px",
   fontWeight: "bold",
 };
 

@@ -49,17 +49,26 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
 
     const printContents = printElement.innerHTML;
 
-    const printWindow = window.open("", "_blank", "width=1000,height=800");
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
 
-    if (!printWindow) {
-      alert("Popup blocked. Please allow popups and try again.");
-      return;
-    }
+    document.body.appendChild(iframe);
 
-    printWindow.document.write(`
+    const iframeWindow = iframe.contentWindow;
+    const iframeDocument = iframeWindow.document;
+
+    iframeDocument.open();
+    iframeDocument.write(`
       <html>
         <head>
           <title>RK PayTrack Account Summary</title>
+
           <style>
             * {
               box-sizing: border-box;
@@ -67,154 +76,223 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
 
             body {
               font-family: Arial, Helvetica, sans-serif;
-              padding: 28px;
+              margin: 0;
+              padding: 30px;
               color: #111827;
-              background: white;
-              font-size: 13px;
+              background: #ffffff;
+              font-size: 12.5px;
             }
 
-            .top-header {
+            .document {
+              width: 100%;
+            }
+
+            .top-bar {
               display: flex;
               justify-content: space-between;
               align-items: flex-start;
               gap: 20px;
-              border-bottom: 4px solid #0A1A2F;
-              padding-bottom: 16px;
-              margin-bottom: 22px;
+              padding-bottom: 18px;
+              border-bottom: 5px solid #0A1A2F;
+              margin-bottom: 20px;
             }
 
-            .logo-row {
+            .brand-block {
               display: flex;
               align-items: center;
               gap: 14px;
             }
 
-            .logo-print-box {
-              background: white;
+            .logo-box {
+              width: 78px;
+              height: 78px;
               border: 1px solid #e5e7eb;
-              border-radius: 8px;
-              padding: 3px;
-              box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-              width: fit-content;
+              border-radius: 14px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              padding: 6px;
+              box-shadow: 0 3px 10px rgba(15, 23, 42, 0.12);
+              background: #ffffff;
               flex-shrink: 0;
             }
 
-            .logo-print {
-              width: 70px;
-              max-width: 70px;
+            .logo-box img {
+              width: 66px;
               height: auto;
               display: block;
               object-fit: contain;
             }
 
-            .brand h1 {
+            .brand-title {
               margin: 0;
               color: #0A1A2F;
               font-size: 28px;
-              letter-spacing: 0.5px;
+              letter-spacing: 0.4px;
             }
 
-            .brand p {
-              margin: 6px 0 0;
+            .brand-subtitle {
+              margin: 5px 0 0;
               color: #475569;
               font-size: 13px;
+              line-height: 1.35;
             }
 
             .statement-box {
               text-align: right;
-              color: #111827;
-              min-width: 230px;
+              min-width: 245px;
             }
 
-            .statement-box h2 {
+            .statement-title {
               margin: 0;
-              font-size: 20px;
               color: #0A1A2F;
+              font-size: 22px;
+              letter-spacing: 0.6px;
             }
 
-            .statement-box p {
-              margin: 5px 0;
-              color: #475569;
-            }
-
-            .customer-title {
-              background: #f8fafc;
-              border: 1px solid #e5e7eb;
-              border-radius: 10px;
-              padding: 14px 16px;
-              margin-bottom: 20px;
-            }
-
-            .customer-title h2 {
-              margin: 0;
-              font-size: 21px;
-              color: #111827;
-            }
-
-            .customer-title p {
+            .statement-meta {
               margin: 6px 0 0;
               color: #475569;
+              line-height: 1.45;
+            }
+
+            .customer-hero {
+              display: grid;
+              grid-template-columns: 1.4fr 0.8fr;
+              gap: 14px;
+              margin-bottom: 18px;
+            }
+
+            .customer-card {
+              background: #f8fafc;
+              border: 1px solid #e5e7eb;
+              border-radius: 14px;
+              padding: 16px;
+            }
+
+            .customer-card h2 {
+              margin: 0;
+              font-size: 22px;
+              color: #111827;
+            }
+
+            .customer-card p {
+              margin: 7px 0 0;
+              color: #475569;
+              line-height: 1.45;
+            }
+
+            .balance-card {
+              border-radius: 14px;
+              padding: 16px;
+              border: 1px solid #e5e7eb;
+              background: #ffffff;
+            }
+
+            .balance-label {
+              color: #64748b;
+              text-transform: uppercase;
+              font-size: 11px;
+              font-weight: bold;
+              letter-spacing: 0.5px;
+              margin-bottom: 8px;
+            }
+
+            .balance-value {
+              font-size: 24px;
+              font-weight: bold;
+              color: #111827;
+            }
+
+            .badge-row {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 8px;
+              margin-top: 10px;
             }
 
             .badge {
               display: inline-block;
-              padding: 6px 12px;
+              padding: 6px 11px;
               border-radius: 999px;
+              font-size: 11px;
               font-weight: bold;
-              font-size: 12px;
-              margin-top: 8px;
+              border: 1px solid transparent;
             }
 
             .badge-paid {
               background: #dcfce7;
               color: #166534;
+              border-color: #bbf7d0;
             }
 
             .badge-balance {
               background: #fee2e2;
               color: #991b1b;
+              border-color: #fecaca;
+            }
+
+            .badge-type {
+              background: #dbeafe;
+              color: #1d4ed8;
+              border-color: #bfdbfe;
+            }
+
+            .badge-status {
+              background: #f1f5f9;
+              color: #334155;
+              border-color: #cbd5e1;
             }
 
             .summary-grid {
               display: grid;
               grid-template-columns: repeat(4, 1fr);
-              gap: 12px;
-              margin-bottom: 22px;
+              gap: 11px;
+              margin-bottom: 18px;
             }
 
             .summary-card {
-              border: 1px solid #e5e7eb;
-              border-radius: 10px;
-              padding: 12px;
               background: #ffffff;
+              border: 1px solid #e5e7eb;
+              border-radius: 13px;
+              padding: 13px;
+              min-height: 76px;
             }
 
-            .summary-card .label {
+            .summary-card.highlight {
+              background: #f8fafc;
+              border-color: #cbd5e1;
+            }
+
+            .summary-label {
               color: #64748b;
-              font-size: 11px;
+              font-size: 10.5px;
               text-transform: uppercase;
-              letter-spacing: 0.4px;
+              letter-spacing: 0.5px;
+              font-weight: bold;
               margin-bottom: 8px;
             }
 
-            .summary-card .value {
+            .summary-value {
               font-size: 17px;
               font-weight: bold;
               color: #111827;
+              word-break: break-word;
             }
 
             .section {
-              margin-top: 22px;
+              margin-top: 20px;
               page-break-inside: avoid;
             }
 
-            .section h3 {
+            .section-title {
               background: #0A1A2F;
-              color: white;
-              padding: 9px 12px;
-              border-radius: 8px 8px 0 0;
+              color: #ffffff;
+              padding: 10px 12px;
+              border-radius: 10px 10px 0 0;
               margin: 0;
-              font-size: 15px;
+              font-size: 14px;
+              letter-spacing: 0.2px;
             }
 
             .info-grid {
@@ -222,13 +300,14 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
               grid-template-columns: repeat(2, 1fr);
               border: 1px solid #e5e7eb;
               border-top: none;
-              border-radius: 0 0 8px 8px;
+              border-radius: 0 0 10px 10px;
               overflow: hidden;
             }
 
             .info-item {
               padding: 10px 12px;
               border-bottom: 1px solid #e5e7eb;
+              min-height: 54px;
             }
 
             .info-item:nth-child(odd) {
@@ -237,32 +316,34 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
 
             .info-label {
               color: #64748b;
-              font-size: 11px;
+              font-size: 10.5px;
               text-transform: uppercase;
-              margin-bottom: 4px;
+              letter-spacing: 0.4px;
+              font-weight: bold;
+              margin-bottom: 5px;
             }
 
             .info-value {
-              font-weight: bold;
               color: #111827;
+              font-weight: bold;
               word-break: break-word;
+              line-height: 1.35;
             }
 
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-top: 0;
-              font-size: 12px;
               border: 1px solid #e5e7eb;
+              font-size: 11.5px;
             }
 
             th {
               background: #f1f5f9;
               color: #0f172a;
-              font-weight: bold;
-              padding: 9px;
+              padding: 8px;
               border: 1px solid #e5e7eb;
               text-align: left;
+              font-weight: bold;
               white-space: nowrap;
             }
 
@@ -275,6 +356,11 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
 
             tr:nth-child(even) td {
               background: #fafafa;
+            }
+
+            .money {
+              font-weight: bold;
+              color: #111827;
             }
 
             .status-paid {
@@ -301,355 +387,376 @@ function AccountSummaryPrint({ deal, payments, promises, totalPaid, balance }) {
               white-space: pre-wrap;
               border: 1px solid #e5e7eb;
               border-top: none;
-              padding: 12px;
-              border-radius: 0 0 8px 8px;
-              min-height: 70px;
-              background: #fff;
+              padding: 13px;
+              border-radius: 0 0 10px 10px;
+              min-height: 72px;
+              background: #ffffff;
+              color: #374151;
+              line-height: 1.5;
               word-break: break-word;
             }
 
             .signature-row {
-              margin-top: 35px;
+              margin-top: 34px;
               display: grid;
               grid-template-columns: repeat(2, 1fr);
-              gap: 40px;
+              gap: 44px;
             }
 
             .signature-line {
               border-top: 1px solid #111827;
               padding-top: 7px;
               color: #475569;
-              font-size: 12px;
+              font-size: 11.5px;
             }
 
             .footer {
-              margin-top: 35px;
-              padding-top: 15px;
+              margin-top: 34px;
+              padding-top: 13px;
               border-top: 1px solid #e5e7eb;
               color: #64748b;
-              font-size: 11px;
+              font-size: 10.5px;
               display: flex;
               justify-content: space-between;
+              gap: 12px;
             }
 
             @media print {
               body {
-                padding: 16px;
+                padding: 18px;
               }
 
-              .section {
-                page-break-inside: avoid;
-              }
-
-              .top-header {
+              .section,
+              .top-bar,
+              .customer-hero {
                 page-break-inside: avoid;
               }
             }
           </style>
         </head>
+
         <body>
           ${printContents}
-          <script>
-            window.onload = function () {
-              setTimeout(function () {
-                window.focus();
-                window.print();
-              }, 300);
-            };
-          </script>
         </body>
       </html>
     `);
 
-    printWindow.document.close();
+    iframeDocument.close();
+
+    setTimeout(() => {
+      iframeWindow.focus();
+      iframeWindow.print();
+
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 1000);
+    }, 500);
   };
 
   return (
     <>
-      <button onClick={handlePrint} style={printButtonStyle}>
-        🖨 Print Account Summary
+      <button type="button" onClick={handlePrint} style={printButtonStyle}>
+        🖨 Account Summary
       </button>
 
       <div id="account-summary-print" style={hiddenPrintContainer}>
-        <div className="top-header">
-          <div className="logo-row">
-            <div className="logo-print-box">
-              <img
-                src={logo}
-                alt="RK PayTrack Logo"
-                className="logo-print"
-                style={{
-                  width: "70px",
-                  maxWidth: "70px",
-                  height: "auto",
-                  display: "block",
-                  objectFit: "contain",
-                }}
+        <div className="document">
+          <div className="top-bar">
+            <div className="brand-block">
+              <div className="logo-box">
+                <img src={logo} alt="RK PayTrack Logo" />
+              </div>
+
+              <div>
+                <h1 className="brand-title">RK PayTrack</h1>
+                <p className="brand-subtitle">
+                  Dealer Payment Tracking System
+                  <br />
+                  RK Truck & Trailer Sales
+                </p>
+              </div>
+            </div>
+
+            <div className="statement-box">
+              <h2 className="statement-title">ACCOUNT SUMMARY</h2>
+              <p className="statement-meta">
+                Generated: {new Date().toLocaleString()}
+                <br />
+                Deal Tag: {deal.deal_tag || "—"}
+              </p>
+            </div>
+          </div>
+
+          <div className="customer-hero">
+            <div className="customer-card">
+              <h2>
+                {deal.deal_tag || "—"} -{" "}
+                {deal.customers?.customer_name || "Customer"}
+              </h2>
+
+              <p>
+                {deal.year || ""} {deal.truck || "Truck"} | VIN:{" "}
+                {deal.vin || "—"}
+              </p>
+
+              <div className="badge-row">
+                <span className="badge badge-type">
+                  {deal.deal_type || "Deal Type Not Set"}
+                </span>
+
+                <span className="badge badge-status">
+                  {deal.status || "Active"}
+                </span>
+
+                {deal.deal_subtype && (
+                  <span className="badge badge-status">
+                    {deal.deal_subtype}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="balance-card">
+              <div className="balance-label">
+                {balance <= 0 ? "Account Status" : "Current Balance"}
+              </div>
+
+              <div className="balance-value">
+                {balance <= 0 ? "PAID OFF" : formatMoney(balance)}
+              </div>
+
+              <div className="badge-row">
+                {balance <= 0 ? (
+                  <span className="badge badge-paid">PAID OFF</span>
+                ) : (
+                  <span className="badge badge-balance">BALANCE DUE</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="summary-grid">
+            <SummaryCard
+              label="Total Amount"
+              value={formatMoney(deal.total_amount)}
+            />
+
+            <SummaryCard label="Total Paid" value={formatMoney(totalPaid)} />
+
+            <SummaryCard
+              label="Balance"
+              value={formatMoney(balance)}
+              highlight
+            />
+
+            <SummaryCard
+              label="Monthly Payment"
+              value={formatMoney(deal.monthly_payment)}
+            />
+          </div>
+
+          <div className="section">
+            <h3 className="section-title">Customer Information</h3>
+
+            <div className="info-grid">
+              <InfoItem
+                label="Customer"
+                value={deal.customers?.customer_name || "—"}
+              />
+              <InfoItem label="Phone" value={deal.customers?.phone || "—"} />
+              <InfoItem label="Email" value={deal.customers?.email || "—"} />
+              <InfoItem
+                label="Address"
+                value={deal.customers?.address || "—"}
               />
             </div>
+          </div>
 
-            <div className="brand">
-              <h1>RK PayTrack</h1>
-              <p>Dealer Payment Tracking System</p>
-              <p>Account Summary / Customer Statement</p>
+          <div className="section">
+            <h3 className="section-title">Deal Information</h3>
+
+            <div className="info-grid">
+              <InfoItem label="Deal Status" value={deal.status || "—"} />
+              <InfoItem label="Deal Type" value={deal.deal_type || "—"} />
+              <InfoItem label="Sub Type" value={deal.deal_subtype || "—"} />
+              <InfoItem
+                label="Start Date"
+                value={formatDisplayDate(deal.start_date)}
+              />
+              <InfoItem label="Due Day" value={deal.due_day || "—"} />
+              <InfoItem label="Term" value={deal.term || "—"} />
+              <InfoItem
+                label="Maturity Date"
+                value={formatDisplayDate(deal.maturity_date)}
+              />
+              <InfoItem
+                label="Truck"
+                value={`${deal.year || ""} ${deal.truck || ""}`.trim() || "—"}
+              />
             </div>
           </div>
 
-          <div className="statement-box">
-            <h2>ACCOUNT SUMMARY</h2>
-            <p>Generated: {new Date().toLocaleString()}</p>
-            <p>Deal Tag: {deal.deal_tag}</p>
-          </div>
-        </div>
+          <div className="section">
+            <h3 className="section-title">Due Schedule</h3>
 
-        <div className="customer-title">
-          <h2>
-            {deal.deal_tag} - {deal.customers?.customer_name}
-          </h2>
-          <p>
-            {deal.year || ""} {deal.truck || ""} | VIN: {deal.vin || "—"}
-          </p>
-
-          {balance <= 0 ? (
-            <div className="badge badge-paid">PAID OFF</div>
-          ) : (
-            <div className="badge badge-balance">
-              BALANCE DUE: {formatMoney(balance)}
-            </div>
-          )}
-        </div>
-
-        <div className="summary-grid">
-          <div className="summary-card">
-            <div className="label">Total Amount</div>
-            <div className="value">{formatMoney(deal.total_amount)}</div>
-          </div>
-
-          <div className="summary-card">
-            <div className="label">Total Paid</div>
-            <div className="value">{formatMoney(totalPaid)}</div>
-          </div>
-
-          <div className="summary-card">
-            <div className="label">Balance</div>
-            <div className="value">{formatMoney(balance)}</div>
-          </div>
-
-          <div className="summary-card">
-            <div className="label">Monthly Payment</div>
-            <div className="value">{formatMoney(deal.monthly_payment)}</div>
-          </div>
-        </div>
-
-        <div className="section">
-          <h3>Customer Information</h3>
-          <div className="info-grid">
-            <div className="info-item">
-              <div className="info-label">Customer</div>
-              <div className="info-value">
-                {deal.customers?.customer_name || "—"}
-              </div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">Phone</div>
-              <div className="info-value">{deal.customers?.phone || "—"}</div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">Email</div>
-              <div className="info-value">{deal.customers?.email || "—"}</div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">Address</div>
-              <div className="info-value">
-                {deal.customers?.address || "—"}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="section">
-          <h3>Deal Information</h3>
-          <div className="info-grid">
-            <div className="info-item">
-              <div className="info-label">Deal Status</div>
-              <div className="info-value">{deal.status || "—"}</div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">Deal Type</div>
-              <div className="info-value">{deal.deal_type || "—"}</div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">Sub Type</div>
-              <div className="info-value">{deal.deal_subtype || "—"}</div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">Start Date</div>
-              <div className="info-value">
-                {formatDisplayDate(deal.start_date)}
-              </div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">Due Day</div>
-              <div className="info-value">{deal.due_day || "—"}</div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">Term</div>
-              <div className="info-value">{deal.term || "—"}</div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">Maturity Date</div>
-              <div className="info-value">
-                {formatDisplayDate(deal.maturity_date)}
-              </div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">Truck</div>
-              <div className="info-value">
-                {deal.year || ""} {deal.truck || ""}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="section">
-          <h3>Due Schedule</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Installment</th>
-                <th>Due Date</th>
-                <th>Amount Due</th>
-                <th>Paid</th>
-                <th>Remaining</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {schedule.length === 0 ? (
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan="6">No due schedule available.</td>
+                  <th>Installment</th>
+                  <th>Due Date</th>
+                  <th>Amount Due</th>
+                  <th>Paid</th>
+                  <th>Remaining</th>
+                  <th>Status</th>
                 </tr>
-              ) : (
-                schedule.map((item) => (
-                  <tr key={item.installmentNumber}>
-                    <td>{item.installmentNumber}</td>
-                    <td>{formatDisplayDate(item.dueDate)}</td>
-                    <td>{formatMoney(item.amountDue)}</td>
-                    <td>{formatMoney(item.paidForDueDate)}</td>
-                    <td>{formatMoney(item.remaining)}</td>
-                    <td>
-                      <span className={getPrintStatusClass(item.status)}>
-                        {item.status}
-                      </span>
-                    </td>
+              </thead>
+
+              <tbody>
+                {schedule.length === 0 ? (
+                  <tr>
+                    <td colSpan="6">No due schedule available.</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  schedule.map((item) => (
+                    <tr key={item.installmentNumber}>
+                      <td>{item.installmentNumber}</td>
+                      <td>{formatDisplayDate(item.dueDate)}</td>
+                      <td className="money">{formatMoney(item.amountDue)}</td>
+                      <td className="money">
+                        {formatMoney(item.paidForDueDate)}
+                      </td>
+                      <td className="money">{formatMoney(item.remaining)}</td>
+                      <td>
+                        <span className={getPrintStatusClass(item.status)}>
+                          {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-        <div className="section">
-          <h3>Payment History</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Payment Date</th>
-                <th>Due Date</th>
-                <th>Amount Paid</th>
-                <th>Method</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Notes / Void Reason</th>
-              </tr>
-            </thead>
+          <div className="section">
+            <h3 className="section-title">Payment History</h3>
 
-            <tbody>
-              {payments.length === 0 ? (
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan="7">No payments recorded.</td>
+                  <th>Payment Date</th>
+                  <th>Due Date</th>
+                  <th>Amount Paid</th>
+                  <th>Method</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Notes / Void Reason</th>
                 </tr>
-              ) : (
-                payments.map((payment) => (
-                  <tr key={payment.id}>
-                    <td>{formatDisplayDate(payment.payment_date)}</td>
-                    <td>{formatDisplayDate(payment.due_date)}</td>
-                    <td>{formatMoney(payment.amount_paid)}</td>
-                    <td>{payment.payment_method || "—"}</td>
-                    <td>{payment.payment_type || "—"}</td>
-                    <td>{payment.payment_status || "Active"}</td>
-                    <td>{payment.void_reason || payment.notes || "—"}</td>
+              </thead>
+
+              <tbody>
+                {payments.length === 0 ? (
+                  <tr>
+                    <td colSpan="7">No payments recorded.</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  payments.map((payment) => (
+                    <tr key={payment.id}>
+                      <td>{formatDisplayDate(payment.payment_date)}</td>
+                      <td>{formatDisplayDate(payment.due_date)}</td>
+                      <td className="money">{formatMoney(payment.amount_paid)}</td>
+                      <td>{payment.payment_method || "—"}</td>
+                      <td>{payment.payment_type || "—"}</td>
+                      <td>{payment.payment_status || "Active"}</td>
+                      <td>{payment.void_reason || payment.notes || "—"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-        <div className="section">
-          <h3>Promise History</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Original Due Date</th>
-                <th>Promised Date</th>
-                <th>Amount Due</th>
-                <th>Paid Now</th>
-                <th>Remaining</th>
-                <th>Status</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
+          <div className="section">
+            <h3 className="section-title">Promise History</h3>
 
-            <tbody>
-              {promises.length === 0 ? (
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan="7">No promises recorded.</td>
+                  <th>Original Due Date</th>
+                  <th>Promised Date</th>
+                  <th>Amount Due</th>
+                  <th>Paid Now</th>
+                  <th>Remaining</th>
+                  <th>Status</th>
+                  <th>Notes</th>
                 </tr>
-              ) : (
-                promises.map((promise) => (
-                  <tr key={promise.id}>
-                    <td>{formatDisplayDate(promise.original_due_date)}</td>
-                    <td>{formatDisplayDate(promise.promised_date)}</td>
-                    <td>{formatMoney(promise.amount_due)}</td>
-                    <td>{formatMoney(promise.amount_paid_now)}</td>
-                    <td>{formatMoney(promise.remaining_amount)}</td>
-                    <td>{promise.promise_status}</td>
-                    <td>{promise.notes || "—"}</td>
+              </thead>
+
+              <tbody>
+                {promises.length === 0 ? (
+                  <tr>
+                    <td colSpan="7">No promises recorded.</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  promises.map((promise) => (
+                    <tr key={promise.id}>
+                      <td>{formatDisplayDate(promise.original_due_date)}</td>
+                      <td>{formatDisplayDate(promise.promised_date)}</td>
+                      <td className="money">
+                        {formatMoney(promise.amount_due)}
+                      </td>
+                      <td className="money">
+                        {formatMoney(promise.amount_paid_now)}
+                      </td>
+                      <td className="money">
+                        {formatMoney(promise.remaining_amount)}
+                      </td>
+                      <td>{promise.promise_status}</td>
+                      <td>{promise.notes || "—"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-        <div className="section">
-          <h3>Deal Notes</h3>
-          <div className="notes">{deal.notes || "No notes added."}</div>
-        </div>
+          <div className="section">
+            <h3 className="section-title">Deal Notes</h3>
+            <div className="notes">{deal.notes || "No notes added."}</div>
+          </div>
 
-        <div className="signature-row">
-          <div className="signature-line">Customer Signature</div>
-          <div className="signature-line">Authorized Representative</div>
-        </div>
+          <div className="signature-row">
+            <div className="signature-line">Customer Signature</div>
+            <div className="signature-line">Authorized Representative</div>
+          </div>
 
-        <div className="footer">
-          <span>RK PayTrack Account Summary</span>
-          <span>Generated by RK PayTrack</span>
+          <div className="footer">
+            <span>RK PayTrack Account Summary</span>
+            <span>Generated by RK PayTrack</span>
+          </div>
         </div>
       </div>
     </>
+  );
+}
+
+function SummaryCard({ label, value, highlight = false }) {
+  return (
+    <div className={highlight ? "summary-card highlight" : "summary-card"}>
+      <div className="summary-label">{label}</div>
+      <div className="summary-value">{value}</div>
+    </div>
+  );
+}
+
+function InfoItem({ label, value }) {
+  return (
+    <div className="info-item">
+      <div className="info-label">{label}</div>
+      <div className="info-value">{value || "—"}</div>
+    </div>
   );
 }
 
@@ -669,21 +776,22 @@ function formatDisplayDate(dateString) {
 
 const printButtonStyle = {
   display: "inline-block",
-  background: "#166534",
+  background: "linear-gradient(135deg, #166534, #15803d)",
   color: "white",
-  padding: "8px 12px",
-  borderRadius: "8px",
+  padding: "10px 14px",
+  borderRadius: "10px",
   border: "none",
   cursor: "pointer",
-  fontWeight: "bold",
+  fontWeight: "900",
+  boxShadow: "0 6px 14px rgba(22, 101, 52, 0.22)",
 };
 
 const hiddenPrintContainer = {
   position: "absolute",
   left: "-99999px",
   top: 0,
-  width: "800px",
-  maxWidth: "800px",
+  width: "900px",
+  maxWidth: "900px",
   height: "0px",
   overflow: "hidden",
 };

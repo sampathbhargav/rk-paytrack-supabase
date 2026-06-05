@@ -18,6 +18,7 @@ import EditDeal from "./pages/EditDeal";
 import Reports from "./pages/Reports";
 import LegalPolicies from "./pages/LegalPolicies";
 import HelpCenter from "./pages/HelpCenter";
+import GlobalSearch from "./components/GlobalSearch";
 
 import ConnectionStatus from "./components/ConnectionStatus";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -34,7 +35,21 @@ function App() {
 
 function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [searchMinimized, setSearchMinimized] = useState(false);
+  const [searchHovered, setSearchHovered] = useState(false);
   const location = useLocation();
+
+  const showFullSearch = !searchMinimized || searchHovered;
+
+  const handleMainScroll = (event) => {
+    const scrollTop = event.currentTarget.scrollTop;
+
+    if (scrollTop > 80) {
+      setSearchMinimized(true);
+    } else {
+      setSearchMinimized(false);
+    }
+  };
 
   const navItems = [
     { label: "Dashboard", path: "/" },
@@ -151,7 +166,31 @@ function AppLayout() {
         </nav>
       </aside>
 
-      <main style={mainStyle}>
+      <main style={mainStyle} onScroll={handleMainScroll}>
+        <div
+            style={{
+              ...topHeaderStyle,
+              ...(showFullSearch ? topHeaderExpandedStyle : topHeaderMinimizedStyle),
+            }}
+          >
+          {showFullSearch ? (
+            <div
+              style={searchExpandedWrapper}
+              onMouseLeave={() => setSearchHovered(false)}
+            >
+              <GlobalSearch />
+            </div>
+          ) : (
+            <div
+              style={searchMiniPill}
+              onMouseEnter={() => setSearchHovered(true)}
+            >
+              <span style={searchMiniIcon}>⌕</span>
+              <span>Search</span>
+            </div>
+          )}
+        </div>
+
         <ConnectionStatus />
 
         <ErrorBoundary>
@@ -210,6 +249,57 @@ const sidebarStyle = {
   position: "sticky",
   top: 0,
   alignSelf: "flex-start",
+};
+
+const topHeaderStyle = {
+  width: "100%",
+  display: "flex",
+  alignItems: "center",
+  position: "sticky",
+  top: 0,
+  zIndex: 60,
+  background: "transparent",
+  transition: "all 0.25s ease",
+  pointerEvents: "none",
+};
+
+const topHeaderExpandedStyle = {
+  justifyContent: "center",
+  padding: "0 0 12px",
+  marginBottom: "18px",
+};
+
+const topHeaderMinimizedStyle = {
+  justifyContent: "flex-end",
+  padding: "0",
+  marginBottom: "0",
+};
+
+const searchExpandedWrapper = {
+  width: "100%",
+  maxWidth: "620px",
+  transition: "all 0.25s ease",
+  pointerEvents: "auto",
+};
+
+const searchMiniPill = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "7px",
+  background: "#0A1A2F",
+  color: "white",
+  borderRadius: "999px",
+  padding: "9px 14px",
+  fontWeight: "900",
+  cursor: "pointer",
+  boxShadow: "0 8px 20px rgba(15, 23, 42, 0.18)",
+  border: "1px solid #1e293b",
+  pointerEvents: "auto",
+};
+
+const searchMiniIcon = {
+  fontSize: "18px",
+  fontWeight: "900",
 };
 
 const mainStyle = {

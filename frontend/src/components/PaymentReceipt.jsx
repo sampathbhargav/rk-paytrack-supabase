@@ -5,21 +5,45 @@ function PaymentReceipt({ receipt, onClose }) {
 
   const handlePrint = () => {
     const printContent = document.getElementById("payment-receipt-print-area");
-    if (!printContent) return;
-
-    const printWindow = window.open("", "_blank", "width=900,height=700");
-
-    printWindow.document.write(`
+  
+    if (!printContent) {
+      alert("Payment receipt was not found.");
+      return;
+    }
+  
+    const iframe = document.createElement("iframe");
+  
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+  
+    document.body.appendChild(iframe);
+  
+    const iframeWindow = iframe.contentWindow;
+    const iframeDocument = iframeWindow.document;
+  
+    iframeDocument.open();
+    iframeDocument.write(`
       <html>
         <head>
           <title>Payment Receipt</title>
+  
           <style>
+            * {
+              box-sizing: border-box;
+            }
+  
             body {
-              font-family: Arial, sans-serif;
+              font-family: Arial, Helvetica, sans-serif;
               padding: 30px;
               color: #111827;
+              background: white;
             }
-
+  
             .receipt {
               max-width: 760px;
               margin: 0 auto;
@@ -27,7 +51,7 @@ function PaymentReceipt({ receipt, onClose }) {
               padding: 28px;
               border-radius: 12px;
             }
-
+  
             .header {
               display: flex;
               justify-content: space-between;
@@ -35,36 +59,36 @@ function PaymentReceipt({ receipt, onClose }) {
               padding-bottom: 16px;
               margin-bottom: 20px;
             }
-
+  
             h1, h2, h3, p {
               margin-top: 0;
             }
-
+  
             .company h1 {
               color: #0A1A2F;
               margin-bottom: 4px;
               font-size: 24px;
             }
-
+  
             .company p {
               color: #6b7280;
               font-size: 13px;
               margin: 3px 0;
             }
-
+  
             .receipt-title {
               text-align: right;
             }
-
+  
             .receipt-title h2 {
               color: #166534;
               margin-bottom: 6px;
             }
-
+  
             .section {
               margin-top: 18px;
             }
-
+  
             .section-title {
               font-weight: bold;
               color: #0A1A2F;
@@ -72,28 +96,28 @@ function PaymentReceipt({ receipt, onClose }) {
               border-bottom: 1px solid #e5e7eb;
               padding-bottom: 5px;
             }
-
+  
             .grid {
               display: grid;
               grid-template-columns: 1fr 1fr;
               gap: 10px 24px;
             }
-
+  
             .field {
               font-size: 14px;
             }
-
+  
             .label {
               display: block;
               color: #6b7280;
               font-size: 12px;
               margin-bottom: 3px;
             }
-
+  
             .value {
               font-weight: bold;
             }
-
+  
             .amount-box {
               margin-top: 22px;
               background: #ecfdf5;
@@ -102,54 +126,72 @@ function PaymentReceipt({ receipt, onClose }) {
               padding: 18px;
               text-align: center;
             }
-
+  
             .amount-label {
               color: #166534;
               font-size: 13px;
               font-weight: bold;
             }
-
+  
             .amount {
               color: #166534;
               font-size: 32px;
               font-weight: bold;
               margin-top: 5px;
             }
-
+  
             .footer {
               margin-top: 34px;
               display: grid;
               grid-template-columns: 1fr 1fr;
               gap: 40px;
             }
-
+  
             .signature-line {
               border-top: 1px solid #111827;
               padding-top: 8px;
               font-size: 13px;
               color: #374151;
             }
-
+  
             .note {
               margin-top: 24px;
               text-align: center;
               color: #6b7280;
               font-size: 12px;
             }
+  
+            @media print {
+              body {
+                padding: 18px;
+              }
+  
+              .receipt {
+                border: 1px solid #d1d5db;
+                box-shadow: none;
+              }
+            }
           </style>
         </head>
+  
         <body>
           ${printContent.innerHTML}
-          <script>
-            window.onload = function() {
-              window.print();
-            };
-          </script>
         </body>
       </html>
     `);
-
-    printWindow.document.close();
+  
+    iframeDocument.close();
+  
+    setTimeout(() => {
+      iframeWindow.focus();
+      iframeWindow.print();
+  
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 1000);
+    }, 500);
   };
 
   const receiptNumber =

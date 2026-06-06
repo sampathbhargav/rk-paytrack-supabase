@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   calculateDealTotals,
   getCustomerProfileById,
@@ -13,6 +13,7 @@ import { formatMoney } from "../utils/moneyUtils";
 
 function CustomerProfile() {
   const { customerId } = useParams();
+  const navigate = useNavigate();
 
   const [customer, setCustomer] = useState(null);
   const [deals, setDeals] = useState([]);
@@ -126,9 +127,9 @@ function CustomerProfile() {
   if (error) {
     return (
       <div style={pageWrapper}>
-        <Link to="/maintenance" style={backLink}>
-          ← Back
-        </Link>
+        <button type="button" onClick={() => navigate(-1)} style={backButton}>
+            ← Back
+        </button>
 
         <div style={errorBox}>{error}</div>
       </div>
@@ -146,9 +147,9 @@ function CustomerProfile() {
   return (
     <div style={pageWrapper}>
       <div style={topNav}>
-        <Link to="/maintenance" style={backLink}>
-          ← Back to Maintenance
-        </Link>
+        <button type="button" onClick={() => navigate(-1)} style={backButton}>
+            ← Back
+        </button>
       </div>
 
       <div style={profileHero}>
@@ -692,5 +693,19 @@ const errorBox = {
   marginTop: "15px",
   fontWeight: "bold",
 };
+
+const backButton = {
+    display: "inline-flex",
+    alignItems: "center",
+    color: "#0A1A2F",
+    textDecoration: "none",
+    fontWeight: "900",
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "999px",
+    padding: "9px 13px",
+    boxShadow: "0 4px 12px rgba(15, 23, 42, 0.06)",
+    cursor: "pointer",
+  };
 
 export default CustomerProfile;

@@ -21,6 +21,7 @@ import HelpCenter from "./pages/HelpCenter";
 import GlobalSearch from "./components/GlobalSearch";
 import Maintenance from "./pages/Maintenance";
 import CustomerProfile from "./pages/CustomerProfile";
+import Customers from "./pages/Customers";
 
 import ConnectionStatus from "./components/ConnectionStatus";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -61,6 +62,7 @@ function AppLayout() {
     { label: "Due Payments", path: "/due-payments" },
     { label: "Promises", path: "/promises" },
     { label: "Maintenance", path: "/maintenance" },
+    { label: "Customers", path: "/customers" },
     { label: "Reports", path: "/reports" },
     { label: "Help Center", path: "/help-center" },
     { label: "Policy Center", path: "/legal-policies" },
@@ -207,6 +209,7 @@ function AppLayout() {
             <Route path="/due-payments" element={<DuePayments />} />
             <Route path="/promises" element={<Promises />} />
             <Route path="/maintenance" element={<Maintenance />} />
+            <Route path="/customers" element={<Customers />} />
             <Route path="/customers/:customerId" element={<CustomerProfile />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/help-center" element={<HelpCenter />} />
@@ -227,6 +230,7 @@ function getIcon(label) {
     "Due Payments": "📅",
     Promises: "🤝",
     Maintenance: "🔧",
+    Customers: "👥",
     Reports: "📈",
     "Help Center": "📚",
     "Policy Center": "📘"

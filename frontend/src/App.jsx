@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -40,18 +40,24 @@ function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [searchMinimized, setSearchMinimized] = useState(false);
   const [searchHovered, setSearchHovered] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  
+  const searchWrapperRef = useRef(null);
   const location = useLocation();
-
-  const showFullSearch = !searchMinimized || searchHovered;
+  
+  const searchActive = searchHovered || searchFocused;
+  const showFullSearch = !searchMinimized || searchActive;
 
   const handleMainScroll = (event) => {
+    if (searchActive) return;
+  
     const scrollTop = event.currentTarget.scrollTop;
-
-    if (scrollTop > 80) {
-      setSearchMinimized(true);
-    } else {
-      setSearchMinimized(false);
-    }
+    const shouldMinimize = scrollTop > 80;
+  
+    setSearchMinimized((prev) => {
+      if (prev === shouldMinimize) return prev;
+      return shouldMinimize;
+    });
   };
 
   const navItems = [
@@ -172,29 +178,50 @@ function AppLayout() {
       </aside>
 
       <main style={mainStyle} onScroll={handleMainScroll}>
-        <div
-            style={{
-              ...topHeaderStyle,
-              ...(showFullSearch ? topHeaderExpandedStyle : topHeaderMinimizedStyle),
+      <div
+        style={{
+          ...topHeaderStyle,
+          ...(showFullSearch ? topHeaderExpandedStyle : topHeaderMinimizedStyle),
+        }}
+      >
+        {showFullSearch ? (
+          <div
+            ref={searchWrapperRef}
+            style={searchExpandedWrapper}
+            onMouseEnter={() => setSearchHovered(true)}
+            onMouseLeave={() => setSearchHovered(false)}
+            onFocusCapture={() => setSearchFocused(true)}
+            onBlurCapture={() => {
+              setTimeout(() => {
+                const activeElement = document.activeElement;
+
+                if (
+                  searchWrapperRef.current &&
+                  !searchWrapperRef.current.contains(activeElement)
+                ) {
+                  setSearchFocused(false);
+                }
+              }, 150);
             }}
           >
-          {showFullSearch ? (
-            <div
-              style={searchExpandedWrapper}
-              onMouseLeave={() => setSearchHovered(false)}
-            >
-              <GlobalSearch />
-            </div>
-          ) : (
-            <div
-              style={searchMiniPill}
-              onMouseEnter={() => setSearchHovered(true)}
-            >
-              <span style={searchMiniIcon}>⌕</span>
-              <span>Search</span>
-            </div>
-          )}
-        </div>
+            <GlobalSearch />
+          </div>
+        ) : (
+          <button
+            type="button"
+            style={searchMiniPill}
+            onMouseEnter={() => setSearchHovered(true)}
+            onFocus={() => setSearchFocused(true)}
+            onClick={() => {
+              setSearchHovered(true);
+              setSearchFocused(true);
+            }}
+          >
+            <span style={searchMiniIcon}>⌕</span>
+            <span>Search</span>
+          </button>
+        )}
+      </div>
 
         <ConnectionStatus />
 
@@ -269,27 +296,27 @@ const topHeaderStyle = {
   top: 0,
   zIndex: 60,
   background: "transparent",
-  transition: "all 0.25s ease",
   pointerEvents: "none",
+  minHeight: "58px",
+  marginBottom: "18px",
+  transition: "justify-content 0.2s ease",
 };
 
 const topHeaderExpandedStyle = {
   justifyContent: "center",
   padding: "0 0 12px",
-  marginBottom: "18px",
 };
 
 const topHeaderMinimizedStyle = {
   justifyContent: "flex-end",
-  padding: "0",
-  marginBottom: "0",
+  padding: "0 0 12px",
 };
 
 const searchExpandedWrapper = {
   width: "100%",
   maxWidth: "620px",
-  transition: "all 0.25s ease",
   pointerEvents: "auto",
+  transition: "opacity 0.18s ease, transform 0.18s ease",
 };
 
 const searchMiniPill = {
@@ -305,6 +332,7 @@ const searchMiniPill = {
   boxShadow: "0 8px 20px rgba(15, 23, 42, 0.18)",
   border: "1px solid #1e293b",
   pointerEvents: "auto",
+  fontFamily: "Arial",
 };
 
 const searchMiniIcon = {

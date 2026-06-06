@@ -20,6 +20,7 @@ import LegalPolicies from "./pages/LegalPolicies";
 import HelpCenter from "./pages/HelpCenter";
 import GlobalSearch from "./components/GlobalSearch";
 import Maintenance from "./pages/Maintenance";
+import CustomerProfile from "./pages/CustomerProfile";
 
 import ConnectionStatus from "./components/ConnectionStatus";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -206,6 +207,7 @@ function AppLayout() {
             <Route path="/due-payments" element={<DuePayments />} />
             <Route path="/promises" element={<Promises />} />
             <Route path="/maintenance" element={<Maintenance />} />
+            <Route path="/customers/:customerId" element={<CustomerProfile />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/help-center" element={<HelpCenter />} />
             <Route path="/legal-policies" element={<LegalPolicies />} />

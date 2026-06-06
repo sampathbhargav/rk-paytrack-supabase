@@ -10,6 +10,7 @@ import {
     updateMaintenanceJob,
   } from "../api/maintenanceApi";
 import { formatMoney } from "../utils/moneyUtils";
+import { Link } from "react-router-dom";
 
 const todayString = new Date().toISOString().split("T")[0];
 
@@ -294,9 +295,16 @@ function Maintenance() {
                       </td>
 
                       <td style={tdStyle}>
-                        <strong>{job.customer_name || "—"}</strong>
+                        {job.customer_id ? (
+                            <Link to={`/customers/${job.customer_id}`} style={customerLinkStyle}>
+                            {job.customer_name || "—"}
+                            </Link>
+                        ) : (
+                            <strong>{job.customer_name || "—"}</strong>
+                        )}
+
                         <div style={smallText}>{job.phone || "No phone"}</div>
-                      </td>
+                       </td>
 
                       <td style={tdStyle}>
                         {`${job.year || ""} ${job.truck || ""}`.trim() || "—"}
@@ -2213,6 +2221,14 @@ const pageWrapper = {
     padding: "11px 12px",
     color: "#667085",
     fontSize: "13px",
+  };
+  
+  const customerLinkStyle = {
+    color: "#0A1A2F",
+    fontWeight: "900",
+    textDecoration: "underline",
+    textUnderlineOffset: "3px",
+    cursor: "pointer",
   };
   
   export default Maintenance;

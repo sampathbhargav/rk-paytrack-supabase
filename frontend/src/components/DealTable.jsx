@@ -107,7 +107,17 @@ function DealTable({ deals }) {
                   </td>
 
                   <td style={customerCell}>
-                    <strong>{deal.customers?.customer_name || "—"}</strong>
+                    {deal.customer_id ? (
+                      <Link to={`/customers/${deal.customer_id}`} style={customerLink}>
+                        {deal.customers?.customer_name || "—"}
+                      </Link>
+                    ) : deal.customers?.id ? (
+                      <Link to={`/customers/${deal.customers.id}`} style={customerLink}>
+                        {deal.customers?.customer_name || "—"}
+                      </Link>
+                    ) : (
+                      <strong>{deal.customers?.customer_name || "—"}</strong>
+                    )}
                   </td>
 
                   <td style={td}>{deal.customers?.phone || "—"}</td>
@@ -450,6 +460,14 @@ const emptyState = {
 const emptyIcon = {
   fontSize: "34px",
   marginBottom: "10px",
+};
+
+const customerLink = {
+  color: "#0A1A2F",
+  fontWeight: "900",
+  textDecoration: "underline",
+  textUnderlineOffset: "3px",
+  cursor: "pointer",
 };
 
 export default DealTable;

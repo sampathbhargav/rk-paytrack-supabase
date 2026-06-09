@@ -8,6 +8,7 @@ import {
   getDueDealsForDate,
   getPastDueScheduledPayments,
 } from "../utils/duePaymentsUtils";
+import LoadingSpinner from "../components/LoadingSpinner";
 
 function Dashboard() {
   const [deals, setDeals] = useState([]);
@@ -177,7 +178,11 @@ function Dashboard() {
 
       {error && <div style={errorBox}>{error}</div>}
 
-      <div style={prioritySection}>
+{loading && deals.length === 0 ? (
+  <LoadingSpinner message="Loading dashboard data..." height="520px" />
+) : (
+  <>
+    <div style={prioritySection}>
         <div style={sectionHeaderRow}>
           <div>
             <h2 style={sectionTitle}>Today’s Collection Priorities</h2>
@@ -377,9 +382,11 @@ function Dashboard() {
             />
             <DealTypeRow label="Cash" value={balanceByDealType["Cash"] || 0} />
           </div>
-        </div>
+          </div>
       </div>
-    </div>
+    </>
+  )}
+</div>
   );
 }
 

@@ -14,3 +14,41 @@
   textarea {
     font-family: inherit;
   }
+
+  /* Sidebar scrollbar */
+nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+nav::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 999px;
+}
+
+nav::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Hide sidebar scrollbar but keep scrolling */
+.sidebar-nav-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes rkSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}

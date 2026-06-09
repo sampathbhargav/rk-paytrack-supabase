@@ -356,7 +356,7 @@ function Deals() {
           </div>
         </div>
 
-        <DealTable deals={filteredDeals} />
+        <DealTable deals={filteredDeals} loading={loading} />
       </div>
     </div>
   );

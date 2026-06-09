@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { getPromises, updateBrokenPromises } from "../api/promisesApi";
 import { formatMoney } from "../utils/moneyUtils";
 import SearchBar from "../components/SearchBar";
+import LoadingSpinner from "../components/LoadingSpinner";
 
 function Promises() {
   const [promises, setPromises] = useState([]);
@@ -252,15 +253,17 @@ function Promises() {
           </span>
         </div>
 
-        {filteredPromises.length === 0 ? (
-          <EmptyState
-            icon="🔎"
-            title="No promises found."
-            message="Try changing the search text or status filter."
-          />
-        ) : (
-          <div style={tableScroll}>
-            <table style={tableStyle}>
+        {loading && promises.length === 0 ? (
+        <LoadingSpinner message="Loading promises..." height="520px" />
+      ) : filteredPromises.length === 0 ? (
+        <EmptyState
+          icon="🔎"
+          title="No promises found."
+          message="Try changing the search text or status filter."
+        />
+      ) : (
+        <div style={tableScroll}>
+          <table style={tableStyle}>
               <thead>
                 <tr>
                   <th style={stickyTh}>Deal Tag</th>

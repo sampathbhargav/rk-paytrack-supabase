@@ -11,6 +11,7 @@ import {
   } from "../api/maintenanceApi";
 import { formatMoney } from "../utils/moneyUtils";
 import { Link } from "react-router-dom";
+import LoadingSpinner from "../components/LoadingSpinner";
 
 const todayString = new Date().toISOString().split("T")[0];
 
@@ -243,7 +244,9 @@ function Maintenance() {
           Clear
         </button>
       </div>
-
+      {loading ? (
+        <LoadingSpinner message="Loading maintenance records..." />
+      ) : (
       <div style={tableCard}>
         <div style={tableHeader}>
           <div>
@@ -401,6 +404,7 @@ function Maintenance() {
           </table>
         </div>
       </div>
+      )}
 
       {showAddModal && (
         <MaintenanceFormModal

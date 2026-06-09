@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getCustomerDashboardRows } from "../api/customersApi";
 import { formatMoney } from "../utils/moneyUtils";
+import LoadingSpinner from "../components/LoadingSpinner";
 
 function Customers() {
   const [customers, setCustomers] = useState([]);
@@ -79,7 +80,9 @@ function Customers() {
           style={inputStyle}
         />
       </div>
-
+      {loading ? (
+        <LoadingSpinner message="Loading customers..." />
+      ) : (
       <div style={tableCard}>
         <div style={tableWrapper}>
           <table style={tableStyle}>
@@ -145,6 +148,7 @@ function Customers() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

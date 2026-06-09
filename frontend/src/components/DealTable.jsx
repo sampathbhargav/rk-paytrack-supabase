@@ -1,7 +1,12 @@
 import { Link } from "react-router-dom";
 import { formatMoney } from "../utils/moneyUtils";
+import LoadingSpinner from "./LoadingSpinner";
 
-function DealTable({ deals }) {
+function DealTable({ deals, loading = false }) {
+  if (loading) {
+    return <LoadingSpinner message="Loading deals..." height="590px" />;
+  }
+
   if (!deals || deals.length === 0) {
     return (
       <div style={emptyState}>

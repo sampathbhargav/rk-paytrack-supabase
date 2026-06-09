@@ -94,14 +94,11 @@ function AppLayout() {
         }}
       >
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: collapsed ? "center" : "space-between",
-            marginBottom: "25px",
-            gap: "10px",
-          }}
-        >
+            style={{
+              ...sidebarHeaderStyle,
+              justifyContent: collapsed ? "center" : "space-between",
+            }}
+          >
           {!collapsed && (
             <div style={simpleLogoWrapper}>
               <div style={logoHighlightBox}>
@@ -153,7 +150,7 @@ function AppLayout() {
           </button>
         </div>
 
-        <nav style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <nav style={sidebarNavStyle} className="sidebar-nav-scroll">
           {navItems.map((item) => {
             const active = isActive(item.path);
 
@@ -298,6 +295,8 @@ const sidebarStyle = {
   position: "sticky",
   top: 0,
   alignSelf: "flex-start",
+  display: "flex",
+  flexDirection: "column",
 };
 
 const topHeaderStyle = {
@@ -440,6 +439,31 @@ const floatingAiIcon = {
 
 const floatingAiText = {
   whiteSpace: "nowrap",
+};
+
+const sidebarHeaderStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  marginBottom: "14px",
+  flexShrink: 0,
+};
+
+const sidebarNavStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "10px",
+  overflowY: "auto",
+  overflowX: "hidden",
+  paddingRight: "0",
+  paddingBottom: "18px",
+  flex: 1,
+
+  // Hide scrollbar for Firefox
+  scrollbarWidth: "none",
+
+  // Hide scrollbar for IE/Edge old
+  msOverflowStyle: "none",
 };
 
 export default App;

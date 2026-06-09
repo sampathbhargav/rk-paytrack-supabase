@@ -22,6 +22,7 @@ import GlobalSearch from "./components/GlobalSearch";
 import Maintenance from "./pages/Maintenance";
 import CustomerProfile from "./pages/CustomerProfile";
 import Customers from "./pages/Customers";
+import AIAssistant from "./pages/AIAssistant";
 
 import ConnectionStatus from "./components/ConnectionStatus";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -70,6 +71,7 @@ function AppLayout() {
     { label: "Maintenance", path: "/maintenance" },
     { label: "Customers", path: "/customers" },
     { label: "Reports", path: "/reports" },
+    { label: "AI Assistant", path: "/ai-assistant" },
     { label: "Help Center", path: "/help-center" },
     { label: "Policy Center", path: "/legal-policies" },
   ];
@@ -239,10 +241,19 @@ function AppLayout() {
             <Route path="/customers" element={<Customers />} />
             <Route path="/customers/:customerId" element={<CustomerProfile />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/ai-assistant" element={<AIAssistant />} />
             <Route path="/help-center" element={<HelpCenter />} />
             <Route path="/legal-policies" element={<LegalPolicies />} />
           </Routes>
         </ErrorBoundary>
+
+        {location.pathname !== "/ai-assistant" && (
+          <Link to="/ai-assistant" style={floatingAiButton}>
+            <span style={floatingAiIcon}>🤖</span>
+            <span style={floatingAiText}>Ask AI</span>
+          </Link>
+        )}
+
       </main>
     </div>
   );
@@ -259,6 +270,7 @@ function getIcon(label) {
     Maintenance: "🔧",
     Customers: "👥",
     Reports: "📈",
+    "AI Assistant": "🤖",
     "Help Center": "📚",
     "Policy Center": "📘"
   };
@@ -398,6 +410,35 @@ const linkStyle = {
   padding: "12px",
   borderRadius: "10px",
   transition: "background 0.2s ease, color 0.2s ease",
+  whiteSpace: "nowrap",
+};
+
+const floatingAiButton = {
+  position: "fixed",
+  right: "22px",
+  bottom: "22px",
+  zIndex: 9999,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "8px",
+  background: "linear-gradient(135deg, #0A1A2F 0%, #1D4ED8 55%, #7C3AED 100%)",
+  color: "white",
+  textDecoration: "none",
+  borderRadius: "999px",
+  padding: "12px 16px",
+  fontWeight: "900",
+  fontSize: "13px",
+  boxShadow: "0 14px 30px rgba(15, 23, 42, 0.28)",
+  border: "1px solid rgba(255,255,255,0.25)",
+  cursor: "pointer",
+};
+
+const floatingAiIcon = {
+  fontSize: "20px",
+  lineHeight: 1,
+};
+
+const floatingAiText = {
   whiteSpace: "nowrap",
 };
 

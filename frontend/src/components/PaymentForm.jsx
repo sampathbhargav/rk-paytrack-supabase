@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getDeals } from "../api/dealsApi";
 import { getPayments, addPayment } from "../api/paymentsApi";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
@@ -20,29 +20,44 @@ function PaymentForm() {
   const [deals, setDeals] = useState([]);
   const [payments, setPayments] = useState([]);
   const [receipt, setReceipt] = useState(null);
+  const [receiptPrompt, setReceiptPrompt] = useState(null);
 
   const [formData, setFormData] = useState(initialFormData);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  const messageAreaRef = useRef(null);
+
+  const scrollToMessageArea = () => {
+    setTimeout(() => {
+      messageAreaRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
+  };
+
   useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async ({ clearMessages = true } = {}) => {
     try {
-      setMessage("");
-      setMessageType("");
+      if (clearMessages) {
+        setMessage("");
+        setMessageType("");
+      }
 
       const dealsData = await getDeals();
       const paymentsData = await getPayments();
 
-      setDeals(dealsData);
-      setPayments(paymentsData);
+      setDeals(dealsData || []);
+      setPayments(paymentsData || []);
     } catch (error) {
       setMessage(`Failed to load payment form data: ${error.message}`);
       setMessageType("error");
+      scrollToMessageArea();
     }
   };
 
@@ -64,11 +79,16 @@ function PaymentForm() {
   const amountPaid = Number(formData.amountPaid || 0);
   const remainingAmount = Math.max(amountDue - amountPaid, 0);
 
+  const clearStatusMessages = () => {
+    setMessage("");
+    setMessageType("");
+    setReceiptPrompt(null);
+  };
+
   const handleDealChange = (e) => {
     const dealId = e.target.value;
 
-    setMessage("");
-    setMessageType("");
+    clearStatusMessages();
 
     setFormData((prev) => ({
       ...prev,
@@ -88,8 +108,7 @@ function PaymentForm() {
       (item) => item.dueDate === selectedDueDate
     );
 
-    setMessage("");
-    setMessageType("");
+    clearStatusMessages();
 
     setFormData((prev) => ({
       ...prev,
@@ -101,8 +120,7 @@ function PaymentForm() {
   };
 
   const handleChange = (e) => {
-    setMessage("");
-    setMessageType("");
+    clearStatusMessages();
 
     setFormData((prev) => ({
       ...prev,
@@ -155,12 +173,15 @@ function PaymentForm() {
 
     setMessage("");
     setMessageType("");
+    setReceiptPrompt(null);
+    setReceipt(null);
 
     const validationError = validatePaymentForm();
 
     if (validationError) {
       setMessage(validationError);
       setMessageType("error");
+      scrollToMessageArea();
       return;
     }
 
@@ -173,48 +194,66 @@ function PaymentForm() {
     try {
       setIsSaving(true);
 
-      await addPayment(formData);
-
       const selectedDealData = deals.find((deal) => deal.id === formData.dealId);
 
-      const totalPaidForDeal = activePayments
+      await addPayment(formData);
+
+      const totalPaidForDealBeforeThisPayment = activePayments
         .filter((payment) => payment.deal_id === formData.dealId)
         .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
 
-      const newTotalPaid = totalPaidForDeal + Number(formData.amountPaid || 0);
+      const newTotalPaid =
+        totalPaidForDealBeforeThisPayment + Number(formData.amountPaid || 0);
 
       const remainingBalance = Math.max(
         Number(selectedDealData?.total_amount || 0) - newTotalPaid,
         0
       );
 
-      setReceipt({
-        paymentId: payment.id,
-        customerName: deal.customers?.customer_name || "",
-        phone: deal.customers?.phone || "",
-        dealTag: deal.deal_tag || "",
-        dealType: deal.deal_type || "",
-        truck: `${deal.year || ""} ${deal.truck || ""}`,
-        vin: deal.vin || "",
-        amountPaid: payment.amount_paid || 0,
-        paymentMethod: payment.payment_method || "Other",
-        paymentDate: payment.payment_date || "",
-        dueDate: payment.due_date || "",
-        paymentType: payment.payment_type || "",
-        paymentStatus: payment.payment_status || "Paid",
-        remainingBalance: remainingBalance,
-        notes: payment.notes || "",
-      });
+      const paymentType =
+        Number(formData.amountPaid || 0) >= Number(formData.amountDue || 0)
+          ? "Full Payment"
+          : "Partial Payment";
 
-      setMessage("Payment saved successfully.");
+      const receiptData = {
+        paymentId: "",
+        customerName: selectedDealData?.customers?.customer_name || "",
+        phone: selectedDealData?.customers?.phone || "",
+        dealTag: selectedDealData?.deal_tag || "",
+        dealType: selectedDealData?.deal_type || "",
+        truck: `${selectedDealData?.year || ""} ${
+          selectedDealData?.truck || ""
+        }`.trim(),
+        vin: selectedDealData?.vin || "",
+        amountPaid: Number(formData.amountPaid || 0),
+        paymentMethod: formData.paymentMethod || "Other",
+        paymentDate: formData.paymentDate || "",
+        dueDate: formData.dueDate || "",
+        paymentType,
+        paymentStatus: "Active",
+        remainingBalance,
+        notes: formData.notes || "",
+      };
+
+      setReceiptPrompt(receiptData);
+
+      setMessage(
+        `Payment saved successfully. ${formatMoney(
+          Number(formData.amountPaid || 0)
+        )} was recorded for ${
+          selectedDealData?.customers?.customer_name || "customer"
+        }.`
+      );
       setMessageType("success");
+      scrollToMessageArea();
 
       setFormData(initialFormData);
 
-      await loadData();
+      await loadData({ clearMessages: false });
     } catch (error) {
       setMessage(`Failed to save payment: ${error.message}`);
       setMessageType("error");
+      scrollToMessageArea();
     } finally {
       setIsSaving(false);
     }
@@ -226,7 +265,8 @@ function PaymentForm() {
         <div>
           <h2 style={formTitle}>Payment Entry Form</h2>
           <p style={formDescription}>
-            Record customer payments, partial payments, and promised remaining amounts.
+            Record customer payments, partial payments, and promised remaining
+            amounts.
           </p>
         </div>
 
@@ -239,6 +279,8 @@ function PaymentForm() {
         )}
       </div>
 
+      <div ref={messageAreaRef} />
+
       {message && (
         <div
           style={{
@@ -247,6 +289,37 @@ function PaymentForm() {
           }}
         >
           {message}
+        </div>
+      )}
+
+      {receiptPrompt && (
+        <div style={receiptPromptBox}>
+          <div>
+            <strong style={receiptPromptTitle}>
+              Payment recorded successfully.
+            </strong>
+            <p style={receiptPromptText}>
+              Do you want to print or view the payment receipt now?
+            </p>
+          </div>
+
+          <div style={receiptPromptActions}>
+            <button
+              type="button"
+              style={printReceiptButton}
+              onClick={() => setReceipt(receiptPrompt)}
+            >
+              Print / View Receipt
+            </button>
+
+            <button
+              type="button"
+              style={skipReceiptButton}
+              onClick={() => setReceiptPrompt(null)}
+            >
+              Not Now
+            </button>
+          </div>
         </div>
       )}
 
@@ -338,22 +411,27 @@ function PaymentForm() {
 
           <div style={selectedDealGrid}>
             <InfoItem label="Deal Type" value={selectedDeal.deal_type || "—"} />
+
             <InfoItem
               label="Sub Type"
               value={selectedDeal.deal_subtype || "—"}
             />
+
             <InfoItem
               label="Truck"
               value={`${selectedDeal.year || ""} ${selectedDeal.truck || ""}`}
             />
+
             <InfoItem
               label="Monthly Payment"
               value={formatMoney(selectedDeal.monthly_payment)}
             />
+
             <InfoItem
               label="Start Date"
               value={formatDisplayDate(selectedDeal.start_date)}
             />
+
             <InfoItem label="Term" value={selectedDeal.term || "—"} />
           </div>
         </div>
@@ -482,6 +560,8 @@ function PaymentForm() {
             setFormData(initialFormData);
             setMessage("");
             setMessageType("");
+            setReceiptPrompt(null);
+            setReceipt(null);
           }}
         >
           Clear Form
@@ -840,6 +920,58 @@ const errorMessage = {
   background: "#fee2e2",
   color: "#991b1b",
   border: "1px solid #fecaca",
+};
+
+const receiptPromptBox = {
+  background: "#f0fdf4",
+  border: "1px solid #86efac",
+  color: "#166534",
+  borderRadius: "14px",
+  padding: "15px",
+  marginBottom: "18px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "14px",
+  flexWrap: "wrap",
+};
+
+const receiptPromptTitle = {
+  display: "block",
+  fontSize: "15px",
+  marginBottom: "4px",
+};
+
+const receiptPromptText = {
+  margin: 0,
+  color: "#166534",
+  fontSize: "13px",
+};
+
+const receiptPromptActions = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+
+const printReceiptButton = {
+  background: "#166534",
+  color: "white",
+  border: "none",
+  borderRadius: "10px",
+  padding: "10px 13px",
+  cursor: "pointer",
+  fontWeight: "900",
+};
+
+const skipReceiptButton = {
+  background: "white",
+  color: "#166534",
+  border: "1px solid #86efac",
+  borderRadius: "10px",
+  padding: "10px 13px",
+  cursor: "pointer",
+  fontWeight: "900",
 };
 
 export default PaymentForm;

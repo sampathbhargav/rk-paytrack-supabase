@@ -1,24 +1,52 @@
-import { useState } from "react";
-import { askRkAssistant } from "../api/assistantApi";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { askRkAssistant } from "../api/assistantApi";
+import { formatMoney } from "../utils/moneyUtils";
+
+const welcomeMessage = {
+  role: "assistant",
+  text:
+    "Hi, I am RK Assistant. Ask me about customer balances, payments, maintenance, collections, promises, reports, or deal history.",
+  rows: [],
+};
 
 function AIAssistant() {
   const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      text: "Hi, I am RK Assistant. Ask me about customer balances, payments, maintenance, or deal history.",
-      rows: [],
-    },
-  ]);
+  const [messages, setMessages] = useState([welcomeMessage]);
   const [loading, setLoading] = useState(false);
+  const [activeCategory, setActiveCategory] = useState("Collections");
+  const [copiedIndex, setCopiedIndex] = useState(null);
 
-  const askQuestion = async () => {
-    const text = question.trim();
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  const activeQuickQuestions = useMemo(() => {
+    return (
+      quickQuestionGroups.find((group) => group.title === activeCategory)
+        ?.questions || []
+    );
+  }, [activeCategory]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, loading]);
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    }, 80);
+  };
+
+  const submitQuestion = async (customQuestion) => {
+    const text = String(customQuestion || question).trim();
 
     if (!text || loading) return;
 
     setQuestion("");
+    setCopiedIndex(null);
 
     setMessages((prev) => [
       ...prev,
@@ -38,7 +66,7 @@ function AIAssistant() {
         ...prev,
         {
           role: "assistant",
-          text: result.answer,
+          text: result.answer || "I could not find an answer for that.",
           rows: result.rows || [],
         },
       ]);
@@ -53,32 +81,47 @@ function AIAssistant() {
       ]);
     } finally {
       setLoading(false);
+      textareaRef.current?.focus();
     }
   };
 
   const handleKeyDown = (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      askQuestion();
+      submitQuestion();
     }
   };
 
-  const quickQuestions = [
-    "Who owes the most?",
-    "Who has not paid this month?",
-    "How much collected yesterday?",
-    "Who paid last week?",
-    "Collections this week",
-    "Top 10 balances",
-    "Who is due today?",
-    "Who is past due?",
-    "Who has broken promises?",
-    "How much collected today?",
-    "How much collected this month?",
-    "What is deal 1721 balance?",
-    "When did Peter last pay?",
-    "Customer summary for Peter",
-  ];
+  const clearChat = () => {
+    setMessages([welcomeMessage]);
+    setQuestion("");
+    setCopiedIndex(null);
+    textareaRef.current?.focus();
+  };
+
+  const copyMessage = async (message, index) => {
+    try {
+      const rowText =
+        message.rows && message.rows.length > 0
+          ? `\n\nRows:\n${message.rows
+              .map((row) =>
+                Object.entries(row)
+                  .map(([key, value]) => `${key}: ${value}`)
+                  .join(" | ")
+              )
+              .join("\n")}`
+          : "";
+
+      await navigator.clipboard.writeText(`${message.text}${rowText}`);
+      setCopiedIndex(index);
+
+      setTimeout(() => {
+        setCopiedIndex(null);
+      }, 1600);
+    } catch {
+      setCopiedIndex(null);
+    }
+  };
 
   return (
     <div style={pageWrapper}>
@@ -87,16 +130,44 @@ function AIAssistant() {
           <div style={eyebrow}>RK PayTrack Assistant</div>
           <h1 style={pageTitle}>AI Assistant</h1>
           <p style={pageDescription}>
-            Ask questions about customer balances, deal payments, maintenance
-            balances, and payment history.
+            Ask business questions about customer balances, payments,
+            maintenance invoices, collections, promises, due dates, and deal
+            history.
           </p>
+
+          <div style={heroPills}>
+            <span style={heroPill}>Collections</span>
+            <span style={heroPill}>Deal Balances</span>
+            <span style={heroPill}>Maintenance</span>
+            <span style={heroPill}>Customer History</span>
+          </div>
         </div>
 
-        <div style={statusPill}>Private RK Data Assistant</div>
+        <div style={heroRight}>
+          <div style={statusPill}>Private RK Data Assistant</div>
+
+          <button type="button" onClick={clearChat} style={clearChatButton}>
+            Clear Chat
+          </button>
+        </div>
       </div>
 
       <div style={assistantLayout}>
         <div style={chatPanel}>
+          <div style={chatHeader}>
+            <div>
+              <h2 style={chatTitle}>Ask RK Assistant</h2>
+              <p style={chatSubtitle}>
+                Use customer name, phone number, deal tag, invoice number, or
+                payment date.
+              </p>
+            </div>
+
+            <div style={chatStats}>
+              <span>{messages.length} messages</span>
+            </div>
+          </div>
+
           <div style={messagesBox}>
             {messages.map((message, index) => (
               <div
@@ -112,8 +183,20 @@ function AIAssistant() {
                     message.role === "user" ? userBubble : assistantBubble
                   }
                 >
-                  <div style={messageRole}>
-                    {message.role === "user" ? "You" : "RK Assistant"}
+                  <div style={messageTopRow}>
+                    <div style={messageRole}>
+                      {message.role === "user" ? "You" : "RK Assistant"}
+                    </div>
+
+                    {message.role === "assistant" && index !== 0 && (
+                      <button
+                        type="button"
+                        onClick={() => copyMessage(message, index)}
+                        style={copyButton}
+                      >
+                        {copiedIndex === index ? "Copied" : "Copy"}
+                      </button>
+                    )}
                   </div>
 
                   <div style={messageText}>{message.text}</div>
@@ -129,47 +212,78 @@ function AIAssistant() {
               <div style={assistantMessageWrapper}>
                 <div style={assistantBubble}>
                   <div style={messageRole}>RK Assistant</div>
-                  <div style={typingText}>Thinking...</div>
+                  <div style={typingBox}>
+                    <span style={typingDot}>●</span>
+                    <span style={typingDot}>●</span>
+                    <span style={typingDot}>●</span>
+                    <span style={typingText}>Thinking...</span>
+                  </div>
                 </div>
               </div>
             )}
+
+            <div ref={messagesEndRef} />
           </div>
 
           <div style={inputBar}>
             <textarea
+              ref={textareaRef}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask: What is Peter balance? When did Gary last pay?"
+              placeholder="Ask: Who owes the most? What is Peter balance? Show maintenance balance for invoice 1001..."
               style={textareaStyle}
               rows={2}
             />
 
             <button
               type="button"
-              onClick={askQuestion}
-              disabled={loading}
+              onClick={() => submitQuestion()}
+              disabled={loading || !question.trim()}
               style={{
                 ...sendButton,
-                opacity: loading ? 0.7 : 1,
-                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading || !question.trim() ? 0.65 : 1,
+                cursor:
+                  loading || !question.trim() ? "not-allowed" : "pointer",
               }}
             >
-              Ask
+              {loading ? "Asking..." : "Ask"}
             </button>
           </div>
         </div>
 
         <aside style={sidePanel}>
-          <h2 style={sideTitle}>Try asking</h2>
+          <div style={sideHeader}>
+            <h2 style={sideTitle}>Try asking</h2>
+            <p style={sideDescription}>
+              Click a question to ask it immediately.
+            </p>
+          </div>
+
+          <div style={categoryTabs}>
+            {quickQuestionGroups.map((group) => (
+              <button
+                key={group.title}
+                type="button"
+                onClick={() => setActiveCategory(group.title)}
+                style={{
+                  ...categoryTab,
+                  ...(activeCategory === group.title ? activeCategoryTab : {}),
+                }}
+              >
+                {group.icon} {group.title}
+              </button>
+            ))}
+          </div>
 
           <div style={quickList}>
-            {quickQuestions.map((item) => (
+            {activeQuickQuestions.map((item) => (
               <button
                 key={item}
                 type="button"
                 style={quickButton}
-                onClick={() => setQuestion(item)}
+                onClick={() => submitQuestion(item)}
+                disabled={loading}
               >
                 {item}
               </button>
@@ -177,10 +291,18 @@ function AIAssistant() {
           </div>
 
           <div style={tipsBox}>
-            <strong>Examples</strong>
-            <p>Use customer name, phone, invoice number, or deal tag.</p>
-            <p>Example: “What is Gary balance?”</p>
-            <p>Example: “Show payments for deal 1721.”</p>
+            <strong>Good question examples</strong>
+            <p>“Who owes the most?”</p>
+            <p>“Who is past due?”</p>
+            <p>“What is deal 1721 balance?”</p>
+            <p>“Show maintenance balances.”</p>
+            <p>“When did Peter last pay?”</p>
+          </div>
+
+          <div style={shortcutsBox}>
+            <strong>Keyboard shortcut</strong>
+            <p>Press Enter to ask.</p>
+            <p>Press Shift + Enter for a new line.</p>
           </div>
         </aside>
       </div>
@@ -189,95 +311,204 @@ function AIAssistant() {
 }
 
 function ResultTable({ rows }) {
-    const hiddenColumns = ["customer_id", "deal_id", "maintenance_job_id"];
-  
-    const columns = Object.keys(rows[0] || {}).filter(
-      (column) => !hiddenColumns.includes(column)
-    );
-  
-    if (columns.length === 0) return null;
-  
-    return (
-      <div style={resultTableWrapper}>
-        <table style={resultTable}>
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <th key={column} style={resultTh}>
-                  {column.replaceAll("_", " ")}
-                </th>
-              ))}
-  
-              <th style={resultTh}>Actions</th>
-            </tr>
-          </thead>
-  
-          <tbody>
-            {rows.map((row, rowIndex) => (
-              <tr key={rowIndex}>
-                {columns.map((column) => (
-                  <td key={column} style={resultTd}>
-                    {row[column] || "—"}
-                  </td>
-                ))}
-  
-                <td style={resultTd}>
-                  <div style={resultActions}>
-                    {row.customer_id && (
-                      <Link
-                        to={`/customers/${row.customer_id}`}
-                        style={resultActionLink}
-                      >
-                        Customer
-                      </Link>
-                    )}
-  
-                    {row.deal_id && (
-                      <Link to={`/deals/${row.deal_id}`} style={resultActionLink}>
-                        Deal
-                      </Link>
-                    )}
-  
-                    {row.maintenance_job_id && (
-                      <Link to="/maintenance" style={resultActionLink}>
-                        Maintenance
-                      </Link>
-                    )}
-  
-                    {!row.customer_id &&
-                      !row.deal_id &&
-                      !row.maintenance_job_id && (
-                        <span style={noActionText}>—</span>
-                      )}
-                  </div>
-                </td>
-              </tr>
+  const hiddenColumns = ["customer_id", "deal_id", "maintenance_job_id"];
+
+  const columns = Object.keys(rows[0] || {}).filter(
+    (column) => !hiddenColumns.includes(column)
+  );
+
+  if (columns.length === 0) return null;
+
+  return (
+    <div style={resultTableWrapper}>
+      <table style={resultTable}>
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column} style={resultTh}>
+                {formatColumnName(column)}
+              </th>
             ))}
-          </tbody>
-        </table>
-      </div>
-    );
+
+            <th style={resultTh}>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {columns.map((column) => (
+                <td key={column} style={resultTd}>
+                  {formatCellValue(column, row[column])}
+                </td>
+              ))}
+
+              <td style={resultTd}>
+                <div style={resultActions}>
+                  {row.customer_id && (
+                    <Link
+                      to={`/customers/${row.customer_id}`}
+                      style={resultActionLink}
+                    >
+                      Customer
+                    </Link>
+                  )}
+
+                  {row.deal_id && (
+                    <Link to={`/deals/${row.deal_id}`} style={resultActionLink}>
+                      Deal
+                    </Link>
+                  )}
+
+                  {row.maintenance_job_id && (
+                    <Link to="/maintenance" style={resultActionLink}>
+                      Maintenance
+                    </Link>
+                  )}
+
+                  {!row.customer_id &&
+                    !row.deal_id &&
+                    !row.maintenance_job_id && (
+                      <span style={noActionText}>—</span>
+                    )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function formatColumnName(column) {
+  return String(column || "")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatCellValue(column, value) {
+  if (value === null || value === undefined || value === "") return "—";
+
+  const lowerColumn = String(column || "").toLowerCase();
+
+  const looksLikeMoney =
+    lowerColumn.includes("amount") ||
+    lowerColumn.includes("balance") ||
+    lowerColumn.includes("paid") ||
+    lowerColumn.includes("due") ||
+    lowerColumn.includes("total");
+
+  if (looksLikeMoney && !Number.isNaN(Number(value))) {
+    return formatMoney(Number(value));
   }
+
+  const looksLikeDate =
+    lowerColumn.includes("date") &&
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}/.test(value);
+
+  if (looksLikeDate) {
+    return formatDisplayDate(value);
+  }
+
+  return String(value);
+}
+
+function formatDisplayDate(dateString) {
+  if (!dateString) return "—";
+
+  const [year, month, day] = String(dateString).split("-");
+  if (!year || !month || !day) return dateString;
+
+  return `${month}/${day}/${year}`;
+}
+
+const quickQuestionGroups = [
+  {
+    title: "Collections",
+    icon: "💰",
+    questions: [
+      "Who owes the most?",
+      "Top 10 balances",
+      "Who is due today?",
+      "Who is past due?",
+      "Who has broken promises?",
+      "Who has not paid this month?",
+      "Collection priority list",
+    ],
+  },
+  {
+    title: "Payments",
+    icon: "💵",
+    questions: [
+      "How much collected today?",
+      "How much collected this week?",
+      "How much collected this month?",
+      "How much collected yesterday?",
+      "Who paid last week?",
+      "Show payments for deal 1721",
+      "When did Peter last pay?",
+    ],
+  },
+  {
+    title: "Customers",
+    icon: "👤",
+    questions: [
+      "Customer summary for Peter",
+      "What is Peter balance?",
+      "What is Gary balance?",
+      "Show customer payment history",
+      "Show customers with open balance",
+      "Show paid off customers",
+    ],
+  },
+  {
+    title: "Maintenance",
+    icon: "🛠️",
+    questions: [
+      "Show maintenance balances",
+      "Who owes maintenance money?",
+      "Maintenance due today",
+      "Maintenance past due",
+      "Show completed maintenance not paid",
+      "Show broken maintenance promises",
+    ],
+  },
+  {
+    title: "Deals",
+    icon: "🚛",
+    questions: [
+      "What is deal 1721 balance?",
+      "Show active deals",
+      "Show defaulted deals",
+      "Show paid off deals",
+      "Show in-house balances",
+      "Show down finance balances",
+    ],
+  },
+];
 
 const pageWrapper = {
   width: "100%",
   maxWidth: "100%",
   overflowX: "hidden",
   boxSizing: "border-box",
+  display: "grid",
+  gap: "18px",
 };
 
 const heroCard = {
   background: "linear-gradient(135deg, #0A1A2F 0%, #102A4C 55%, #7c3aed 100%)",
-  borderRadius: "18px",
-  padding: "24px",
+  borderRadius: "22px",
+  padding: "26px",
   color: "white",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "flex-start",
   gap: "18px",
   flexWrap: "wrap",
-  boxShadow: "0 14px 35px rgba(15, 23, 42, 0.22)",
-  marginBottom: "18px",
+  boxShadow: "0 16px 38px rgba(15, 23, 42, 0.24)",
 };
 
 const eyebrow = {
@@ -291,7 +522,7 @@ const eyebrow = {
 
 const pageTitle = {
   margin: 0,
-  fontSize: "30px",
+  fontSize: "32px",
   lineHeight: "1.1",
   color: "white",
 };
@@ -300,8 +531,32 @@ const pageDescription = {
   marginTop: "8px",
   marginBottom: 0,
   color: "#ede9fe",
-  maxWidth: "760px",
+  maxWidth: "780px",
   lineHeight: "1.5",
+};
+
+const heroPills = {
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap",
+  marginTop: "14px",
+};
+
+const heroPill = {
+  background: "rgba(255,255,255,0.12)",
+  border: "1px solid rgba(255,255,255,0.25)",
+  color: "#f5f3ff",
+  borderRadius: "999px",
+  padding: "6px 10px",
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
+const heroRight = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  alignItems: "center",
 };
 
 const statusPill = {
@@ -314,9 +569,19 @@ const statusPill = {
   fontSize: "13px",
 };
 
+const clearChatButton = {
+  background: "white",
+  color: "#0A1A2F",
+  border: "none",
+  borderRadius: "999px",
+  padding: "10px 13px",
+  fontWeight: "900",
+  cursor: "pointer",
+};
+
 const assistantLayout = {
   display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr) 300px",
+  gridTemplateColumns: "minmax(0, 1fr) 330px",
   gap: "18px",
   alignItems: "start",
 };
@@ -324,13 +589,46 @@ const assistantLayout = {
 const chatPanel = {
   background: "white",
   border: "1px solid #e5e7eb",
-  borderRadius: "18px",
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.07)",
+  borderRadius: "22px",
+  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
   overflow: "hidden",
 };
 
+const chatHeader = {
+  padding: "16px",
+  borderBottom: "1px solid #e5e7eb",
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  flexWrap: "wrap",
+  background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+};
+
+const chatTitle = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "20px",
+};
+
+const chatSubtitle = {
+  margin: "6px 0 0",
+  color: "#667085",
+  fontSize: "14px",
+};
+
+const chatStats = {
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  padding: "8px 11px",
+  height: "fit-content",
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
 const messagesBox = {
-  height: "560px",
+  height: "590px",
   overflowY: "auto",
   padding: "18px",
   background: "#f8fafc",
@@ -349,11 +647,12 @@ const assistantMessageWrapper = {
 };
 
 const userBubble = {
-  background: "#0A1A2F",
+  background: "linear-gradient(135deg, #0A1A2F 0%, #1d4ed8 100%)",
   color: "white",
   borderRadius: "18px 18px 4px 18px",
   padding: "13px",
   maxWidth: "78%",
+  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.18)",
 };
 
 const assistantBubble = {
@@ -362,8 +661,16 @@ const assistantBubble = {
   border: "1px solid #e5e7eb",
   borderRadius: "18px 18px 18px 4px",
   padding: "13px",
-  maxWidth: "90%",
-  boxShadow: "0 4px 14px rgba(15, 23, 42, 0.06)",
+  maxWidth: "92%",
+  boxShadow: "0 6px 16px rgba(15, 23, 42, 0.07)",
+};
+
+const messageTopRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "10px",
+  alignItems: "center",
+  marginBottom: "6px",
 };
 
 const messageRole = {
@@ -371,8 +678,18 @@ const messageRole = {
   fontWeight: "900",
   textTransform: "uppercase",
   letterSpacing: "0.05em",
-  opacity: 0.7,
-  marginBottom: "6px",
+  opacity: 0.72,
+};
+
+const copyButton = {
+  background: "#f8fafc",
+  color: "#475569",
+  border: "1px solid #e5e7eb",
+  borderRadius: "999px",
+  padding: "4px 8px",
+  cursor: "pointer",
+  fontSize: "11px",
+  fontWeight: "900",
 };
 
 const messageText = {
@@ -380,9 +697,21 @@ const messageText = {
   whiteSpace: "pre-wrap",
 };
 
+const typingBox = {
+  display: "flex",
+  alignItems: "center",
+  gap: "5px",
+};
+
+const typingDot = {
+  color: "#7c3aed",
+  fontSize: "9px",
+};
+
 const typingText = {
   color: "#667085",
   fontWeight: "800",
+  marginLeft: "5px",
 };
 
 const inputBar = {
@@ -396,29 +725,38 @@ const inputBar = {
 const textareaStyle = {
   flex: 1,
   border: "1px solid #d1d5db",
-  borderRadius: "12px",
+  borderRadius: "14px",
   padding: "12px",
   outline: "none",
   resize: "vertical",
   fontFamily: "Arial",
   fontSize: "14px",
+  lineHeight: "1.4",
 };
 
 const sendButton = {
   background: "#0A1A2F",
   color: "white",
   border: "none",
-  borderRadius: "12px",
-  padding: "0 18px",
+  borderRadius: "14px",
+  padding: "0 20px",
   fontWeight: "900",
 };
 
 const sidePanel = {
   background: "white",
   border: "1px solid #e5e7eb",
-  borderRadius: "18px",
+  borderRadius: "22px",
   padding: "16px",
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.07)",
+  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+  position: "sticky",
+  top: "20px",
+};
+
+const sideHeader = {
+  borderBottom: "1px solid #e5e7eb",
+  paddingBottom: "12px",
+  marginBottom: "12px",
 };
 
 const sideTitle = {
@@ -427,28 +765,69 @@ const sideTitle = {
   fontSize: "18px",
 };
 
+const sideDescription = {
+  margin: "6px 0 0",
+  color: "#667085",
+  fontSize: "13px",
+};
+
+const categoryTabs = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "7px",
+  marginBottom: "12px",
+};
+
+const categoryTab = {
+  background: "#f8fafc",
+  color: "#334155",
+  border: "1px solid #e5e7eb",
+  borderRadius: "999px",
+  padding: "7px 9px",
+  cursor: "pointer",
+  fontWeight: "900",
+  fontSize: "12px",
+};
+
+const activeCategoryTab = {
+  background: "#0A1A2F",
+  color: "white",
+  borderColor: "#0A1A2F",
+};
+
 const quickList = {
   display: "grid",
   gap: "9px",
-  marginTop: "14px",
 };
 
 const quickButton = {
   background: "#f8fafc",
   color: "#0A1A2F",
   border: "1px solid #e5e7eb",
-  borderRadius: "12px",
+  borderRadius: "13px",
   padding: "11px",
   textAlign: "left",
   cursor: "pointer",
   fontWeight: "800",
+  lineHeight: "1.35",
 };
 
 const tipsBox = {
   marginTop: "16px",
+  background: "#f5f3ff",
+  border: "1px solid #ddd6fe",
+  borderRadius: "16px",
+  padding: "13px",
+  color: "#4c1d95",
+  fontSize: "13px",
+  lineHeight: "1.45",
+};
+
+const shortcutsBox = {
+  marginTop: "12px",
   background: "#fffbeb",
   border: "1px solid #fde68a",
-  borderRadius: "14px",
+  borderRadius: "16px",
   padding: "13px",
   color: "#78350f",
   fontSize: "13px",
@@ -459,12 +838,14 @@ const resultTableWrapper = {
   marginTop: "12px",
   overflowX: "auto",
   border: "1px solid #e5e7eb",
-  borderRadius: "12px",
+  borderRadius: "14px",
+  maxWidth: "100%",
 };
 
 const resultTable = {
   width: "100%",
-  borderCollapse: "collapse",
+  borderCollapse: "separate",
+  borderSpacing: 0,
   fontSize: "12px",
   background: "white",
 };
@@ -473,43 +854,44 @@ const resultTh = {
   background: "#f1f5f9",
   color: "#334155",
   textAlign: "left",
-  padding: "9px",
+  padding: "10px",
   borderBottom: "1px solid #e5e7eb",
   textTransform: "capitalize",
   whiteSpace: "nowrap",
+  fontWeight: "900",
 };
 
 const resultTd = {
-  padding: "9px",
+  padding: "10px",
   borderBottom: "1px solid #f1f5f9",
   color: "#111827",
   whiteSpace: "nowrap",
 };
 
 const resultActions = {
-    display: "flex",
-    gap: "6px",
-    flexWrap: "wrap",
-  };
-  
-  const resultActionLink = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#eff6ff",
-    color: "#1d4ed8",
-    border: "1px solid #bfdbfe",
-    borderRadius: "8px",
-    padding: "6px 8px",
-    textDecoration: "none",
-    fontWeight: "900",
-    fontSize: "11px",
-    whiteSpace: "nowrap",
-  };
-  
-  const noActionText = {
-    color: "#94a3b8",
-    fontWeight: "800",
-  };
+  display: "flex",
+  gap: "6px",
+  flexWrap: "wrap",
+};
+
+const resultActionLink = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  padding: "6px 9px",
+  textDecoration: "none",
+  fontWeight: "900",
+  fontSize: "11px",
+  whiteSpace: "nowrap",
+};
+
+const noActionText = {
+  color: "#94a3b8",
+  fontWeight: "800",
+};
 
 export default AIAssistant;

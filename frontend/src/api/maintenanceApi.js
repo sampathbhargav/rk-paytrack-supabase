@@ -415,3 +415,53 @@ export async function getCustomerSuggestions(searchText) {
   
     return data;
   }
+
+  export async function addMaintenancePaymentBatch(batch, allocations) {
+  const receiptNo =
+    batch.receipt_no ||
+    `MR-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${Date.now()
+      .toString()
+      .slice(-5)}`;
+
+  const { data: batchData, error: batchError } = await supabase
+    .from("maintenance_payment_batches")
+    .insert({
+      customer_id: batch.customer_id || null,
+      customer_name: batch.customer_name || "",
+      phone: batch.phone || "",
+      payment_date: batch.payment_date,
+      total_amount: Number(batch.total_amount || 0),
+      payment_method: batch.payment_method || "Cash",
+      notes: batch.notes || "",
+      receipt_no: receiptNo,
+    })
+    .select()
+    .single();
+
+  if (batchError) throw new Error(batchError.message);
+
+  const paymentRows = allocations
+    .filter((item) => Number(item.amount_paid || 0) > 0)
+    .map((item) => ({
+      maintenance_job_id: item.maintenance_job_id,
+      customer_id: batch.customer_id || null,
+      payment_date: batch.payment_date,
+      amount_paid: Number(item.amount_paid || 0),
+      payment_method: batch.payment_method || "Cash",
+      payment_status: item.remaining_after_payment > 0 ? "Partial" : "Paid",
+      notes: batch.notes || "",
+      batch_id: batchData.id,
+    }));
+
+  const { data: paymentsData, error: paymentsError } = await supabase
+    .from("maintenance_payments")
+    .insert(paymentRows)
+    .select();
+
+  if (paymentsError) throw new Error(paymentsError.message);
+
+  return {
+    batch: batchData,
+    payments: paymentsData || [],
+  };
+}

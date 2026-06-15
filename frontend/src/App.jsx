@@ -63,13 +63,14 @@ function AppLayout() {
 
   const navItems = [
     { label: "Dashboard", path: "/" },
+    { label: "Customers", path: "/customers" },
     { label: "Deals", path: "/deals" },
     { label: "Add Deal", path: "/add-deal" },
     { label: "Add Payment", path: "/add-payment" },
     { label: "Due Payments", path: "/due-payments" },
     { label: "Promises", path: "/promises" },
     { label: "Maintenance", path: "/maintenance" },
-    { label: "Customers", path: "/customers" },
+    
     { label: "Reports", path: "/reports" },
     { label: "AI Assistant", path: "/ai-assistant" },
     { label: "Help Center", path: "/help-center" },

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-    addMaintenancePayment,
-    addMaintenancePromise,
-    calculateMaintenanceTotals,
-    createMaintenanceJob,
-    getCustomerSuggestions,
-    getMaintenanceJobs,
-    updateBrokenMaintenancePromises,
-    updateMaintenanceJob,
-  } from "../api/maintenanceApi";
+  addMaintenancePayment,
+  addMaintenancePromise,
+  calculateMaintenanceTotals,
+  createMaintenanceJob,
+  getCustomerSuggestions,
+  getMaintenanceJobs,
+  updateBrokenMaintenancePromises,
+  updateMaintenanceJob,
+} from "../api/maintenanceApi";
 import { formatMoney } from "../utils/moneyUtils";
 import { Link } from "react-router-dom";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -143,7 +143,8 @@ function Maintenance() {
   );
 
   const completedNotPaid = enrichedJobs.filter(
-    (job) => job.work_status === "Completed" && Number(job.totals.balance || 0) > 0
+    (job) =>
+      job.work_status === "Completed" && Number(job.totals.balance || 0) > 0
   );
 
   return (
@@ -168,7 +169,7 @@ function Maintenance() {
           </button>
 
           <button type="button" onClick={loadMaintenance} style={secondaryButton}>
-            Refresh
+            ↻ Refresh
           </button>
         </div>
       </div>
@@ -177,13 +178,33 @@ function Maintenance() {
 
       <div style={metricGrid}>
         <MetricCard label="Total Maintenance" value={formatMoney(totalAmount)} />
-        <MetricCard label="Total Paid" value={formatMoney(totalPaid)} tone="success" />
-        <MetricCard label="Open Balance" value={formatMoney(totalBalance)} tone="danger" />
+        <MetricCard
+          label="Total Paid"
+          value={formatMoney(totalPaid)}
+          tone="success"
+        />
+        <MetricCard
+          label="Open Balance"
+          value={formatMoney(totalBalance)}
+          tone="danger"
+        />
         <MetricCard label="Open Jobs" value={openJobs.length} tone="info" />
         <MetricCard label="Due Today" value={dueToday.length} tone="warning" />
-        <MetricCard label="Scheduled Payments" value={pendingPromises.length} tone="warning" />
-        <MetricCard label="Broken Promises" value={brokenPromises.length} tone="danger" />
-        <MetricCard label="Completed Not Paid" value={completedNotPaid.length} tone="danger" />
+        <MetricCard
+          label="Scheduled Payments"
+          value={pendingPromises.length}
+          tone="warning"
+        />
+        <MetricCard
+          label="Broken Promises"
+          value={brokenPromises.length}
+          tone="danger"
+        />
+        <MetricCard
+          label="Completed Not Paid"
+          value={completedNotPaid.length}
+          tone="danger"
+        />
       </div>
 
       <div style={quickFilterBar}>
@@ -244,166 +265,199 @@ function Maintenance() {
           Clear
         </button>
       </div>
+
       {loading ? (
         <LoadingSpinner message="Loading maintenance records..." />
       ) : (
-      <div style={tableCard}>
-        <div style={tableHeader}>
-          <div>
-            <h2 style={sectionTitle}>Maintenance Records</h2>
-            <p style={sectionDescription}>
-              Showing {filteredJobs.length} of {jobs.length} maintenance records.
-            </p>
+        <div style={tableCard}>
+          <div style={tableHeader}>
+            <div>
+              <h2 style={sectionTitle}>Maintenance Records</h2>
+              <p style={sectionDescription}>
+                Showing {filteredJobs.length} of {jobs.length} maintenance
+                records.
+              </p>
+            </div>
+
+            {loading && <span style={loadingBadge}>Loading...</span>}
           </div>
 
-          {loading && <span style={loadingBadge}>Loading...</span>}
-        </div>
-
-        <div style={tableWrapper}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Invoice</th>
-                <th style={thStyle}>Customer</th>
-                <th style={thStyle}>Truck</th>
-                <th style={thStyle}>Work</th>
-                <th style={thStyle}>Technician</th>
-                <th style={thStyle}>Work Status</th>
-                <th style={thStyle}>Balance Status</th>
-                <th style={thStyle}>Total</th>
-                <th style={thStyle}>Paid</th>
-                <th style={thStyle}>Balance</th>
-                <th style={thStyle}>Due / Promise</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredJobs.length === 0 ? (
+          <div style={tableWrapper}>
+            <table style={tableStyle}>
+              <thead>
                 <tr>
-                  <td style={emptyCell} colSpan="12">
-                    No maintenance records found.
-                  </td>
+                  <th style={thStyle}>Invoice</th>
+                  <th style={thStyle}>Customer</th>
+                  <th style={thStyle}>Truck</th>
+                  <th style={thStyle}>Work</th>
+                  <th style={thStyle}>Technician</th>
+                  <th style={thStyle}>Work Status</th>
+                  <th style={thStyle}>Balance Status</th>
+                  <th style={thStyle}>Total</th>
+                  <th style={thStyle}>Paid</th>
+                  <th style={thStyle}>Balance</th>
+                  <th style={thStyle}>Due / Promise</th>
+                  <th style={thStyle}>Actions</th>
                 </tr>
-              ) : (
-                filteredJobs.map((job) => {
-                  const latestPromise = getLatestPromise(job);
-                  const balance = Number(job.totals.balance || 0);
+              </thead>
 
-                  return (
-                    <tr key={job.id}>
-                      <td style={tdStyle}>
-                        <strong>{job.invoice_no || "—"}</strong>
-                        <div style={smallText}>{job.customer_type || "Maintenance Only"}</div>
-                      </td>
+              <tbody>
+                {filteredJobs.length === 0 ? (
+                  <tr>
+                    <td style={emptyCell} colSpan="12">
+                      No maintenance records found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredJobs.map((job, index) => {
+                    const latestPromise = getLatestPromise(job);
+                    const balance = Number(job.totals.balance || 0);
+                    const rowBackground =
+                      index % 2 === 0 ? "#ffffff" : "#f8fafc";
 
-                      <td style={tdStyle}>
-                        {job.customer_id ? (
-                            <Link to={`/customers/${job.customer_id}`} style={customerLinkStyle}>
-                            {job.customer_name || "—"}
-                            </Link>
-                        ) : (
-                            <strong>{job.customer_name || "—"}</strong>
-                        )}
-
-                        <div style={smallText}>{job.phone || "No phone"}</div>
-                       </td>
-
-                      <td style={tdStyle}>
-                        {`${job.year || ""} ${job.truck || ""}`.trim() || "—"}
-                        <div style={smallText}>{job.vin || ""}</div>
-                      </td>
-
-                      <td style={tdStyle}>
-                        <strong>{job.job_title || "—"}</strong>
-                        <div style={smallText}>{job.job_description || ""}</div>
-                      </td>
-
-                      <td style={tdStyle}>{job.technician || "—"}</td>
-
-                      <td style={tdStyle}>
-                        <span style={getStatusBadge(job.work_status)}>
-                          {job.work_status || "Open"}
-                        </span>
-                      </td>
-
-                      <td style={tdStyle}>
-                        <span style={getBalanceStatusBadge(job.totals.balanceStatus)}>
-                          {job.totals.balanceStatus}
-                        </span>
-                      </td>
-
-                      <td style={tdStyle}>{formatMoney(job.totals.totalAmount)}</td>
-                      <td style={tdStyle}>{formatMoney(job.totals.totalPaid)}</td>
-
-                      <td style={tdStyle}>
-                        <strong style={balance > 0 ? dangerText : successText}>
-                          {formatMoney(balance)}
-                        </strong>
-                      </td>
-
-                      <td style={tdStyle}>
-                        <strong>{formatDate(job.due_date)}</strong>
-                        {latestPromise && (
+                    return (
+                      <tr
+                        key={job.id}
+                        style={{
+                          background: rowBackground,
+                          transition: "background 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#eef2ff";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = rowBackground;
+                        }}
+                      >
+                        <td style={tdStyle}>
+                          <strong>{job.invoice_no || "—"}</strong>
                           <div style={smallText}>
-                            Promise: {formatDate(latestPromise.promised_date)} ·{" "}
-                            {formatMoney(latestPromise.promised_amount)} ·{" "}
-                            {latestPromise.promise_status}
+                            {job.customer_type || "Maintenance Only"}
                           </div>
-                        )}
-                      </td>
+                        </td>
 
-                      <td style={tdStyle}>
-                        <div style={actionGroup}>
-                          <button
-                            type="button"
-                            onClick={() => setViewJob(job)}
-                            style={smallActionButton}
-                          >
-                            View
-                          </button>
+                        <td style={tdStyle}>
+                          {job.customer_id ? (
+                            <Link
+                              to={`/customers/${job.customer_id}`}
+                              style={customerLinkStyle}
+                            >
+                              {job.customer_name || "—"}
+                            </Link>
+                          ) : (
+                            <strong>{job.customer_name || "—"}</strong>
+                          )}
 
-                          <button
-                            type="button"
-                            onClick={() => setPaymentJob(job)}
-                            style={paymentButton}
-                          >
-                            Payment
-                          </button>
+                          <div style={smallText}>{job.phone || "No phone"}</div>
+                        </td>
 
-                          <button
-                            type="button"
-                            onClick={() => setPromiseJob(job)}
-                            style={scheduleButton}
-                          >
-                            Schedule
-                          </button>
+                        <td style={tdStyle}>
+                          {`${job.year || ""} ${job.truck || ""}`.trim() ||
+                            "—"}
+                          <div style={smallText}>{job.vin || ""}</div>
+                        </td>
 
-                          <button
-                            type="button"
-                            onClick={() => printMaintenanceInvoice(job)}
-                            style={printButton}
-                          >
-                            Invoice
-                          </button>
+                        <td style={tdStyle}>
+                          <strong>{job.job_title || "—"}</strong>
+                          <div style={smallText}>
+                            {job.job_description || ""}
+                          </div>
+                        </td>
 
-                          <button
-                            type="button"
-                            onClick={() => setEditingJob(job)}
-                            style={editButton}
+                        <td style={tdStyle}>{job.technician || "—"}</td>
+
+                        <td style={tdStyle}>
+                          <span style={getStatusBadge(job.work_status)}>
+                            {job.work_status || "Open"}
+                          </span>
+                        </td>
+
+                        <td style={tdStyle}>
+                          <span
+                            style={getBalanceStatusBadge(
+                              job.totals.balanceStatus
+                            )}
                           >
-                            Edit
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                            {job.totals.balanceStatus}
+                          </span>
+                        </td>
+
+                        <td style={tdStyle}>
+                          {formatMoney(job.totals.totalAmount)}
+                        </td>
+
+                        <td style={tdStyle}>
+                          {formatMoney(job.totals.totalPaid)}
+                        </td>
+
+                        <td style={tdStyle}>
+                          <strong style={balance > 0 ? dangerText : successText}>
+                            {formatMoney(balance)}
+                          </strong>
+                        </td>
+
+                        <td style={tdStyle}>
+                          <strong>{formatDate(job.due_date)}</strong>
+                          {latestPromise && (
+                            <div style={smallText}>
+                              Promise: {formatDate(latestPromise.promised_date)} ·{" "}
+                              {formatMoney(latestPromise.promised_amount)} ·{" "}
+                              {latestPromise.promise_status}
+                            </div>
+                          )}
+                        </td>
+
+                        <td style={tdStyle}>
+                          <div style={actionGroup}>
+                            <button
+                              type="button"
+                              onClick={() => setViewJob(job)}
+                              style={smallActionButton}
+                            >
+                              View
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setPaymentJob(job)}
+                              style={paymentButton}
+                            >
+                              Payment
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setPromiseJob(job)}
+                              style={scheduleButton}
+                            >
+                              Schedule
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => printMaintenanceInvoice(job)}
+                              style={printButton}
+                            >
+                              Invoice
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setEditingJob(job)}
+                              style={editButton}
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
       )}
 
       {showAddModal && (
@@ -506,20 +560,27 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
   const [customerLoading, setCustomerLoading] = useState(false);
 
+  const updateField = (field, value) => {
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
   const searchCustomers = async (value) => {
     updateField("customer_name", value);
-  
+
     if (!value || value.trim().length < 2) {
       setCustomerSuggestions([]);
       setShowCustomerSuggestions(false);
       return;
     }
-  
+
     try {
       setCustomerLoading(true);
-  
+
       const results = await getCustomerSuggestions(value);
-  
+
       setCustomerSuggestions(results);
       setShowCustomerSuggestions(true);
     } catch (error) {
@@ -528,7 +589,7 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
       setCustomerLoading(false);
     }
   };
-  
+
   const selectCustomer = (customer) => {
     setForm((prev) => ({
       ...prev,
@@ -539,25 +600,16 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
       address: customer.address || "",
       customer_type: prev.customer_type || "Maintenance Only",
     }));
-  
+
     setCustomerSuggestions([]);
     setShowCustomerSuggestions(false);
   };
-
-
 
   const calculatedTotal =
     Number(form.labor_amount || 0) +
     Number(form.parts_amount || 0) +
     Number(form.tax_amount || 0) -
     Number(form.discount_amount || 0);
-
-  const updateField = (field, value) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -603,51 +655,80 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
             options={["Deal Customer", "Maintenance Only", "Outside Customer"]}
           />
 
-        <div style={{ position: "relative" }}>
-        <Input
-            label="Customer Name"
-            value={form.customer_name}
-            onChange={searchCustomers}
-            required
-            placeholder="Start typing customer name..."
-        />
+          <div style={{ position: "relative" }}>
+            <Input
+              label="Customer Name"
+              value={form.customer_name}
+              onChange={searchCustomers}
+              required
+              placeholder="Start typing customer name..."
+            />
 
-        {showCustomerSuggestions && (
-            <div style={suggestionBox}>
-            {customerLoading ? (
-                <div style={suggestionItem}>Searching...</div>
-            ) : customerSuggestions.length > 0 ? (
-                customerSuggestions.map((customer) => (
-                <button
-                    key={customer.id}
-                    type="button"
-                    onClick={() => selectCustomer(customer)}
-                    style={suggestionButton}
-                >
-                    <strong>{customer.customer_name}</strong>
-                    <span>
-                    {customer.phone || "No phone"}{" "}
-                    {customer.email ? `· ${customer.email}` : ""}
-                    </span>
-                </button>
-                ))
-            ) : (
-                <div style={suggestionItem}>
-                No existing customer found. This will be saved as a new customer.
-                </div>
+            {showCustomerSuggestions && (
+              <div style={suggestionBox}>
+                {customerLoading ? (
+                  <div style={suggestionItem}>Searching...</div>
+                ) : customerSuggestions.length > 0 ? (
+                  customerSuggestions.map((customer) => (
+                    <button
+                      key={customer.id}
+                      type="button"
+                      onClick={() => selectCustomer(customer)}
+                      style={suggestionButton}
+                    >
+                      <strong>{customer.customer_name}</strong>
+                      <span>
+                        {customer.phone || "No phone"}{" "}
+                        {customer.email ? `· ${customer.email}` : ""}
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <div style={suggestionItem}>
+                    No existing customer found. This will be saved as a new
+                    customer.
+                  </div>
+                )}
+              </div>
             )}
-            </div>
-        )}
-        </div>
+          </div>
 
-          <Input label="Phone" value={form.phone} onChange={(v) => updateField("phone", v)} />
-          <Input label="Email" value={form.email} onChange={(v) => updateField("email", v)} />
-          <Input label="Address" value={form.address} onChange={(v) => updateField("address", v)} />
+          <Input
+            label="Phone"
+            value={form.phone}
+            onChange={(v) => updateField("phone", v)}
+          />
+          <Input
+            label="Email"
+            value={form.email}
+            onChange={(v) => updateField("email", v)}
+          />
+          <Input
+            label="Address"
+            value={form.address}
+            onChange={(v) => updateField("address", v)}
+          />
 
-          <Input label="Year" value={form.year} onChange={(v) => updateField("year", v)} />
-          <Input label="Truck" value={form.truck} onChange={(v) => updateField("truck", v)} />
-          <Input label="VIN" value={form.vin} onChange={(v) => updateField("vin", v)} />
-          <Input label="Technician" value={form.technician} onChange={(v) => updateField("technician", v)} />
+          <Input
+            label="Year"
+            value={form.year}
+            onChange={(v) => updateField("year", v)}
+          />
+          <Input
+            label="Truck"
+            value={form.truck}
+            onChange={(v) => updateField("truck", v)}
+          />
+          <Input
+            label="VIN"
+            value={form.vin}
+            onChange={(v) => updateField("vin", v)}
+          />
+          <Input
+            label="Technician"
+            value={form.technician}
+            onChange={(v) => updateField("technician", v)}
+          />
 
           <Input
             label="Work Title"
@@ -663,14 +744,49 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
             options={["Open", "In Progress", "Completed", "Closed", "Cancelled"]}
           />
 
-          <Input label="Start Date" type="date" value={form.start_date} onChange={(v) => updateField("start_date", v)} />
-          <Input label="Due Date" type="date" value={form.due_date} onChange={(v) => updateField("due_date", v)} />
-          <Input label="Completed Date" type="date" value={form.completed_date} onChange={(v) => updateField("completed_date", v)} />
+          <Input
+            label="Start Date"
+            type="date"
+            value={form.start_date}
+            onChange={(v) => updateField("start_date", v)}
+          />
+          <Input
+            label="Due Date"
+            type="date"
+            value={form.due_date}
+            onChange={(v) => updateField("due_date", v)}
+          />
+          <Input
+            label="Completed Date"
+            type="date"
+            value={form.completed_date}
+            onChange={(v) => updateField("completed_date", v)}
+          />
 
-          <Input label="Labor Amount" type="number" value={form.labor_amount} onChange={(v) => updateField("labor_amount", v)} />
-          <Input label="Parts Amount" type="number" value={form.parts_amount} onChange={(v) => updateField("parts_amount", v)} />
-          <Input label="Tax Amount" type="number" value={form.tax_amount} onChange={(v) => updateField("tax_amount", v)} />
-          <Input label="Discount Amount" type="number" value={form.discount_amount} onChange={(v) => updateField("discount_amount", v)} />
+          <Input
+            label="Labor Amount"
+            type="number"
+            value={form.labor_amount}
+            onChange={(v) => updateField("labor_amount", v)}
+          />
+          <Input
+            label="Parts Amount"
+            type="number"
+            value={form.parts_amount}
+            onChange={(v) => updateField("parts_amount", v)}
+          />
+          <Input
+            label="Tax Amount"
+            type="number"
+            value={form.tax_amount}
+            onChange={(v) => updateField("tax_amount", v)}
+          />
+          <Input
+            label="Discount Amount"
+            type="number"
+            value={form.discount_amount}
+            onChange={(v) => updateField("discount_amount", v)}
+          />
         </div>
 
         <div style={totalPreview}>
@@ -775,14 +891,18 @@ function PaymentModal({ job, onClose, onSubmit }) {
           <Select
             label="Payment Method"
             value={form.payment_method}
-            onChange={(v) => setForm((prev) => ({ ...prev, payment_method: v }))}
+            onChange={(v) =>
+              setForm((prev) => ({ ...prev, payment_method: v }))
+            }
             options={["Cash", "Card", "Check", "Zelle", "ACH", "Wire", "Other"]}
           />
 
           <Select
             label="Payment Status"
             value={form.payment_status}
-            onChange={(v) => setForm((prev) => ({ ...prev, payment_status: v }))}
+            onChange={(v) =>
+              setForm((prev) => ({ ...prev, payment_status: v }))
+            }
             options={["Paid", "Partial", "Voided"]}
           />
         </div>
@@ -864,21 +984,34 @@ function PromiseModal({ job, onClose, onSubmit }) {
             label="Promised Date"
             type="date"
             value={form.promised_date}
-            onChange={(v) => setForm((prev) => ({ ...prev, promised_date: v }))}
+            onChange={(v) =>
+              setForm((prev) => ({ ...prev, promised_date: v }))
+            }
           />
 
           <Input
             label="Promised Amount"
             type="number"
             value={form.promised_amount}
-            onChange={(v) => setForm((prev) => ({ ...prev, promised_amount: v }))}
+            onChange={(v) =>
+              setForm((prev) => ({ ...prev, promised_amount: v }))
+            }
           />
 
           <Select
             label="Promise Status"
             value={form.promise_status}
-            onChange={(v) => setForm((prev) => ({ ...prev, promise_status: v }))}
-            options={["Pending", "Paid", "Partial Paid", "Broken", "Rescheduled", "Cancelled"]}
+            onChange={(v) =>
+              setForm((prev) => ({ ...prev, promise_status: v }))
+            }
+            options={[
+              "Pending",
+              "Paid",
+              "Partial Paid",
+              "Broken",
+              "Rescheduled",
+              "Cancelled",
+            ]}
           />
         </div>
 
@@ -940,7 +1073,10 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
 
       <div style={detailGrid}>
         <DetailItem label="Customer Type" value={job.customer_type} />
-        <DetailItem label="Truck" value={`${job.year || ""} ${job.truck || ""}`.trim()} />
+        <DetailItem
+          label="Truck"
+          value={`${job.year || ""} ${job.truck || ""}`.trim()}
+        />
         <DetailItem label="VIN" value={job.vin} />
         <DetailItem label="Technician" value={job.technician} />
         <DetailItem label="Work Status" value={job.work_status} />
@@ -998,6 +1134,7 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
 
 function MaintenanceReceiptModal({ receiptData, onClose }) {
   const { job, payment, previousBalance } = receiptData;
+
   const remainingBalance = Math.max(
     Number(previousBalance || 0) - Number(payment.amount_paid || 0),
     0
@@ -1030,10 +1167,19 @@ function MaintenanceReceiptModal({ receiptData, onClose }) {
         <div style={detailGrid}>
           <DetailItem label="Customer" value={job.customer_name} />
           <DetailItem label="Invoice No" value={job.invoice_no} />
-          <DetailItem label="Payment Date" value={formatDate(payment.payment_date)} />
+          <DetailItem
+            label="Payment Date"
+            value={formatDate(payment.payment_date)}
+          />
           <DetailItem label="Payment Method" value={payment.payment_method} />
-          <DetailItem label="Previous Balance" value={formatMoney(previousBalance)} />
-          <DetailItem label="Remaining Balance" value={formatMoney(remainingBalance)} />
+          <DetailItem
+            label="Previous Balance"
+            value={formatMoney(previousBalance)}
+          />
+          <DetailItem
+            label="Remaining Balance"
+            value={formatMoney(remainingBalance)}
+          />
         </div>
       </div>
 
@@ -1076,7 +1222,14 @@ function MetricCard({ label, value, tone = "default" }) {
   );
 }
 
-function Input({ label, value, onChange, type = "text", required = false, placeholder = "" }) {
+function Input({
+  label,
+  value,
+  onChange,
+  type = "text",
+  required = false,
+  placeholder = "",
+}) {
   return (
     <label style={fieldWrapper}>
       <span style={labelStyle}>{label}</span>
@@ -1096,7 +1249,11 @@ function Select({ label, value, onChange, options }) {
   return (
     <label style={fieldWrapper}>
       <span style={labelStyle}>{label}</span>
-      <select value={value || ""} onChange={(e) => onChange(e.target.value)} style={inputStyle}>
+      <select
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        style={inputStyle}
+      >
         {options.map((option) => (
           <option key={option} value={option}>
             {option}
@@ -1170,19 +1327,25 @@ function MiniTable({ columns, rows, empty }) {
 
 function applyQuickFilter(job, filter) {
   const balance = Number(job.totals.balance || 0);
+
   const hasPendingPromise = (job.maintenance_promises || []).some(
     (promise) => promise.promise_status === "Pending"
   );
+
   const hasBrokenPromise = (job.maintenance_promises || []).some(
     (promise) => promise.promise_status === "Broken"
   );
 
   if (filter === "Open Balance") return balance > 0;
   if (filter === "Due Today") return balance > 0 && job.due_date === todayString;
-  if (filter === "Past Due") return balance > 0 && job.due_date && job.due_date < todayString;
+  if (filter === "Past Due") {
+    return balance > 0 && job.due_date && job.due_date < todayString;
+  }
   if (filter === "Promises") return hasPendingPromise;
   if (filter === "Broken Promises") return hasBrokenPromise;
-  if (filter === "Completed Not Paid") return job.work_status === "Completed" && balance > 0;
+  if (filter === "Completed Not Paid") {
+    return job.work_status === "Completed" && balance > 0;
+  }
   if (filter === "Closed/Paid") return job.work_status === "Closed" || balance <= 0;
 
   return true;
@@ -1574,22 +1737,47 @@ function getStatusBadge(status) {
   };
 
   if (status === "Closed") {
-    return { ...base, background: "#dcfce7", color: "#166534", borderColor: "#bbf7d0" };
+    return {
+      ...base,
+      background: "#dcfce7",
+      color: "#166534",
+      borderColor: "#bbf7d0",
+    };
   }
 
   if (status === "Completed") {
-    return { ...base, background: "#dbeafe", color: "#1d4ed8", borderColor: "#bfdbfe" };
+    return {
+      ...base,
+      background: "#dbeafe",
+      color: "#1d4ed8",
+      borderColor: "#bfdbfe",
+    };
   }
 
   if (status === "In Progress") {
-    return { ...base, background: "#fef3c7", color: "#92400e", borderColor: "#fde68a" };
+    return {
+      ...base,
+      background: "#fef3c7",
+      color: "#92400e",
+      borderColor: "#fde68a",
+    };
   }
 
   if (status === "Cancelled") {
-    return { ...base, background: "#f3f4f6", color: "#6b7280", borderColor: "#e5e7eb" };
+    return {
+      ...base,
+      background: "#f3f4f6",
+      color: "#6b7280",
+      borderColor: "#e5e7eb",
+    };
   }
 
-  return { ...base, background: "#fee2e2", color: "#991b1b", borderColor: "#fecaca" };
+  return {
+    ...base,
+    background: "#fee2e2",
+    color: "#991b1b",
+    borderColor: "#fecaca",
+  };
 }
 
 function getBalanceStatusBadge(status) {
@@ -1606,633 +1794,685 @@ function getBalanceStatusBadge(status) {
   };
 
   if (status === "Paid" || status === "No Charge") {
-    return { ...base, background: "#dcfce7", color: "#166534", borderColor: "#bbf7d0" };
+    return {
+      ...base,
+      background: "#dcfce7",
+      color: "#166534",
+      borderColor: "#bbf7d0",
+    };
   }
 
   if (status === "Promised") {
-    return { ...base, background: "#dbeafe", color: "#1d4ed8", borderColor: "#bfdbfe" };
+    return {
+      ...base,
+      background: "#dbeafe",
+      color: "#1d4ed8",
+      borderColor: "#bfdbfe",
+    };
   }
 
   if (status === "Partial") {
-    return { ...base, background: "#fef3c7", color: "#92400e", borderColor: "#fde68a" };
+    return {
+      ...base,
+      background: "#fef3c7",
+      color: "#92400e",
+      borderColor: "#fde68a",
+    };
   }
 
   if (status === "Overdue" || status === "Broken Promise") {
-    return { ...base, background: "#fee2e2", color: "#991b1b", borderColor: "#fecaca" };
+    return {
+      ...base,
+      background: "#fee2e2",
+      color: "#991b1b",
+      borderColor: "#fecaca",
+    };
   }
 
-  return { ...base, background: "#f3f4f6", color: "#374151", borderColor: "#d1d5db" };
+  return {
+    ...base,
+    background: "#f3f4f6",
+    color: "#374151",
+    borderColor: "#d1d5db",
+  };
 }
 
 function getMetricTone(tone) {
-  if (tone === "success") return { background: "#f0fdf4", borderColor: "#bbf7d0" };
-  if (tone === "danger") return { background: "#fef2f2", borderColor: "#fecaca" };
-  if (tone === "warning") return { background: "#fffbeb", borderColor: "#fde68a" };
-  if (tone === "info") return { background: "#eff6ff", borderColor: "#bfdbfe" };
+  if (tone === "success") {
+    return { background: "#f0fdf4", borderColor: "#bbf7d0" };
+  }
+
+  if (tone === "danger") {
+    return { background: "#fef2f2", borderColor: "#fecaca" };
+  }
+
+  if (tone === "warning") {
+    return { background: "#fffbeb", borderColor: "#fde68a" };
+  }
+
+  if (tone === "info") {
+    return { background: "#eff6ff", borderColor: "#bfdbfe" };
+  }
+
   return { background: "white", borderColor: "#e5e7eb" };
 }
 
 const pageWrapper = {
-    width: "100%",
-    maxWidth: "100%",
-    overflowX: "hidden",
-    boxSizing: "border-box",
-  };
-  
-  const heroCard = {
-    background: "linear-gradient(135deg, #111827 0%, #0A1A2F 55%, #374151 100%)",
-    borderRadius: "20px",
-    padding: "24px",
-    color: "white",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: "18px",
-    flexWrap: "wrap",
-    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.22)",
-    marginBottom: "18px",
-  };
-  
-  const eyebrow = {
-    fontSize: "12px",
-    fontWeight: "900",
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: "#cbd5e1",
-    marginBottom: "8px",
-  };
-  
-  const pageTitle = {
-    margin: 0,
-    fontSize: "31px",
-    color: "white",
-  };
-  
-  const pageDescription = {
-    margin: "8px 0 0",
-    color: "#e5e7eb",
-    maxWidth: "720px",
-    lineHeight: "1.5",
-  };
-  
-  const heroActions = {
-    display: "flex",
-    gap: "10px",
-    flexWrap: "wrap",
-  };
-  
-  const primaryButton = {
-    background: "white",
-    color: "#0A1A2F",
-    border: "none",
-    borderRadius: "12px",
-    padding: "11px 15px",
-    cursor: "pointer",
-    fontWeight: "900",
-  };
-  
-  const secondaryButton = {
-    background: "rgba(255,255,255,0.12)",
-    color: "white",
-    border: "1px solid rgba(255,255,255,0.35)",
-    borderRadius: "12px",
-    padding: "11px 15px",
-    cursor: "pointer",
-    fontWeight: "900",
-  };
-  
-  const metricGrid = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-    gap: "14px",
-    marginBottom: "18px",
-  };
-  
-  const metricCard = {
-    border: "1px solid #e5e7eb",
-    borderRadius: "16px",
-    padding: "15px",
-    display: "grid",
-    gap: "7px",
-    boxShadow: "0 8px 22px rgba(15, 23, 42, 0.06)",
-  };
-  
-  const metricLabel = {
-    color: "#667085",
-    fontSize: "12px",
-    fontWeight: "900",
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-  };
-  
-  const metricValue = {
-    color: "#111827",
-    fontSize: "20px",
-  };
-  
-  const quickFilterBar = {
-    background: "white",
-    border: "1px solid #e5e7eb",
-    borderRadius: "16px",
-    padding: "12px",
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-    marginBottom: "14px",
-    boxShadow: "0 8px 22px rgba(15, 23, 42, 0.06)",
-  };
-  
-  const quickFilterButton = {
-    border: "1px solid #d1d5db",
-    background: "#f8fafc",
-    color: "#334155",
-    borderRadius: "999px",
-    padding: "8px 11px",
-    cursor: "pointer",
-    fontWeight: "900",
-    fontSize: "12px",
-  };
-  
-  const quickFilterButtonActive = {
-    background: "#0A1A2F",
-    color: "white",
-    borderColor: "#0A1A2F",
-  };
-  
-  const filterBar = {
-    background: "white",
-    border: "1px solid #e5e7eb",
-    borderRadius: "16px",
-    padding: "14px",
-    display: "flex",
-    gap: "10px",
-    flexWrap: "wrap",
-    marginBottom: "18px",
-    boxShadow: "0 8px 22px rgba(15, 23, 42, 0.06)",
-  };
-  
-  const searchInput = {
-    flex: "1 1 360px",
-    border: "1px solid #d1d5db",
-    borderRadius: "12px",
-    padding: "11px 13px",
-    fontSize: "14px",
-    outline: "none",
-  };
-  
-  const selectStyle = {
-    border: "1px solid #d1d5db",
-    borderRadius: "12px",
-    padding: "11px 13px",
-    fontSize: "14px",
-    outline: "none",
-    background: "white",
-  };
-  
-  const clearButton = {
-    border: "none",
-    borderRadius: "12px",
-    background: "#e5e7eb",
-    color: "#111827",
-    padding: "11px 14px",
-    cursor: "pointer",
-    fontWeight: "900",
-  };
-  
-  const tableCard = {
-    background: "white",
-    border: "1px solid #e5e7eb",
-    borderRadius: "18px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.07)",
-    overflow: "hidden",
-  };
-  
-  const tableHeader = {
-    padding: "16px",
-    borderBottom: "1px solid #e5e7eb",
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "12px",
-    flexWrap: "wrap",
-  };
-  
-  const sectionTitle = {
-    margin: 0,
-    color: "#111827",
-    fontSize: "20px",
-  };
-  
-  const sectionDescription = {
-    margin: "6px 0 0",
-    color: "#667085",
-    fontSize: "14px",
-  };
-  
-  const loadingBadge = {
-    background: "#eff6ff",
-    color: "#1d4ed8",
-    border: "1px solid #bfdbfe",
-    borderRadius: "999px",
-    padding: "7px 11px",
-    fontSize: "12px",
-    fontWeight: "900",
-  };
-  
-  const tableWrapper = {
-    width: "100%",
-    overflowX: "auto",
-  };
-  
-  const tableStyle = {
-    width: "100%",
-    borderCollapse: "collapse",
-    minWidth: "1450px",
-  };
-  
-  const thStyle = {
-    background: "#f8fafc",
-    color: "#334155",
-    fontSize: "12px",
-    textAlign: "left",
-    padding: "12px",
-    borderBottom: "1px solid #e5e7eb",
-    whiteSpace: "nowrap",
-  };
-  
-  const tdStyle = {
-    padding: "12px",
-    borderBottom: "1px solid #f1f5f9",
-    color: "#111827",
-    verticalAlign: "top",
-    fontSize: "13px",
-  };
-  
-  const emptyCell = {
-    padding: "24px",
-    textAlign: "center",
-    color: "#667085",
-  };
-  
-  const smallText = {
-    marginTop: "4px",
-    color: "#667085",
-    fontSize: "12px",
-  };
-  
-  const dangerText = {
-    color: "#991b1b",
-  };
-  
-  const successText = {
-    color: "#166534",
-  };
-  
-  const actionGroup = {
-    display: "flex",
-    gap: "6px",
-    flexWrap: "wrap",
-  };
-  
-  const smallActionButton = {
-    background: "#f8fafc",
-    color: "#334155",
-    border: "1px solid #d1d5db",
-    borderRadius: "9px",
-    padding: "7px 9px",
-    cursor: "pointer",
-    fontWeight: "800",
-    fontSize: "12px",
-  };
-  
-  const paymentButton = {
-    ...smallActionButton,
-    background: "#dcfce7",
-    color: "#166534",
-    border: "1px solid #bbf7d0",
-  };
-  
-  const scheduleButton = {
-    ...smallActionButton,
-    background: "#fef3c7",
-    color: "#92400e",
-    border: "1px solid #fde68a",
-  };
-  
-  const editButton = {
-    ...smallActionButton,
-    background: "#dbeafe",
-    color: "#1d4ed8",
-    border: "1px solid #bfdbfe",
-  };
-  
-  const printButton = {
-    ...smallActionButton,
-    background: "#f3e8ff",
-    color: "#6b21a8",
-    border: "1px solid #e9d5ff",
-  };
-  
-  const printButtonLarge = {
-    background: "#6b21a8",
-    color: "white",
-    border: "none",
-    borderRadius: "10px",
-    padding: "10px 14px",
-    cursor: "pointer",
-    fontWeight: "900",
-  };
-  
-  const modalOverlay = {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(15, 23, 42, 0.55)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 9999,
-    padding: "20px",
-  };
-  
-  const modalBox = {
-    background: "white",
-    borderRadius: "18px",
-    maxWidth: "96vw",
-    maxHeight: "92vh",
-    overflowY: "auto",
-    boxShadow: "0 24px 60px rgba(15, 23, 42, 0.28)",
-    padding: "18px",
-  };
-  
-  const modalHeader = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "12px",
-    borderBottom: "1px solid #e5e7eb",
-    paddingBottom: "12px",
-    marginBottom: "16px",
-  };
-  
-  const modalTitle = {
-    margin: 0,
-    color: "#111827",
-  };
-  
-  const modalCloseButton = {
-    width: "34px",
-    height: "34px",
-    borderRadius: "999px",
-    border: "none",
-    background: "#e5e7eb",
-    color: "#111827",
-    cursor: "pointer",
-    fontSize: "20px",
-    fontWeight: "900",
-  };
-  
-  const formGrid = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-    gap: "12px",
-  };
-  
-  const formGridTwo = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: "12px",
-  };
-  
-  const fieldWrapper = {
-    display: "grid",
-    gap: "6px",
-  };
-  
-  const labelStyle = {
-    fontSize: "12px",
-    color: "#475569",
-    fontWeight: "900",
-  };
-  
-  const inputStyle = {
-    border: "1px solid #d1d5db",
-    borderRadius: "10px",
-    padding: "10px 11px",
-    fontSize: "14px",
-    outline: "none",
-    width: "100%",
-    boxSizing: "border-box",
-  };
-  
-  const totalPreview = {
-    background: "#f8fafc",
-    border: "1px solid #e5e7eb",
-    borderRadius: "12px",
-    padding: "12px",
-    marginTop: "14px",
-    color: "#111827",
-  };
-  
-  const modalActions = {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "10px",
-    marginTop: "18px",
-    flexWrap: "wrap",
-  };
-  
-  const cancelButton = {
-    background: "#e5e7eb",
-    color: "#111827",
-    border: "none",
-    borderRadius: "10px",
-    padding: "10px 14px",
-    cursor: "pointer",
-    fontWeight: "900",
-  };
-  
-  const saveButton = {
-    background: "#0A1A2F",
-    color: "white",
-    border: "none",
-    borderRadius: "10px",
-    padding: "10px 14px",
-    cursor: "pointer",
-    fontWeight: "900",
-  };
-  
-  const customerSummaryBox = {
-    background: "#f8fafc",
-    border: "1px solid #e5e7eb",
-    borderRadius: "14px",
-    padding: "14px",
-    display: "grid",
-    gap: "5px",
-    marginBottom: "14px",
-    color: "#111827",
-  };
-  
-  const detailHeader = {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "14px",
-    flexWrap: "wrap",
-    background: "#f8fafc",
-    border: "1px solid #e5e7eb",
-    borderRadius: "14px",
-    padding: "14px",
-    marginBottom: "14px",
-  };
-  
-  const detailActionRow = {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-    marginBottom: "14px",
-  };
-  
-  const detailBalanceBox = {
-    background: "white",
-    border: "1px solid #e5e7eb",
-    borderRadius: "12px",
-    padding: "12px",
-    display: "grid",
-    gap: "6px",
-    minWidth: "180px",
-  };
-  
-  const detailGrid = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: "10px",
-  };
-  
-  const detailItem = {
-    background: "white",
-    border: "1px solid #e5e7eb",
-    borderRadius: "12px",
-    padding: "12px",
-    display: "grid",
-    gap: "5px",
-  };
-  
-  const detailSection = {
-    marginTop: "16px",
-  };
-  
-  const detailTitle = {
-    margin: "0 0 8px",
-    color: "#111827",
-    fontSize: "16px",
-  };
-  
-  const detailText = {
-    margin: 0,
-    color: "#374151",
-    lineHeight: "1.5",
-    background: "#f8fafc",
-    border: "1px solid #e5e7eb",
-    borderRadius: "12px",
-    padding: "12px",
-    whiteSpace: "pre-wrap",
-  };
-  
-  const miniTableWrapper = {
-    width: "100%",
-    overflowX: "auto",
-  };
-  
-  const miniTable = {
-    width: "100%",
-    borderCollapse: "collapse",
-  };
-  
-  const miniTh = {
-    background: "#f8fafc",
-    border: "1px solid #e5e7eb",
-    padding: "9px",
-    textAlign: "left",
-    fontSize: "12px",
-  };
-  
-  const miniTd = {
-    border: "1px solid #e5e7eb",
-    padding: "9px",
-    fontSize: "13px",
-  };
-  
-  const miniEmpty = {
-    border: "1px solid #e5e7eb",
-    padding: "14px",
-    textAlign: "center",
-    color: "#667085",
-  };
-  
-  const receiptPreview = {
-    background: "#f8fafc",
-    border: "1px solid #e5e7eb",
-    borderRadius: "14px",
-    padding: "16px",
-  };
-  
-  const receiptAmountBox = {
-    background: "#dcfce7",
-    color: "#166534",
-    border: "1px solid #bbf7d0",
-    borderRadius: "14px",
-    padding: "16px",
-    display: "grid",
-    gap: "5px",
-    textAlign: "center",
-    marginBottom: "14px",
-  };
-  
-  const errorBox = {
-    background: "#fee2e2",
-    color: "#991b1b",
-    border: "1px solid #fecaca",
-    padding: "12px",
-    borderRadius: "12px",
-    marginBottom: "14px",
-    fontWeight: "800",
-  };
+  width: "100%",
+  maxWidth: "100%",
+  overflowX: "hidden",
+  boxSizing: "border-box",
+  display: "grid",
+  gap: "18px",
+};
 
-  const suggestionBox = {
-    position: "absolute",
-    top: "72px",
-    left: 0,
-    right: 0,
-    background: "white",
-    border: "1px solid #d1d5db",
-    borderRadius: "12px",
-    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.18)",
-    zIndex: 10000,
-    overflow: "hidden",
-  };
-  
-  const suggestionButton = {
-    width: "100%",
-    border: "none",
-    background: "white",
-    padding: "11px 12px",
-    cursor: "pointer",
-    textAlign: "left",
-    display: "grid",
-    gap: "4px",
-    borderBottom: "1px solid #f1f5f9",
-  };
-  
-  const suggestionItem = {
-    padding: "11px 12px",
-    color: "#667085",
-    fontSize: "13px",
-  };
-  
-  const customerLinkStyle = {
-    color: "#0A1A2F",
-    fontWeight: "900",
-    textDecoration: "underline",
-    textUnderlineOffset: "3px",
-    cursor: "pointer",
-  };
-  
-  export default Maintenance;
+const heroCard = {
+  background: "linear-gradient(135deg, #0A1A2F 0%, #102A4C 55%, #1d4ed8 100%)",
+  borderRadius: "22px",
+  padding: "26px",
+  color: "white",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "18px",
+  flexWrap: "wrap",
+  boxShadow: "0 16px 38px rgba(15, 23, 42, 0.24)",
+  marginBottom: "0",
+};
+
+const eyebrow = {
+  fontSize: "12px",
+  fontWeight: "900",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#bfdbfe",
+  marginBottom: "8px",
+};
+
+const pageTitle = {
+  margin: 0,
+  fontSize: "31px",
+  color: "white",
+};
+
+const pageDescription = {
+  margin: "8px 0 0",
+  color: "#dbeafe",
+  maxWidth: "720px",
+  lineHeight: "1.5",
+};
+
+const heroActions = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+
+const primaryButton = {
+  background: "white",
+  color: "#0A1A2F",
+  border: "none",
+  borderRadius: "999px",
+  padding: "12px 16px",
+  cursor: "pointer",
+  fontWeight: "900",
+  boxShadow: "0 8px 20px rgba(0,0,0,0.18)",
+};
+
+const secondaryButton = {
+  background: "rgba(255,255,255,0.12)",
+  color: "white",
+  border: "1px solid rgba(255,255,255,0.35)",
+  borderRadius: "999px",
+  padding: "12px 16px",
+  cursor: "pointer",
+  fontWeight: "900",
+};
+
+const metricGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+  gap: "14px",
+};
+
+const metricCard = {
+  border: "1px solid #e5e7eb",
+  borderRadius: "18px",
+  padding: "16px",
+  display: "grid",
+  gap: "7px",
+  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.07)",
+  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+};
+
+const metricLabel = {
+  color: "#667085",
+  fontSize: "12px",
+  fontWeight: "900",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+};
+
+const metricValue = {
+  color: "#111827",
+  fontSize: "20px",
+};
+
+const quickFilterBar = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "18px",
+  padding: "13px",
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap",
+  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
+};
+
+const quickFilterButton = {
+  border: "1px solid #d1d5db",
+  background: "#f8fafc",
+  color: "#334155",
+  borderRadius: "999px",
+  padding: "8px 11px",
+  cursor: "pointer",
+  fontWeight: "900",
+  fontSize: "12px",
+};
+
+const quickFilterButtonActive = {
+  background: "#0A1A2F",
+  color: "white",
+  borderColor: "#0A1A2F",
+};
+
+const filterBar = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "18px",
+  padding: "14px",
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
+};
+
+const searchInput = {
+  flex: "1 1 360px",
+  border: "1px solid #d1d5db",
+  borderRadius: "12px",
+  padding: "11px 13px",
+  fontSize: "14px",
+  outline: "none",
+};
+
+const selectStyle = {
+  border: "1px solid #d1d5db",
+  borderRadius: "12px",
+  padding: "11px 13px",
+  fontSize: "14px",
+  outline: "none",
+  background: "white",
+};
+
+const clearButton = {
+  border: "none",
+  borderRadius: "12px",
+  background: "#e5e7eb",
+  color: "#111827",
+  padding: "11px 14px",
+  cursor: "pointer",
+  fontWeight: "900",
+};
+
+const tableCard = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "20px",
+  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+  overflow: "hidden",
+};
+
+const tableHeader = {
+  padding: "16px",
+  borderBottom: "1px solid #e5e7eb",
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  flexWrap: "wrap",
+  background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+};
+
+const sectionTitle = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "20px",
+};
+
+const sectionDescription = {
+  margin: "6px 0 0",
+  color: "#667085",
+  fontSize: "14px",
+};
+
+const loadingBadge = {
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  padding: "7px 11px",
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
+const tableWrapper = {
+  width: "100%",
+  maxHeight: "620px",
+  overflowX: "auto",
+  overflowY: "auto",
+};
+
+const tableStyle = {
+  width: "100%",
+  borderCollapse: "separate",
+  borderSpacing: 0,
+  minWidth: "1450px",
+};
+
+const thStyle = {
+  position: "sticky",
+  top: 0,
+  zIndex: 3,
+  background: "#f1f5f9",
+  color: "#334155",
+  fontSize: "12px",
+  textAlign: "left",
+  padding: "13px 12px",
+  borderBottom: "1px solid #d1d5db",
+  whiteSpace: "nowrap",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+};
+
+const tdStyle = {
+  padding: "13px 12px",
+  borderBottom: "1px solid #f1f5f9",
+  color: "#111827",
+  verticalAlign: "top",
+  fontSize: "13px",
+  background: "transparent",
+};
+
+const emptyCell = {
+  padding: "24px",
+  textAlign: "center",
+  color: "#667085",
+};
+
+const smallText = {
+  marginTop: "4px",
+  color: "#667085",
+  fontSize: "12px",
+};
+
+const dangerText = {
+  color: "#991b1b",
+};
+
+const successText = {
+  color: "#166534",
+};
+
+const actionGroup = {
+  display: "flex",
+  gap: "6px",
+  flexWrap: "wrap",
+};
+
+const smallActionButton = {
+  background: "#f8fafc",
+  color: "#334155",
+  border: "1px solid #d1d5db",
+  borderRadius: "999px",
+  padding: "7px 10px",
+  cursor: "pointer",
+  fontWeight: "900",
+  fontSize: "12px",
+};
+
+const paymentButton = {
+  ...smallActionButton,
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #bbf7d0",
+};
+
+const scheduleButton = {
+  ...smallActionButton,
+  background: "#fef3c7",
+  color: "#92400e",
+  border: "1px solid #fde68a",
+};
+
+const editButton = {
+  ...smallActionButton,
+  background: "#dbeafe",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+};
+
+const printButton = {
+  ...smallActionButton,
+  background: "#f3e8ff",
+  color: "#6b21a8",
+  border: "1px solid #e9d5ff",
+};
+
+const printButtonLarge = {
+  background: "#6b21a8",
+  color: "white",
+  border: "none",
+  borderRadius: "10px",
+  padding: "10px 14px",
+  cursor: "pointer",
+  fontWeight: "900",
+};
+
+const modalOverlay = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15, 23, 42, 0.55)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 9999,
+  padding: "20px",
+};
+
+const modalBox = {
+  background: "white",
+  borderRadius: "18px",
+  maxWidth: "96vw",
+  maxHeight: "92vh",
+  overflowY: "auto",
+  boxShadow: "0 24px 60px rgba(15, 23, 42, 0.28)",
+  padding: "18px",
+};
+
+const modalHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  borderBottom: "1px solid #e5e7eb",
+  padding: "4px 4px 14px",
+  marginBottom: "16px",
+  position: "sticky",
+  top: 0,
+  background: "white",
+  zIndex: 5,
+};
+
+const modalTitle = {
+  margin: 0,
+  color: "#111827",
+};
+
+const modalCloseButton = {
+  width: "34px",
+  height: "34px",
+  borderRadius: "999px",
+  border: "none",
+  background: "#e5e7eb",
+  color: "#111827",
+  cursor: "pointer",
+  fontSize: "20px",
+  fontWeight: "900",
+};
+
+const formGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+  gap: "12px",
+};
+
+const formGridTwo = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "12px",
+};
+
+const fieldWrapper = {
+  display: "grid",
+  gap: "6px",
+};
+
+const labelStyle = {
+  fontSize: "12px",
+  color: "#475569",
+  fontWeight: "900",
+};
+
+const inputStyle = {
+  border: "1px solid #d1d5db",
+  borderRadius: "10px",
+  padding: "10px 11px",
+  fontSize: "14px",
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+const totalPreview = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "12px",
+  marginTop: "14px",
+  color: "#111827",
+};
+
+const modalActions = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "10px",
+  marginTop: "18px",
+  flexWrap: "wrap",
+};
+
+const cancelButton = {
+  background: "#e5e7eb",
+  color: "#111827",
+  border: "none",
+  borderRadius: "10px",
+  padding: "10px 14px",
+  cursor: "pointer",
+  fontWeight: "900",
+};
+
+const saveButton = {
+  background: "#0A1A2F",
+  color: "white",
+  border: "none",
+  borderRadius: "10px",
+  padding: "10px 14px",
+  cursor: "pointer",
+  fontWeight: "900",
+};
+
+const customerSummaryBox = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "14px",
+  padding: "14px",
+  display: "grid",
+  gap: "5px",
+  marginBottom: "14px",
+  color: "#111827",
+};
+
+const detailHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "14px",
+  flexWrap: "wrap",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "14px",
+  padding: "14px",
+  marginBottom: "14px",
+};
+
+const detailActionRow = {
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap",
+  marginBottom: "14px",
+};
+
+const detailBalanceBox = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "12px",
+  display: "grid",
+  gap: "6px",
+  minWidth: "180px",
+};
+
+const detailGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "10px",
+};
+
+const detailItem = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "12px",
+  display: "grid",
+  gap: "5px",
+};
+
+const detailSection = {
+  marginTop: "16px",
+};
+
+const detailTitle = {
+  margin: "0 0 8px",
+  color: "#111827",
+  fontSize: "16px",
+};
+
+const detailText = {
+  margin: 0,
+  color: "#374151",
+  lineHeight: "1.5",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "12px",
+  whiteSpace: "pre-wrap",
+};
+
+const miniTableWrapper = {
+  width: "100%",
+  overflowX: "auto",
+};
+
+const miniTable = {
+  width: "100%",
+  borderCollapse: "collapse",
+};
+
+const miniTh = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  padding: "9px",
+  textAlign: "left",
+  fontSize: "12px",
+};
+
+const miniTd = {
+  border: "1px solid #e5e7eb",
+  padding: "9px",
+  fontSize: "13px",
+};
+
+const miniEmpty = {
+  border: "1px solid #e5e7eb",
+  padding: "14px",
+  textAlign: "center",
+  color: "#667085",
+};
+
+const receiptPreview = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "14px",
+  padding: "16px",
+};
+
+const receiptAmountBox = {
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #bbf7d0",
+  borderRadius: "14px",
+  padding: "16px",
+  display: "grid",
+  gap: "5px",
+  textAlign: "center",
+  marginBottom: "14px",
+};
+
+const errorBox = {
+  background: "#fee2e2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+  padding: "12px",
+  borderRadius: "12px",
+  marginBottom: "14px",
+  fontWeight: "800",
+};
+
+const suggestionBox = {
+  position: "absolute",
+  top: "72px",
+  left: 0,
+  right: 0,
+  background: "white",
+  border: "1px solid #d1d5db",
+  borderRadius: "12px",
+  boxShadow: "0 14px 30px rgba(15, 23, 42, 0.18)",
+  zIndex: 10000,
+  overflow: "hidden",
+};
+
+const suggestionButton = {
+  width: "100%",
+  border: "none",
+  background: "white",
+  padding: "11px 12px",
+  cursor: "pointer",
+  textAlign: "left",
+  display: "grid",
+  gap: "4px",
+  borderBottom: "1px solid #f1f5f9",
+};
+
+const suggestionItem = {
+  padding: "11px 12px",
+  color: "#667085",
+  fontSize: "13px",
+};
+
+const customerLinkStyle = {
+  color: "#0A1A2F",
+  fontWeight: "900",
+  textDecoration: "underline",
+  textUnderlineOffset: "3px",
+  cursor: "pointer",
+};
+
+export default Maintenance;

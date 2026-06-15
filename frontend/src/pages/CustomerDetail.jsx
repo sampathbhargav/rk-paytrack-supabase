@@ -90,6 +90,7 @@ function CustomerDetail() {
   );
 
   const balance = Math.max(totalAmount - totalPaid, 0);
+
   const paidPercent =
     totalAmount > 0 ? Math.min((totalPaid / totalAmount) * 100, 100) : 0;
 
@@ -121,6 +122,7 @@ function CustomerDetail() {
     );
 
     const totalAmountForReceipt = Number(deal.total_amount || 0);
+
     const remainingBalance = Math.max(
       totalAmountForReceipt - totalPaidForReceipt,
       0
@@ -132,7 +134,7 @@ function CustomerDetail() {
       phone: deal.customers?.phone || "",
       dealTag: deal.deal_tag || "",
       dealType: deal.deal_type || "",
-      truck: `${deal.year || ""} ${deal.truck || ""}`,
+      truck: `${deal.year || ""} ${deal.truck || ""}`.trim(),
       vin: deal.vin || "",
       amountPaid: payment.amount_paid || 0,
       paymentMethod: payment.payment_method || "Other",
@@ -206,7 +208,7 @@ function CustomerDetail() {
 
         <div style={topActions}>
           <Link to={`/deals/${dealId}/edit`} style={editButtonStyle}>
-            Edit Deal
+            ✏️ Edit Deal
           </Link>
 
           <div style={reminderDropdownWrapper}>
@@ -215,7 +217,7 @@ function CustomerDetail() {
               onClick={() => setShowReminderMenu((prev) => !prev)}
               style={reminderDropdownButton}
             >
-              Collection Reminders ▾
+              📅 Collection Reminders ▾
             </button>
 
             {showReminderMenu && (
@@ -273,6 +275,11 @@ function CustomerDetail() {
             </span>
           </div>
 
+          <div style={sidebarBalanceCard}>
+            <span style={sidebarBalanceLabel}>Current Balance</span>
+            <strong style={sidebarBalanceAmount}>{formatMoney(balance)}</strong>
+          </div>
+
           <div style={sidebarDivider} />
 
           <InfoLine label="Phone" value={deal.customers?.phone || "—"} />
@@ -281,12 +288,17 @@ function CustomerDetail() {
 
           <div style={sidebarDivider} />
 
-          <InfoLine label="Truck" value={`${deal.year || ""} ${deal.truck || ""}`} />
+          <InfoLine
+            label="Truck"
+            value={`${deal.year || ""} ${deal.truck || ""}`.trim() || "—"}
+          />
           <InfoLine label="VIN" value={deal.vin || "—"} />
+
           <div style={infoLine}>
             <span style={infoLabel}>Deal Type</span>
             <DealTypeBadge dealType={deal.deal_type} />
           </div>
+
           <InfoLine label="Sub Type" value={deal.deal_subtype || "—"} />
         </aside>
 
@@ -294,16 +306,20 @@ function CustomerDetail() {
           <div style={accountHeader}>
             <div>
               <div style={eyebrow}>Customer Account</div>
+
               <h2 style={accountTitle}>
-                {deal.year || ""} {deal.truck || "Truck Deal"}
+                {`${deal.year || ""} ${deal.truck || ""}`.trim() ||
+                  "Truck Deal"}
               </h2>
+
               <div style={accountBadgeRow}>
                 <DealTypeBadge dealType={deal.deal_type} />
 
                 {deal.deal_subtype && (
-                    <span style={subTypeBadge}>{deal.deal_subtype}</span>
+                  <span style={subTypeBadge}>{deal.deal_subtype}</span>
                 )}
               </div>
+
               <p style={accountDescription}>
                 Payment activity, due schedule, promises, receipts, and account
                 balance for this customer.
@@ -311,11 +327,9 @@ function CustomerDetail() {
             </div>
 
             {balance <= 0 ? (
-              <div style={paidOffPill}>PAID OFF</div>
+              <div style={paidOffPill}>✅ PAID OFF</div>
             ) : (
-              <div style={balancePill}>
-                Balance Due: {formatMoney(balance)}
-              </div>
+              <div style={balancePill}>Balance Due: {formatMoney(balance)}</div>
             )}
           </div>
 
@@ -394,8 +408,8 @@ function CustomerDetail() {
           <div>
             <h2 style={sectionTitle}>Internal Deal Notes</h2>
             <p style={sectionDescription}>
-              Internal comments, special terms, title notes, customer
-              agreements, or dealership notes.
+              Internal comments, special terms, title notes, customer agreements,
+              or dealership notes.
             </p>
           </div>
         </div>
@@ -444,12 +458,12 @@ function CustomerDetail() {
 }
 
 function DealTypeBadge({ dealType }) {
-    return (
-      <span style={getDealTypeBadgeStyle(dealType)}>
-        {dealType || "No Deal Type"}
-      </span>
-    );
-  }
+  return (
+    <span style={getDealTypeBadgeStyle(dealType)}>
+      {dealType || "No Deal Type"}
+    </span>
+  );
+}
 
 function MetricCard({ label, value, tone = "default" }) {
   return (
@@ -532,82 +546,83 @@ function getMetricToneStyle(tone) {
 }
 
 function getDealTypeBadgeStyle(dealType) {
-    const normalized = String(dealType || "").toLowerCase();
-  
-    const base = {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      width: "fit-content",
-      padding: "8px 13px",
-      borderRadius: "999px",
-      fontWeight: "900",
-      fontSize: "13px",
-      border: "1px solid transparent",
-      letterSpacing: "0.02em",
-    };
-  
-    if (normalized.includes("in-house") || normalized.includes("inhouse")) {
-      return {
-        ...base,
-        background: "#dcfce7",
-        color: "#166534",
-        borderColor: "#bbf7d0",
-      };
-    }
-  
-    if (normalized.includes("down")) {
-      return {
-        ...base,
-        background: "#dbeafe",
-        color: "#1d4ed8",
-        borderColor: "#bfdbfe",
-      };
-    }
-  
-    if (normalized.includes("borrow")) {
-      return {
-        ...base,
-        background: "#fef3c7",
-        color: "#92400e",
-        borderColor: "#fde68a",
-      };
-    }
-  
-    if (normalized.includes("motor")) {
-      return {
-        ...base,
-        background: "#ede9fe",
-        color: "#6d28d9",
-        borderColor: "#ddd6fe",
-      };
-    }
-  
-    if (normalized.includes("registration")) {
-      return {
-        ...base,
-        background: "#ccfbf1",
-        color: "#0f766e",
-        borderColor: "#99f6e4",
-      };
-    }
-  
-    if (normalized.includes("cash")) {
-      return {
-        ...base,
-        background: "#f3f4f6",
-        color: "#374151",
-        borderColor: "#d1d5db",
-      };
-    }
-  
+  const normalized = String(dealType || "").toLowerCase();
+
+  const base = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "fit-content",
+    padding: "8px 13px",
+    borderRadius: "999px",
+    fontWeight: "900",
+    fontSize: "13px",
+    border: "1px solid transparent",
+    letterSpacing: "0.02em",
+    whiteSpace: "nowrap",
+  };
+
+  if (normalized.includes("in-house") || normalized.includes("inhouse")) {
     return {
       ...base,
-      background: "#f8fafc",
-      color: "#334155",
-      borderColor: "#cbd5e1",
+      background: "#dcfce7",
+      color: "#166534",
+      borderColor: "#bbf7d0",
     };
   }
+
+  if (normalized.includes("down")) {
+    return {
+      ...base,
+      background: "#dbeafe",
+      color: "#1d4ed8",
+      borderColor: "#bfdbfe",
+    };
+  }
+
+  if (normalized.includes("borrow")) {
+    return {
+      ...base,
+      background: "#fef3c7",
+      color: "#92400e",
+      borderColor: "#fde68a",
+    };
+  }
+
+  if (normalized.includes("motor")) {
+    return {
+      ...base,
+      background: "#ede9fe",
+      color: "#6d28d9",
+      borderColor: "#ddd6fe",
+    };
+  }
+
+  if (normalized.includes("registration")) {
+    return {
+      ...base,
+      background: "#ccfbf1",
+      color: "#0f766e",
+      borderColor: "#99f6e4",
+    };
+  }
+
+  if (normalized.includes("cash")) {
+    return {
+      ...base,
+      background: "#f3f4f6",
+      color: "#374151",
+      borderColor: "#d1d5db",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#f8fafc",
+    color: "#334155",
+    borderColor: "#cbd5e1",
+  };
+}
 
 function getDealStatusBadgeStyle(status) {
   const base = {
@@ -619,6 +634,7 @@ function getDealStatusBadgeStyle(status) {
     fontWeight: "900",
     fontSize: "12px",
     border: "1px solid transparent",
+    whiteSpace: "nowrap",
   };
 
   if (status === "Paid Off") {
@@ -679,6 +695,8 @@ const pageWrapper = {
   maxWidth: "100%",
   overflowX: "hidden",
   boxSizing: "border-box",
+  display: "grid",
+  gap: "18px",
 };
 
 const topNav = {
@@ -686,8 +704,13 @@ const topNav = {
   justifyContent: "space-between",
   alignItems: "center",
   gap: "14px",
-  marginBottom: "18px",
+  padding: "14px",
+  marginBottom: "0",
   flexWrap: "wrap",
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "18px",
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
 };
 
 const backLink = {
@@ -711,13 +734,16 @@ const topActions = {
 };
 
 const editButtonStyle = {
-  display: "inline-block",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
   background: "#0A1A2F",
   color: "white",
-  padding: "10px 13px",
-  borderRadius: "10px",
+  padding: "10px 14px",
+  borderRadius: "999px",
   textDecoration: "none",
   fontWeight: "900",
+  boxShadow: "0 6px 16px rgba(15, 23, 42, 0.18)",
 };
 
 const reminderDropdownWrapper = {
@@ -729,10 +755,11 @@ const reminderDropdownButton = {
   background: "#2563eb",
   color: "white",
   border: "none",
-  borderRadius: "10px",
-  padding: "10px 13px",
+  borderRadius: "999px",
+  padding: "10px 14px",
   cursor: "pointer",
   fontWeight: "900",
+  boxShadow: "0 6px 16px rgba(37, 99, 235, 0.22)",
 };
 
 const reminderDropdownMenu = {
@@ -761,31 +788,34 @@ const reminderDropdownItem = {
 
 const profileLayout = {
   display: "grid",
-  gridTemplateColumns: "330px minmax(0, 1fr)",
+  gridTemplateColumns: "340px minmax(0, 1fr)",
   gap: "18px",
-  alignItems: "stretch",
+  alignItems: "start",
 };
 
 const profileSidebar = {
-  background: "#ffffff",
+  background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
   border: "1px solid #e5e7eb",
-  borderRadius: "22px",
-  padding: "22px",
-  boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+  borderRadius: "24px",
+  padding: "24px",
+  boxShadow: "0 12px 32px rgba(15, 23, 42, 0.08)",
+  position: "sticky",
+  top: "88px",
 };
 
 const avatarCircle = {
-  width: "72px",
-  height: "72px",
-  borderRadius: "22px",
-  background: "#0A1A2F",
+  width: "78px",
+  height: "78px",
+  borderRadius: "24px",
+  background: "linear-gradient(135deg, #0A1A2F 0%, #1d4ed8 100%)",
   color: "white",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "24px",
+  fontSize: "25px",
   fontWeight: "900",
-  marginBottom: "14px",
+  marginBottom: "16px",
+  boxShadow: "0 12px 24px rgba(29, 78, 216, 0.25)",
 };
 
 const customerName = {
@@ -804,6 +834,30 @@ const dealTagText = {
 const statusRow = {
   display: "flex",
   marginTop: "14px",
+};
+
+const sidebarBalanceCard = {
+  marginTop: "16px",
+  background: "#0A1A2F",
+  color: "white",
+  borderRadius: "18px",
+  padding: "15px",
+  boxShadow: "0 10px 22px rgba(15, 23, 42, 0.18)",
+};
+
+const sidebarBalanceLabel = {
+  display: "block",
+  color: "#bfdbfe",
+  fontSize: "12px",
+  fontWeight: "900",
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  marginBottom: "6px",
+};
+
+const sidebarBalanceAmount = {
+  fontSize: "24px",
+  fontWeight: "900",
 };
 
 const sidebarDivider = {
@@ -834,12 +888,13 @@ const infoValue = {
 };
 
 const accountPanel = {
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
-  border: "1px solid #e5e7eb",
-  borderRadius: "22px",
-  padding: "22px",
-  boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+  background: "linear-gradient(135deg, #0A1A2F 0%, #102A4C 55%, #1d4ed8 100%)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: "24px",
+  padding: "24px",
+  boxShadow: "0 16px 38px rgba(15, 23, 42, 0.20)",
   minWidth: 0,
+  color: "white",
 };
 
 const accountHeader = {
@@ -852,7 +907,7 @@ const accountHeader = {
 };
 
 const eyebrow = {
-  color: "#2563eb",
+  color: "#bfdbfe",
   fontSize: "12px",
   fontWeight: "900",
   textTransform: "uppercase",
@@ -862,36 +917,36 @@ const eyebrow = {
 
 const accountTitle = {
   margin: 0,
-  color: "#111827",
-  fontSize: "28px",
+  color: "white",
+  fontSize: "30px",
   lineHeight: "1.15",
 };
 
 const accountBadgeRow = {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-    marginTop: "10px",
-  };
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap",
+  marginTop: "10px",
+};
 
-  const subTypeBadge = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "fit-content",
-    padding: "8px 13px",
-    borderRadius: "999px",
-    fontWeight: "900",
-    fontSize: "13px",
-    background: "#f8fafc",
-    color: "#475569",
-    border: "1px solid #e2e8f0",
-  };
+const subTypeBadge = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "fit-content",
+  padding: "8px 13px",
+  borderRadius: "999px",
+  fontWeight: "900",
+  fontSize: "13px",
+  background: "#f8fafc",
+  color: "#475569",
+  border: "1px solid #e2e8f0",
+};
 
 const accountDescription = {
   marginTop: "8px",
   marginBottom: 0,
-  color: "#667085",
+  color: "#dbeafe",
   lineHeight: "1.5",
   maxWidth: "760px",
 };
@@ -903,6 +958,7 @@ const paidOffPill = {
   borderRadius: "999px",
   fontWeight: "900",
   fontSize: "13px",
+  boxShadow: "0 8px 20px rgba(22, 163, 74, 0.25)",
 };
 
 const balancePill = {
@@ -913,14 +969,16 @@ const balancePill = {
   borderRadius: "999px",
   fontWeight: "900",
   fontSize: "13px",
+  boxShadow: "0 8px 20px rgba(153, 27, 27, 0.18)",
 };
 
 const progressCard = {
-  background: "#ffffff",
-  border: "1px solid #e5e7eb",
+  background: "rgba(255,255,255,0.12)",
+  border: "1px solid rgba(255,255,255,0.20)",
   borderRadius: "18px",
   padding: "16px",
   marginBottom: "16px",
+  backdropFilter: "blur(10px)",
 };
 
 const progressTop = {
@@ -934,36 +992,36 @@ const progressTop = {
 
 const progressLabel = {
   display: "block",
-  color: "#667085",
+  color: "#bfdbfe",
   fontSize: "13px",
   fontWeight: "800",
   marginBottom: "4px",
 };
 
 const progressPercent = {
-  color: "#111827",
-  fontSize: "24px",
+  color: "white",
+  fontSize: "26px",
 };
 
 const progressAmounts = {
   display: "grid",
   gap: "4px",
   textAlign: "right",
-  color: "#374151",
+  color: "#dbeafe",
   fontWeight: "800",
   fontSize: "13px",
 };
 
 const progressTrack = {
-  height: "12px",
-  background: "#e5e7eb",
+  height: "13px",
+  background: "rgba(255,255,255,0.20)",
   borderRadius: "999px",
   overflow: "hidden",
 };
 
 const progressFill = {
   height: "100%",
-  background: "linear-gradient(90deg, #2563eb, #16a34a)",
+  background: "linear-gradient(90deg, #22c55e, #a7f3d0)",
   borderRadius: "999px",
 };
 
@@ -974,11 +1032,13 @@ const metricGrid = {
 };
 
 const metricCard = {
-  border: "1px solid #e5e7eb",
+  border: "1px solid rgba(255,255,255,0.20)",
   borderRadius: "16px",
-  padding: "14px",
+  padding: "15px",
   display: "grid",
   gap: "7px",
+  background: "rgba(255,255,255,0.96)",
+  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.10)",
 };
 
 const metricLabel = {
@@ -994,12 +1054,12 @@ const metricValue = {
 };
 
 const notesPanel = {
-  background: "#fffbeb",
+  background: "linear-gradient(180deg, #fffbeb 0%, #ffffff 100%)",
   border: "1px solid #fde68a",
-  borderRadius: "20px",
+  borderRadius: "22px",
   padding: "18px",
-  marginTop: "20px",
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+  marginTop: "0",
+  boxShadow: "0 10px 26px rgba(15, 23, 42, 0.07)",
 };
 
 const notesHeader = {
@@ -1020,15 +1080,15 @@ const notesContent = {
 const sectionStack = {
   display: "grid",
   gap: "20px",
-  marginTop: "20px",
+  marginTop: "0",
 };
 
 const sectionShell = {
   background: "#ffffff",
   border: "1px solid #e5e7eb",
-  borderRadius: "20px",
+  borderRadius: "22px",
   padding: "18px",
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+  boxShadow: "0 10px 26px rgba(15, 23, 42, 0.07)",
   maxWidth: "100%",
   overflow: "hidden",
   boxSizing: "border-box",

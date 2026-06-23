@@ -5,6 +5,7 @@ import {
   Route,
   Link,
   useLocation,
+  Navigate,
 } from "react-router-dom";
 
 import Dashboard from "./pages/Dashboard";
@@ -18,21 +19,35 @@ import EditDeal from "./pages/EditDeal";
 import Reports from "./pages/Reports";
 import LegalPolicies from "./pages/LegalPolicies";
 import HelpCenter from "./pages/HelpCenter";
-import GlobalSearch from "./components/GlobalSearch";
 import Maintenance from "./pages/Maintenance";
 import CustomerProfile from "./pages/CustomerProfile";
 import Customers from "./pages/Customers";
 import AIAssistant from "./pages/AIAssistant";
+import Login from "./pages/Login";
 
+import GlobalSearch from "./components/GlobalSearch";
 import ConnectionStatus from "./components/ConnectionStatus";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ProtectedRoute from "./components/ProtectedRoute";
+import UserMenu from "./components/UserMenu";
 
 import logo from "./assets/rk-paytrack-logo.png";
 
 function App() {
   return (
     <BrowserRouter>
-      <AppLayout />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
     </BrowserRouter>
   );
 }
@@ -42,19 +57,19 @@ function AppLayout() {
   const [searchMinimized, setSearchMinimized] = useState(false);
   const [searchHovered, setSearchHovered] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  
+
   const searchWrapperRef = useRef(null);
   const location = useLocation();
-  
+
   const searchActive = searchHovered || searchFocused;
   const showFullSearch = !searchMinimized || searchActive;
 
   const handleMainScroll = (event) => {
     if (searchActive) return;
-  
+
     const scrollTop = event.currentTarget.scrollTop;
     const shouldMinimize = scrollTop > 80;
-  
+
     setSearchMinimized((prev) => {
       if (prev === shouldMinimize) return prev;
       return shouldMinimize;
@@ -70,7 +85,6 @@ function AppLayout() {
     { label: "Due Payments", path: "/due-payments" },
     { label: "Promises", path: "/promises" },
     { label: "Maintenance", path: "/maintenance" },
-    
     { label: "Reports", path: "/reports" },
     { label: "AI Assistant", path: "/ai-assistant" },
     { label: "Help Center", path: "/help-center" },
@@ -95,11 +109,11 @@ function AppLayout() {
         }}
       >
         <div
-            style={{
-              ...sidebarHeaderStyle,
-              justifyContent: collapsed ? "center" : "space-between",
-            }}
-          >
+          style={{
+            ...sidebarHeaderStyle,
+            justifyContent: collapsed ? "center" : "space-between",
+          }}
+        >
           {!collapsed && (
             <div style={simpleLogoWrapper}>
               <div style={logoHighlightBox}>
@@ -110,41 +124,16 @@ function AppLayout() {
                 />
               </div>
 
-              <p
-                style={{
-                  color: "#cbd5e1",
-                  fontSize: "13px",
-                  marginTop: "8px",
-                  marginBottom: 0,
-                }}
-              >
+              <p style={sidebarSubtitle}>
                 Dealer Payment Tracking
               </p>
             </div>
           )}
 
-          {/* {collapsed && (
-            <div style={collapsedLogoHighlightBox}>
-              <img
-                src={logo}
-                alt="RK PayTrack"
-                style={collapsedLogoStyle}
-              />
-            </div>
-          )} */}
-
           <button
+            type="button"
             onClick={() => setCollapsed(!collapsed)}
-            style={{
-              background: "transparent",
-              color: "white",
-              border: "1px solid #334155",
-              borderRadius: "8px",
-              padding: "8px 10px",
-              cursor: "pointer",
-              fontSize: "18px",
-              flexShrink: 0,
-            }}
+            style={collapseButton}
             title={collapsed ? "Expand menu" : "Collapse menu"}
           >
             ☰
@@ -178,50 +167,65 @@ function AppLayout() {
       </aside>
 
       <main style={mainStyle} onScroll={handleMainScroll}>
-      <div
-        style={{
-          ...topHeaderStyle,
-          ...(showFullSearch ? topHeaderExpandedStyle : topHeaderMinimizedStyle),
-        }}
-      >
-        {showFullSearch ? (
-          <div
-            ref={searchWrapperRef}
-            style={searchExpandedWrapper}
-            onMouseEnter={() => setSearchHovered(true)}
-            onMouseLeave={() => setSearchHovered(false)}
-            onFocusCapture={() => setSearchFocused(true)}
-            onBlurCapture={() => {
-              setTimeout(() => {
-                const activeElement = document.activeElement;
+        <div
+          style={{
+            ...topHeaderStyle,
+            ...(showFullSearch
+              ? topHeaderExpandedStyle
+              : topHeaderMinimizedStyle),
+          }}
+        >
+          <div style={topHeaderContent}>
+            <div
+              style={{
+                ...topSearchArea,
+                justifyContent: showFullSearch ? "center" : "flex-end",
+              }}
+            >
+              {showFullSearch ? (
+                <div
+                  ref={searchWrapperRef}
+                  style={searchExpandedWrapper}
+                  onMouseEnter={() => setSearchHovered(true)}
+                  onMouseLeave={() => setSearchHovered(false)}
+                  onFocusCapture={() => setSearchFocused(true)}
+                  onBlurCapture={() => {
+                    setTimeout(() => {
+                      const activeElement = document.activeElement;
 
-                if (
-                  searchWrapperRef.current &&
-                  !searchWrapperRef.current.contains(activeElement)
-                ) {
-                  setSearchFocused(false);
-                }
-              }, 150);
-            }}
-          >
-            <GlobalSearch />
+                      if (
+                        searchWrapperRef.current &&
+                        !searchWrapperRef.current.contains(activeElement)
+                      ) {
+                        setSearchFocused(false);
+                      }
+                    }, 150);
+                  }}
+                >
+                  <GlobalSearch />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  style={searchMiniPill}
+                  onMouseEnter={() => setSearchHovered(true)}
+                  onFocus={() => setSearchFocused(true)}
+                  onClick={() => {
+                    setSearchHovered(true);
+                    setSearchFocused(true);
+                  }}
+                >
+                  <span style={searchMiniIcon}>⌕</span>
+                  <span>Search</span>
+                </button>
+              )}
+            </div>
+
+            <div style={userMenuWrapper}>
+              <UserMenu />
+            </div>
           </div>
-        ) : (
-          <button
-            type="button"
-            style={searchMiniPill}
-            onMouseEnter={() => setSearchHovered(true)}
-            onFocus={() => setSearchFocused(true)}
-            onClick={() => {
-              setSearchHovered(true);
-              setSearchFocused(true);
-            }}
-          >
-            <span style={searchMiniIcon}>⌕</span>
-            <span>Search</span>
-          </button>
-        )}
-      </div>
+        </div>
 
         <ConnectionStatus />
 
@@ -242,6 +246,7 @@ function AppLayout() {
             <Route path="/ai-assistant" element={<AIAssistant />} />
             <Route path="/help-center" element={<HelpCenter />} />
             <Route path="/legal-policies" element={<LegalPolicies />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>
 
@@ -251,7 +256,6 @@ function AppLayout() {
             <span style={floatingAiText}>Ask AI</span>
           </Link>
         )}
-
       </main>
     </div>
   );
@@ -270,7 +274,7 @@ function getIcon(label) {
     Reports: "📈",
     "AI Assistant": "🤖",
     "Help Center": "📚",
-    "Policy Center": "📘"
+    "Policy Center": "📘",
   };
 
   return icons[label] || "•";
@@ -300,6 +304,63 @@ const sidebarStyle = {
   flexDirection: "column",
 };
 
+const sidebarHeaderStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  marginBottom: "14px",
+  flexShrink: 0,
+};
+
+const collapseButton = {
+  background: "transparent",
+  color: "white",
+  border: "1px solid #334155",
+  borderRadius: "8px",
+  padding: "8px 10px",
+  cursor: "pointer",
+  fontSize: "18px",
+  flexShrink: 0,
+};
+
+const sidebarNavStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "10px",
+  overflowY: "auto",
+  overflowX: "hidden",
+  paddingRight: "0",
+  paddingBottom: "18px",
+  flex: 1,
+  scrollbarWidth: "none",
+  msOverflowStyle: "none",
+};
+
+const linkStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  color: "white",
+  textDecoration: "none",
+  fontSize: "15px",
+  padding: "12px",
+  borderRadius: "10px",
+  transition: "background 0.2s ease, color 0.2s ease",
+  whiteSpace: "nowrap",
+};
+
+const mainStyle = {
+  flex: 1,
+  minWidth: 0,
+  maxWidth: "100%",
+  height: "100vh",
+  padding: "25px",
+  background: "#f4f6f8",
+  overflowX: "hidden",
+  overflowY: "auto",
+  boxSizing: "border-box",
+};
+
 const topHeaderStyle = {
   width: "100%",
   display: "flex",
@@ -322,6 +383,27 @@ const topHeaderExpandedStyle = {
 const topHeaderMinimizedStyle = {
   justifyContent: "flex-end",
   padding: "0 0 12px",
+};
+
+const topHeaderContent = {
+  width: "100%",
+  display: "flex",
+  alignItems: "center",
+  gap: "14px",
+  pointerEvents: "none",
+};
+
+const topSearchArea = {
+  flex: 1,
+  minWidth: 0,
+  display: "flex",
+  alignItems: "center",
+  pointerEvents: "none",
+};
+
+const userMenuWrapper = {
+  pointerEvents: "auto",
+  flexShrink: 0,
 };
 
 const searchExpandedWrapper = {
@@ -352,18 +434,6 @@ const searchMiniIcon = {
   fontWeight: "900",
 };
 
-const mainStyle = {
-  flex: 1,
-  minWidth: 0,
-  maxWidth: "100%",
-  height: "100vh",
-  padding: "25px",
-  background: "#f4f6f8",
-  overflowX: "hidden",
-  overflowY: "auto",
-  boxSizing: "border-box",
-};
-
 const simpleLogoWrapper = {
   textAlign: "center",
 };
@@ -383,34 +453,11 @@ const simpleLogoStyle = {
   objectFit: "contain",
 };
 
-const collapsedLogoHighlightBox = {
-  background: "white",
-  padding: "3px",
-  borderRadius: "8px",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxShadow: "0 3px 8px rgba(0,0,0,0.22)",
-  flexShrink: 0,
-};
-
-const collapsedLogoStyle = {
-  width: "36px",
-  height: "36px",
-  objectFit: "contain",
-};
-
-const linkStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-  color: "white",
-  textDecoration: "none",
-  fontSize: "15px",
-  padding: "12px",
-  borderRadius: "10px",
-  transition: "background 0.2s ease, color 0.2s ease",
-  whiteSpace: "nowrap",
+const sidebarSubtitle = {
+  color: "#cbd5e1",
+  fontSize: "13px",
+  marginTop: "8px",
+  marginBottom: 0,
 };
 
 const floatingAiButton = {
@@ -440,31 +487,6 @@ const floatingAiIcon = {
 
 const floatingAiText = {
   whiteSpace: "nowrap",
-};
-
-const sidebarHeaderStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  marginBottom: "14px",
-  flexShrink: 0,
-};
-
-const sidebarNavStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "10px",
-  overflowY: "auto",
-  overflowX: "hidden",
-  paddingRight: "0",
-  paddingBottom: "18px",
-  flex: 1,
-
-  // Hide scrollbar for Firefox
-  scrollbarWidth: "none",
-
-  // Hide scrollbar for IE/Edge old
-  msOverflowStyle: "none",
 };
 
 export default App;

@@ -31,6 +31,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import UserMenu from "./components/UserMenu";
 
+import ActivityLogs from "./pages/ActivityLogs";
+
 import logo from "./assets/rk-paytrack-logo.png";
 
 function App() {
@@ -89,6 +91,7 @@ function AppLayout() {
     { label: "AI Assistant", path: "/ai-assistant" },
     { label: "Help Center", path: "/help-center" },
     { label: "Policy Center", path: "/legal-policies" },
+    { label: "Activity Logs", path: "/activity-logs" },
   ];
 
   const isActive = (path) => {
@@ -246,6 +249,7 @@ function AppLayout() {
             <Route path="/ai-assistant" element={<AIAssistant />} />
             <Route path="/help-center" element={<HelpCenter />} />
             <Route path="/legal-policies" element={<LegalPolicies />} />
+            <Route path="/activity-logs" element={<ActivityLogs />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>
@@ -275,6 +279,7 @@ function getIcon(label) {
     "AI Assistant": "🤖",
     "Help Center": "📚",
     "Policy Center": "📘",
+    "Activity Logs": "🧾",
   };
 
   return icons[label] || "•";

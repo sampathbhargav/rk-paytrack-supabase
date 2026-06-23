@@ -10,6 +10,7 @@ import {
   updateBrokenMaintenancePromises,
 } from "../api/maintenanceApi";
 import { formatMoney } from "../utils/moneyUtils";
+import { logActivity } from "../api/activityLogsApi";
 
 const todayString = new Date().toISOString().split("T")[0];
 
@@ -570,18 +571,53 @@ function MaintenancePaymentPanel() {
       setSaving(true);
 
       const previousBalance = Number(selectedTotals?.balance || 0);
-      const savedPayment = await addMaintenancePayment(form);
+const paidAmount = Number(form.amount_paid || 0);
+const remainingBalance = Math.max(previousBalance - paidAmount, 0);
 
-      const receipt = {
-        type: "single",
-        job: selectedJob,
-        payment: savedPayment || {
-          ...form,
-          amount_paid: Number(form.amount_paid || 0),
-        },
-        previousBalance,
-        remainingBalance: Math.max(previousBalance - Number(form.amount_paid), 0),
-      };
+const savedPayment = await addMaintenancePayment(form);
+
+await logActivity({
+  action: "PAYMENT",
+  module: "Maintenance",
+  entity_type: "maintenance_payment",
+  entity_id: savedPayment?.id || form.maintenance_job_id,
+  entity_label:
+    selectedJob?.invoice_no ||
+    selectedJob?.customer_name ||
+    "Maintenance Payment",
+  description: `Maintenance payment of ${formatMoney(paidAmount)} recorded for ${
+    selectedJob?.customer_name || "customer"
+  } on invoice ${selectedJob?.invoice_no || "—"}.`,
+  metadata: {
+    payment_id: savedPayment?.id || null,
+    maintenance_job_id: form.maintenance_job_id,
+    customer_id: form.customer_id || null,
+    customer_name: selectedJob?.customer_name || "",
+    phone: selectedJob?.phone || "",
+    invoice_no: selectedJob?.invoice_no || "",
+    job_title: selectedJob?.job_title || "",
+    truck: selectedJob?.truck || "",
+    year: selectedJob?.year || "",
+    vin: selectedJob?.vin || "",
+    amount_paid: paidAmount,
+    previous_balance: previousBalance,
+    remaining_balance: remainingBalance,
+    payment_date: form.payment_date,
+    payment_method: form.payment_method,
+    payment_status: remainingBalance > 0 ? "Partial" : "Paid",
+  },
+});
+
+const receipt = {
+  type: "single",
+  job: selectedJob,
+  payment: savedPayment || {
+    ...form,
+    amount_paid: paidAmount,
+  },
+  previousBalance,
+  remainingBalance,
+};
 
       setReceiptPrompt(receipt);
 
@@ -655,6 +691,48 @@ function MaintenancePaymentPanel() {
         },
         allocationPayload
       );
+
+      await logActivity({
+        action: "PAYMENT",
+        module: "Maintenance",
+        entity_type: "maintenance_payment_batch",
+        entity_id: savedBatch?.batch?.id,
+        entity_label:
+          savedBatch?.batch?.receipt_no ||
+          selectedCustomerGroup?.customer_name ||
+          "Multi-Invoice Payment",
+        description: `Multi-invoice maintenance payment of ${formatMoney(
+          Number(batchForm.amount_paid || 0)
+        )} applied to ${allocationPayload.length} invoice(s) for ${
+          selectedCustomerGroup?.customer_name || "customer"
+        }.`,
+        metadata: {
+          batch_id: savedBatch?.batch?.id || null,
+          receipt_no: savedBatch?.batch?.receipt_no || "",
+          customer_id: selectedCustomerGroup?.customer_id || null,
+          customer_name: selectedCustomerGroup?.customer_name || "",
+          phone: selectedCustomerGroup?.phone || "",
+          total_amount_paid: Number(batchForm.amount_paid || 0),
+          previous_balance: previousBalance,
+          remaining_balance: Math.max(
+            previousBalance - Number(batchForm.amount_paid || 0),
+            0
+          ),
+          payment_date: batchForm.payment_date,
+          payment_method: batchForm.payment_method,
+          invoice_count: allocationPayload.length,
+          allocations: allocationRows
+            .filter((row) => Number(row.allocatedAmount || 0) > 0)
+            .map((row) => ({
+              maintenance_job_id: row.job.id,
+              invoice_no: row.job.invoice_no || "",
+              job_title: row.job.job_title || "",
+              invoice_balance: row.balance,
+              amount_paid: row.allocatedAmount,
+              remaining_after_payment: row.remainingAfterAllocation,
+            })),
+        },
+      });
 
       const receipt = {
         type: "batch",

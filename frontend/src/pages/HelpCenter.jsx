@@ -1,14 +1,33 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function HelpCenter() {
   const [activeArticle, setActiveArticle] = useState("gettingStarted");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 820 : false
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 820);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   const selectedArticle =
     articles.find((article) => article.id === activeArticle) || articles[0];
 
-  const categories = ["All", ...new Set(articles.map((article) => article.category))];
+  const categories = [
+    "All",
+    ...new Set(articles.map((article) => article.category)),
+  ];
 
   const filteredArticles = useMemo(() => {
     const text = search.trim().toLowerCase();
@@ -40,17 +59,19 @@ function HelpCenter() {
   };
 
   return (
-    <div style={pageWrapper}>
-      <div style={heroCard}>
+    <div style={isMobile ? mobilePageWrapper : pageWrapper}>
+      <div style={isMobile ? mobileHeroCard : heroCard}>
         <div>
           <div style={eyebrow}>RK PayTrack Training</div>
-          <h1 style={pageTitle}>Help Center</h1>
-          <p style={pageDescription}>
+
+          <h1 style={isMobile ? mobilePageTitle : pageTitle}>Help Center</h1>
+
+          <p style={isMobile ? mobilePageDescription : pageDescription}>
             Quick employee training articles for deals, payments, maintenance,
             receipts, promises, reports, and daily workflow.
           </p>
 
-          <div style={heroPills}>
+          <div style={isMobile ? mobileHeroPills : heroPills}>
             <span style={heroPill}>Payments</span>
             <span style={heroPill}>Maintenance</span>
             <span style={heroPill}>Receipts</span>
@@ -59,13 +80,13 @@ function HelpCenter() {
           </div>
         </div>
 
-        <div style={heroStats}>
-          <div style={heroStatCard}>
+        <div style={isMobile ? mobileHeroStats : heroStats}>
+          <div style={isMobile ? mobileHeroStatCard : heroStatCard}>
             <span>Total Articles</span>
             <strong>{articles.length}</strong>
           </div>
 
-          <div style={heroStatCard}>
+          <div style={isMobile ? mobileHeroStatCard : heroStatCard}>
             <span>Categories</span>
             <strong>{categories.length - 1}</strong>
           </div>
@@ -111,31 +132,35 @@ function HelpCenter() {
         and reports.
       </div>
 
-      <div style={toolbar}>
+      <div style={isMobile ? mobileToolbar : toolbar}>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search help articles..."
-          style={searchInput}
+          style={isMobile ? mobileSearchInput : searchInput}
         />
 
         <select
           value={categoryFilter}
           onChange={(event) => setCategoryFilter(event.target.value)}
-          style={selectStyle}
+          style={isMobile ? mobileSelectStyle : selectStyle}
         >
           {categories.map((category) => (
             <option key={category}>{category}</option>
           ))}
         </select>
 
-        <button type="button" onClick={handleClearFilters} style={clearButton}>
+        <button
+          type="button"
+          onClick={handleClearFilters}
+          style={isMobile ? mobileClearButton : clearButton}
+        >
           Clear
         </button>
       </div>
 
-      <div style={contentGrid}>
-        <aside style={articleList}>
+      <div style={isMobile ? mobileContentGrid : contentGrid}>
+        <aside style={isMobile ? mobileArticleList : articleList}>
           <div style={articleListHeader}>
             <strong>Articles</strong>
             <span>{filteredArticles.length} shown</span>
@@ -152,7 +177,7 @@ function HelpCenter() {
                 type="button"
                 onClick={() => setActiveArticle(article.id)}
                 style={{
-                  ...articleButton,
+                  ...(isMobile ? mobileArticleButton : articleButton),
                   ...(activeArticle === article.id ? activeArticleButton : {}),
                 }}
               >
@@ -167,14 +192,14 @@ function HelpCenter() {
           )}
         </aside>
 
-        <main style={articleContent}>
+        <main style={isMobile ? mobileArticleContent : articleContent}>
           <div style={articleHeader}>
             <div>
               <div style={articleCategoryBadge}>
                 {selectedArticle.category}
               </div>
 
-              <h2 style={articleTitle}>
+              <h2 style={isMobile ? mobileArticleTitle : articleTitle}>
                 <span style={articleTitleIcon}>{selectedArticle.icon}</span>
                 {selectedArticle.title}
               </h2>
@@ -185,7 +210,10 @@ function HelpCenter() {
 
           <div style={articleBody}>
             {selectedArticle.sections.map((section, index) => (
-              <div key={section.heading} style={sectionBox}>
+              <div
+                key={section.heading}
+                style={isMobile ? mobileSectionBox : sectionBox}
+              >
                 <div style={sectionNumber}>{index + 1}</div>
 
                 <div>
@@ -443,8 +471,7 @@ const articles = [
     title: "Due Schedule",
     icon: "📆",
     category: "Payments",
-    summary:
-      "Explains how to read the monthly installment schedule.",
+    summary: "Explains how to read the monthly installment schedule.",
     sections: [
       {
         heading: "What the Due Schedule Shows",
@@ -475,8 +502,7 @@ const articles = [
     title: "Payment Promises",
     icon: "🤝",
     category: "Payments",
-    summary:
-      "Explains how payment promises should be used.",
+    summary: "Explains how payment promises should be used.",
     sections: [
       {
         heading: "What is a Promise?",
@@ -506,8 +532,7 @@ const articles = [
     title: "Receipts & Account Summary",
     icon: "🧾",
     category: "Receipts",
-    summary:
-      "Explains how to print receipts, invoices, and account summaries.",
+    summary: "Explains how to print receipts, invoices, and account summaries.",
     sections: [
       {
         heading: "Payment Receipt",
@@ -536,8 +561,7 @@ const articles = [
     title: "Reports",
     icon: "📊",
     category: "Reports",
-    summary:
-      "Explains how employees and managers can use reports.",
+    summary: "Explains how employees and managers can use reports.",
     sections: [
       {
         heading: "Purpose",
@@ -571,8 +595,7 @@ const articles = [
     title: "Calendar Reminders",
     icon: "⏰",
     category: "Tools",
-    summary:
-      "Explains how to create reminders for customer collections.",
+    summary: "Explains how to create reminders for customer collections.",
     sections: [
       {
         heading: "Purpose",
@@ -601,8 +624,7 @@ const articles = [
     title: "Voiding a Payment",
     icon: "🚫",
     category: "Payments",
-    summary:
-      "Explains when and how voiding should be used.",
+    summary: "Explains when and how voiding should be used.",
     sections: [
       {
         heading: "When to Void",
@@ -661,6 +683,11 @@ const pageWrapper = {
   gap: "18px",
 };
 
+const mobilePageWrapper = {
+  ...pageWrapper,
+  gap: "12px",
+};
+
 const heroCard = {
   background: "linear-gradient(135deg, #0A1A2F 0%, #102A4C 55%, #1d4ed8 100%)",
   borderRadius: "22px",
@@ -672,6 +699,13 @@ const heroCard = {
   gap: "18px",
   flexWrap: "wrap",
   boxShadow: "0 16px 38px rgba(15, 23, 42, 0.24)",
+};
+
+const mobileHeroCard = {
+  ...heroCard,
+  borderRadius: "18px",
+  padding: "18px",
+  gap: "14px",
 };
 
 const eyebrow = {
@@ -690,6 +724,11 @@ const pageTitle = {
   color: "white",
 };
 
+const mobilePageTitle = {
+  ...pageTitle,
+  fontSize: "25px",
+};
+
 const pageDescription = {
   marginTop: "8px",
   marginBottom: 0,
@@ -698,11 +737,22 @@ const pageDescription = {
   lineHeight: "1.5",
 };
 
+const mobilePageDescription = {
+  ...pageDescription,
+  fontSize: "14px",
+};
+
 const heroPills = {
   display: "flex",
   gap: "8px",
   flexWrap: "wrap",
   marginTop: "14px",
+};
+
+const mobileHeroPills = {
+  ...heroPills,
+  gap: "6px",
+  marginTop: "12px",
 };
 
 const heroPill = {
@@ -721,6 +771,13 @@ const heroStats = {
   flexWrap: "wrap",
 };
 
+const mobileHeroStats = {
+  ...heroStats,
+  width: "100%",
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+};
+
 const heroStatCard = {
   background: "rgba(255,255,255,0.12)",
   border: "1px solid rgba(255,255,255,0.22)",
@@ -729,6 +786,12 @@ const heroStatCard = {
   minWidth: "120px",
   display: "grid",
   gap: "5px",
+};
+
+const mobileHeroStatCard = {
+  ...heroStatCard,
+  minWidth: 0,
+  padding: "12px",
 };
 
 const quickStartGrid = {
@@ -804,6 +867,12 @@ const toolbar = {
   boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
 };
 
+const mobileToolbar = {
+  ...toolbar,
+  padding: "12px",
+  gap: "8px",
+};
+
 const searchInput = {
   flex: "1 1 360px",
   border: "1px solid #d1d5db",
@@ -813,6 +882,13 @@ const searchInput = {
   outline: "none",
 };
 
+const mobileSearchInput = {
+  ...searchInput,
+  flex: "1 1 100%",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
 const selectStyle = {
   border: "1px solid #d1d5db",
   borderRadius: "12px",
@@ -820,6 +896,13 @@ const selectStyle = {
   fontSize: "14px",
   outline: "none",
   background: "white",
+};
+
+const mobileSelectStyle = {
+  ...selectStyle,
+  flex: "1 1 100%",
+  width: "100%",
+  boxSizing: "border-box",
 };
 
 const clearButton = {
@@ -832,11 +915,23 @@ const clearButton = {
   fontWeight: "900",
 };
 
+const mobileClearButton = {
+  ...clearButton,
+  width: "100%",
+};
+
 const contentGrid = {
   display: "grid",
   gridTemplateColumns: "320px minmax(0, 1fr)",
   gap: "18px",
   alignItems: "flex-start",
+};
+
+const mobileContentGrid = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: "12px",
+  alignItems: "start",
 };
 
 const articleList = {
@@ -849,6 +944,16 @@ const articleList = {
   top: "20px",
   maxHeight: "calc(100vh - 40px)",
   overflowY: "auto",
+};
+
+const mobileArticleList = {
+  ...articleList,
+  position: "static",
+  top: "auto",
+  maxHeight: "none",
+  overflowY: "visible",
+  borderRadius: "18px",
+  padding: "10px",
 };
 
 const articleListHeader = {
@@ -874,6 +979,12 @@ const articleButton = {
   color: "#374151",
   fontWeight: "900",
   marginBottom: "6px",
+};
+
+const mobileArticleButton = {
+  ...articleButton,
+  padding: "11px",
+  marginBottom: "7px",
 };
 
 const activeArticleButton = {
@@ -917,6 +1028,12 @@ const articleContent = {
   minWidth: 0,
 };
 
+const mobileArticleContent = {
+  ...articleContent,
+  borderRadius: "18px",
+  padding: "16px",
+};
+
 const articleHeader = {
   borderBottom: "1px solid #e5e7eb",
   paddingBottom: "16px",
@@ -945,6 +1062,12 @@ const articleTitle = {
   fontSize: "26px",
 };
 
+const mobileArticleTitle = {
+  ...articleTitle,
+  fontSize: "22px",
+  alignItems: "flex-start",
+};
+
 const articleTitleIcon = {
   fontSize: "28px",
 };
@@ -970,6 +1093,13 @@ const sectionBox = {
   border: "1px solid #e5e7eb",
   borderRadius: "18px",
   background: "#ffffff",
+};
+
+const mobileSectionBox = {
+  ...sectionBox,
+  gridTemplateColumns: "1fr",
+  gap: "10px",
+  padding: "14px",
 };
 
 const sectionNumber = {

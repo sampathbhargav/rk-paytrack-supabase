@@ -17,6 +17,7 @@ import PromiseHistory from "../components/PromiseHistory";
 import DueSchedule from "../components/DueSchedule";
 import AccountSummaryPrint from "../components/AccountSummaryPrint";
 import PaymentReceipt from "../components/PaymentReceipt";
+import CustomerFollowUps from "../components/CustomerFollowUps";
 
 function CustomerDetail() {
   const { dealId } = useParams();
@@ -453,6 +454,11 @@ function CustomerDetail() {
       </div>
 
       <PaymentReceipt receipt={receipt} onClose={() => setReceipt(null)} />
+      <CustomerFollowUps
+        customerId={deal?.customer_id}
+        customerName={deal?.customers?.customer_name || ""}
+        dealId={deal?.id}
+      />
     </div>
   );
 }

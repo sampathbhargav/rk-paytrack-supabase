@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createCustomer } from "../api/customersApi";
 import { createDeal, checkDealTagExists } from "../api/dealsApi";
+import { logActivity } from "../api/activityLogsApi";
 import {
   getDueDayFromStartDate,
   calculateMaturityDate,
@@ -257,7 +258,7 @@ function DealForm() {
         address: data.address,
       });
 
-      await createDeal({
+      const savedDeal = await createDeal({
         customerId: customer.id,
         dealTag: data.dealTag,
         dealType: data.dealType,
@@ -268,29 +269,70 @@ function DealForm() {
         vin: data.vin,
         totalAmount: Number(data.totalAmount || 0),
         monthlyPayment:
-        data.dealType === "Cash"
-          ? 0
-          : data.dealType === "Registration Money"
-          ? Number(data.totalAmount || 0)
-          : Number(data.monthlyPayment || 0),
-
-      dueDay:
-        data.dealType === "Cash" ? null : Number(data.dueDay || 0),
-
-      term:
-        data.dealType === "Cash"
-          ? null
-          : data.dealType === "Registration Money"
-          ? 1
-          : Number(data.term || 0),
-
-      maturityDate:
-        data.dealType === "Cash"
-          ? null
-          : data.dealType === "Registration Money"
-          ? data.startDate
-          : data.maturityDate,
+          data.dealType === "Cash"
+            ? 0
+            : data.dealType === "Registration Money"
+            ? Number(data.totalAmount || 0)
+            : Number(data.monthlyPayment || 0),
+        dueDay: data.dealType === "Cash" ? null : Number(data.dueDay || 0),
+        term:
+          data.dealType === "Cash"
+            ? null
+            : data.dealType === "Registration Money"
+            ? 1
+            : Number(data.term || 0),
+        maturityDate:
+          data.dealType === "Cash"
+            ? null
+            : data.dealType === "Registration Money"
+            ? data.startDate
+            : data.maturityDate,
         notes: data.notes,
+      });
+      
+      await logActivity({
+        action: "CREATE",
+        module: "Deals",
+        entity_type: "deal",
+        entity_id: savedDeal?.id || data.dealTag,
+        entity_label: data.dealTag || data.customerName || "New Deal",
+        description: `Deal ${data.dealTag} created for ${data.customerName}.`,
+        metadata: {
+          deal_id: savedDeal?.id || null,
+          customer_id: customer?.id || null,
+          customer_name: data.customerName,
+          phone: data.phone,
+          email: data.email,
+          address: data.address,
+          deal_tag: data.dealTag,
+          deal_type: data.dealType,
+          deal_subtype: data.dealType === "In-house" ? data.dealSubtype : null,
+          truck: data.truck,
+          year: data.year,
+          vin: data.vin,
+          total_amount: Number(data.totalAmount || 0),
+          monthly_payment:
+            data.dealType === "Cash"
+              ? 0
+              : data.dealType === "Registration Money"
+              ? Number(data.totalAmount || 0)
+              : Number(data.monthlyPayment || 0),
+          due_day: data.dealType === "Cash" ? null : Number(data.dueDay || 0),
+          term:
+            data.dealType === "Cash"
+              ? null
+              : data.dealType === "Registration Money"
+              ? 1
+              : Number(data.term || 0),
+          start_date: data.startDate || null,
+          maturity_date:
+            data.dealType === "Cash"
+              ? null
+              : data.dealType === "Registration Money"
+              ? data.startDate
+              : data.maturityDate,
+          notes: data.notes,
+        },
       });
 
       setMessage("Customer and deal created successfully.");

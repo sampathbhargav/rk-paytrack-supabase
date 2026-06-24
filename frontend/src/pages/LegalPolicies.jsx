@@ -1,15 +1,34 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function LegalPolicies() {
   const [activePolicy, setActivePolicy] = useState("acceptableUse");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [acknowledged, setAcknowledged] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 820 : false
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 820);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   const selectedPolicy =
     policies.find((policy) => policy.id === activePolicy) || policies[0];
 
-  const categories = ["All", ...new Set(policies.map((policy) => policy.category))];
+  const categories = [
+    "All",
+    ...new Set(policies.map((policy) => policy.category)),
+  ];
 
   const filteredPolicies = useMemo(() => {
     const text = search.trim().toLowerCase();
@@ -46,31 +65,37 @@ function LegalPolicies() {
   };
 
   return (
-    <div style={pageWrapper}>
-      <div style={heroCard}>
+    <div style={isMobile ? mobilePageWrapper : pageWrapper}>
+      <div style={isMobile ? mobileHeroCard : heroCard}>
         <div>
           <div style={eyebrow}>RK PayTrack Governance</div>
-          <h1 style={pageTitle}>Legal & Policies</h1>
-          <p style={pageDescription}>
-            Review internal software use rules, data handling expectations,
-            security responsibilities, and payment record policies.
+
+          <h1 style={isMobile ? mobilePageTitle : pageTitle}>
+            Legal & Policies
+          </h1>
+
+          <p style={isMobile ? mobilePageDescription : pageDescription}>
+            Review internal software-use rules, customer privacy expectations,
+            terms, security responsibilities, compliance reminders, trademark
+            checks, and payment-record policies.
           </p>
 
-          <div style={heroPills}>
-            <span style={heroPill}>Internal Use</span>
-            <span style={heroPill}>Customer Data</span>
-            <span style={heroPill}>Payment Records</span>
-            <span style={heroPill}>Security</span>
+          <div style={isMobile ? mobileHeroPills : heroPills}>
+            <span style={heroPill}>Acceptable Use</span>
+            <span style={heroPill}>Privacy</span>
+            <span style={heroPill}>Terms</span>
+            <span style={heroPill}>Compliance</span>
+            <span style={heroPill}>Trademark</span>
           </div>
         </div>
 
-        <div style={heroStats}>
-          <div style={heroStatCard}>
+        <div style={isMobile ? mobileHeroStats : heroStats}>
+          <div style={isMobile ? mobileHeroStatCard : heroStatCard}>
             <span>Total Policies</span>
             <strong>{policies.length}</strong>
           </div>
 
-          <div style={heroStatCard}>
+          <div style={isMobile ? mobileHeroStatCard : heroStatCard}>
             <span>Categories</span>
             <strong>{categories.length - 1}</strong>
           </div>
@@ -78,62 +103,68 @@ function LegalPolicies() {
       </div>
 
       <div style={noticeBox}>
-        <strong>Important:</strong> These are internal policy templates for RK
-        PayTrack usage. Management should review them, and legal counsel should
-        approve them before they are treated as final company policy.
+        <strong>Important:</strong> These are internal templates and are not
+        legal advice. Final Privacy Policy, Terms of Service, vendor agreement,
+        trademark filing, and compliance documents should be generated through a
+        legal-policy service such as Termly or iubenda and reviewed by an
+        attorney before public use, resale, licensing, or production release.
       </div>
 
-      <div style={quickPolicyGrid}>
+      <div style={isMobile ? mobileQuickPolicyGrid : quickPolicyGrid}>
         <QuickPolicyCard
           icon="✅"
           title="Acceptable Use"
-          text="Use RK PayTrack only for approved business purposes."
+          text="Users must use RK PayTrack only for approved business purposes."
         />
 
         <QuickPolicyCard
           icon="🔒"
-          title="Customer Privacy"
-          text="Protect customer names, phone numbers, balances, payments, and notes."
+          title="Privacy"
+          text="Customer, payment, balance, and report information must be protected."
         />
 
         <QuickPolicyCard
-          icon="💵"
-          title="Payment Accuracy"
-          text="Verify customer, deal, invoice, amount, method, and date before saving."
+          icon="📄"
+          title="Terms"
+          text="Terms define user responsibilities, prohibited conduct, and limitations."
         />
 
         <QuickPolicyCard
-          icon="🛡️"
-          title="Security"
-          text="Do not share access, export data without approval, or bypass controls."
+          icon="™️"
+          title="Trademark"
+          text="Search USPTO before treating RK PayTrack as a final product brand."
         />
       </div>
 
-      <div style={toolbar}>
+      <div style={isMobile ? mobileToolbar : toolbar}>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search policies..."
-          style={searchInput}
+          style={isMobile ? mobileSearchInput : searchInput}
         />
 
         <select
           value={categoryFilter}
           onChange={(event) => setCategoryFilter(event.target.value)}
-          style={selectStyle}
+          style={isMobile ? mobileSelectStyle : selectStyle}
         >
           {categories.map((category) => (
             <option key={category}>{category}</option>
           ))}
         </select>
 
-        <button type="button" onClick={handleClearFilters} style={clearButton}>
+        <button
+          type="button"
+          onClick={handleClearFilters}
+          style={isMobile ? mobileClearButton : clearButton}
+        >
           Clear
         </button>
       </div>
 
-      <div style={contentGrid}>
-        <aside style={policyList}>
+      <div style={isMobile ? mobileContentGrid : contentGrid}>
+        <aside style={isMobile ? mobilePolicyList : policyList}>
           <div style={policyListHeader}>
             <strong>Policies</strong>
             <span>{filteredPolicies.length} shown</span>
@@ -153,7 +184,7 @@ function LegalPolicies() {
                   setAcknowledged(false);
                 }}
                 style={{
-                  ...policyButton,
+                  ...(isMobile ? mobilePolicyButton : policyButton),
                   ...(activePolicy === policy.id ? activePolicyButton : {}),
                 }}
               >
@@ -168,12 +199,16 @@ function LegalPolicies() {
           )}
         </aside>
 
-        <main style={policyContent}>
-          <div style={policyContentHeader}>
+        <main style={isMobile ? mobilePolicyContent : policyContent}>
+          <div
+            style={
+              isMobile ? mobilePolicyContentHeader : policyContentHeader
+            }
+          >
             <div>
               <div style={policyCategoryBadge}>{selectedPolicy.category}</div>
 
-              <h2 style={policyTitle}>
+              <h2 style={isMobile ? mobilePolicyTitle : policyTitle}>
                 <span style={policyTitleIcon}>{selectedPolicy.icon}</span>
                 {selectedPolicy.title}
               </h2>
@@ -181,21 +216,31 @@ function LegalPolicies() {
               <p style={policySubtitle}>{selectedPolicy.purpose}</p>
             </div>
 
-            <button type="button" onClick={handlePrintPolicy} style={printButton}>
+            <button
+              type="button"
+              onClick={handlePrintPolicy}
+              style={isMobile ? mobilePrintButton : printButton}
+            >
               Print Policy
             </button>
           </div>
 
-          <div style={policyMetaGrid}>
+          <div style={isMobile ? mobilePolicyMetaGrid : policyMetaGrid}>
             <PolicyMeta label="Policy Type" value={selectedPolicy.category} />
             <PolicyMeta label="Owner" value="Management / System Admin" />
-            <PolicyMeta label="Applies To" value="Authorized RK PayTrack Users" />
-            <PolicyMeta label="Review" value="Review before final approval" />
+            <PolicyMeta
+              label="Applies To"
+              value="Authorized RK PayTrack Users"
+            />
+            <PolicyMeta label="Status" value="Template - Review Required" />
           </div>
 
           <div style={policyBody}>
             {selectedPolicy.sections.map((section, index) => (
-              <div key={section.heading} style={sectionBox}>
+              <div
+                key={section.heading}
+                style={isMobile ? mobileSectionBox : sectionBox}
+              >
                 <div style={sectionNumber}>{index + 1}</div>
 
                 <div>
@@ -216,7 +261,11 @@ function LegalPolicies() {
             ))}
           </div>
 
-          <div style={acknowledgementBox}>
+          <div
+            style={
+              isMobile ? mobileAcknowledgementBox : acknowledgementBox
+            }
+          >
             <div>
               <h3 style={acknowledgementTitle}>Acknowledgement</h3>
               <p style={acknowledgementText}>
@@ -226,7 +275,13 @@ function LegalPolicies() {
               </p>
             </div>
 
-            <label style={acknowledgementCheck}>
+            <label
+              style={
+                isMobile
+                  ? mobileAcknowledgementCheck
+                  : acknowledgementCheck
+              }
+            >
               <input
                 type="checkbox"
                 checked={acknowledged}
@@ -275,108 +330,450 @@ const policies = [
     icon: "✅",
     category: "System Use",
     purpose:
-      "Defines how authorized users may use RK PayTrack and company technology resources.",
+      "Defines how authorized users may and may not use RK PayTrack, company data, reports, payment tools, and customer records.",
     sections: [
       {
         heading: "Purpose",
         text:
-          "This policy helps protect company data, customer information, payment records, and dealership operations by setting clear rules for proper system use.",
+          "This Acceptable Use Policy protects RK PayTrack, company records, customer information, payment data, maintenance invoices, reports, and dealership operations by setting clear rules for approved system use.",
       },
       {
-        heading: "Allowed Use",
+        heading: "Authorized Business Use Only",
         text:
-          "Users may access RK PayTrack only for authorized business purposes related to dealership operations, customer accounts, payments, maintenance invoices, reporting, and management review.",
+          "RK PayTrack may be used only by approved users for legitimate dealership business purposes.",
         items: [
-          "Use the system only with approved login credentials.",
-          "Enter accurate customer, deal, maintenance, payment, and promise information.",
-          "Use reports only for legitimate business needs.",
-          "Protect customer and company information from unauthorized access.",
-          "Print receipts, invoices, and account summaries only for approved business purposes.",
+          "View customer, deal, payment, promise, maintenance, and report information only for approved business needs.",
+          "Record payments only when money has actually been received and verified.",
+          "Create promises only when the customer gives a clear future payment date or follow-up commitment.",
+          "Use reports only for accounting, management, reconciliation, collections, or authorized review.",
+          "Print receipts, invoices, and customer summaries only for business purposes.",
         ],
       },
       {
         heading: "Prohibited Use",
         text:
-          "Users must not misuse RK PayTrack or company systems in a way that creates security, privacy, financial, or operational risk.",
+          "Users must not use RK PayTrack in a way that creates privacy, security, financial, operational, legal, or reputational risk.",
         items: [
-          "Do not share passwords or login access.",
-          "Do not enter false payment, promise, customer, deal, or maintenance information.",
-          "Do not export reports for personal or unauthorized use.",
-          "Do not attempt to bypass security controls.",
-          "Do not delete, alter, or misuse records without authorization.",
-          "Do not use another employee’s account.",
+          "Do not share passwords, login sessions, or system access with anyone.",
+          "Do not use another employee's account.",
+          "Do not enter false, estimated, fake, backdated, or misleading payments.",
+          "Do not change balances, promises, due dates, invoices, notes, or customer records without authorization.",
+          "Do not export reports for personal use or send them to unauthorized people.",
+          "Do not copy, resell, reverse engineer, modify, or redistribute the software without written approval.",
+          "Do not attempt to bypass login, permissions, database controls, audit logs, or security settings.",
+          "Do not use RK PayTrack to harass, threaten, discriminate, or misuse customer information.",
+        ],
+      },
+      {
+        heading: "User Responsibility",
+        text:
+          "Users are responsible for reviewing information before saving records or taking business action.",
+        items: [
+          "Verify customer name, phone number, deal tag, invoice number, payment amount, payment date, and payment method before saving.",
+          "Review balances and reports before relying on them for collection, accounting, or management decisions.",
+          "Use notes honestly and professionally.",
+          "Report incorrect records, suspected unauthorized access, system issues, or suspicious activity immediately.",
         ],
       },
       {
         heading: "Violation",
         text:
-          "Violations may result in access removal, management review, disciplinary action, or other appropriate action based on company policy.",
+          "Violations may result in access removal, management review, disciplinary action, legal action, or other remedies available under company policy and applicable law.",
       },
     ],
   },
   {
-    id: "termsOfUse",
-    title: "Terms of Use",
-    icon: "📄",
-    category: "System Use",
+    id: "officialLegalSetup",
+    title: "Official Legal Document Setup",
+    icon: "⚖️",
+    category: "Legal Setup",
     purpose:
-      "Explains the basic terms users accept when using RK PayTrack.",
+      "Explains how RK PayTrack should handle official Privacy Policy, Terms of Service, and legal document publishing.",
     sections: [
       {
-        heading: "Authorized Users",
+        heading: "Purpose",
         text:
-          "RK PayTrack is intended for authorized company users only. Access may be granted, modified, or removed by management at any time.",
+          "This app page contains internal policy templates. It should not be treated as the final legal agreement by itself. Official legal documents should be generated, reviewed, versioned, and approved before production, resale, licensing, or public release.",
       },
       {
-        heading: "System Purpose",
+        heading: "Recommended Legal Tools",
         text:
-          "The software is used to manage dealership payment tracking, customer records, deal balances, maintenance invoices, promises, due schedules, receipts, and reports.",
+          "For official hosted documents, management may use a legal policy generator and then obtain attorney review.",
+        items: [
+          "Use Termly for a USA-focused Privacy Policy, Terms of Service, cookie/consent tools, and policy hosting.",
+          "Use iubenda if the business wants broader international privacy, cookie, SaaS, and multilingual compliance support.",
+          "Use a qualified attorney before relying on these documents for resale, licensing, public use, or customer-facing SaaS use.",
+          "Store final official legal-document links inside the app, website, login page, and customer/vendor onboarding flow.",
+        ],
       },
       {
-        heading: "User Responsibility",
+        heading: "Documents to Publish",
         text:
-          "Users are responsible for entering accurate information and reviewing records carefully before saving payments, promises, deal updates, maintenance records, or exported reports.",
+          "Before production or external use, the business should publish and maintain official versions of the following documents.",
+        items: [
+          "Privacy Policy.",
+          "Terms of Service or Terms and Conditions.",
+          "End User License Agreement or Internal Use Agreement.",
+          "Data Processing Addendum if the app is used for another company or customer.",
+          "Cookie Policy if a public website or tracking cookies are used.",
+          "Security and Data Handling Policy.",
+          "Support and Service Scope Statement.",
+          "Trademark Notice.",
+        ],
       },
       {
-        heading: "No Unauthorized Distribution",
+        heading: "Version Control",
         text:
-          "Users may not copy, distribute, resell, or provide access to the software or its data without company approval.",
+          "Each legal document should have a version number, effective date, owner, approval status, and review date so the company can prove which version was active at a given time.",
       },
     ],
   },
   {
     id: "privacyPolicy",
-    title: "Privacy Policy",
+    title: "Privacy Policy Template",
     icon: "🔒",
     category: "Privacy",
     purpose:
-      "Describes how customer and business information should be handled inside RK PayTrack.",
+      "Describes how RK PayTrack may collect, store, use, protect, and share customer and business information.",
     sections: [
       {
-        heading: "Information Stored",
+        heading: "Information Collected",
         text:
-          "RK PayTrack may store customer names, phone numbers, addresses, vehicle information, VINs, deal details, maintenance invoices, payment records, promise dates, notes, and report data.",
-      },
-      {
-        heading: "Use of Information",
-        text:
-          "Information should only be used for dealership business purposes such as payment tracking, customer follow-up, maintenance billing, accounting, reporting, and management review.",
-      },
-      {
-        heading: "Confidentiality",
-        text:
-          "Users must protect customer and company information and must not disclose it to unauthorized people.",
+          "RK PayTrack may store personal, vehicle, financial, payment, maintenance, and business information needed to operate dealership payment tracking.",
         items: [
-          "Do not share customer balances with unauthorized people.",
-          "Do not send reports to personal email accounts.",
-          "Do not leave exported reports on shared or public computers.",
-          "Do not discuss customer financial information outside business needs.",
+          "Customer name, phone number, email, address, and contact notes.",
+          "Deal tag, truck details, year, VIN, deal type, sale amount, due dates, maturity date, and balance.",
+          "Payment date, payment method, amount paid, amount due, remaining amount, notes, and receipt details.",
+          "Maintenance invoice information, labor amount, parts amount, tax, discounts, technician, work status, payment status, and balance.",
+          "Promises, follow-up notes, collection notes, broken promises, disputes, and next follow-up dates.",
+          "User account information such as email address, login/session data, and activity logs.",
         ],
       },
       {
-        heading: "Data Export",
+        heading: "How Information Is Used",
         text:
-          "Exported CSV reports may contain sensitive information. Users must store, share, and delete exported files carefully.",
+          "Information should be used only for legitimate dealership business purposes.",
+        items: [
+          "Track customer balances, payments, promises, due dates, and maintenance invoices.",
+          "Print receipts, invoices, customer statements, and account summaries.",
+          "Perform accounting, reconciliation, reporting, management review, collections, and customer service.",
+          "Investigate errors, void payments, correct records, monitor activity, and improve internal controls.",
+          "Maintain security, audit history, and operational continuity.",
+        ],
+      },
+      {
+        heading: "How Information Is Shared",
+        text:
+          "Customer and business information should not be shared unless there is a valid business, legal, accounting, tax, collection, operational, or security reason.",
+        items: [
+          "Do not share customer balances with unauthorized people.",
+          "Do not send reports to personal email accounts.",
+          "Do not export customer data unless management approves the business purpose.",
+          "Do not upload reports or customer data to unapproved websites or services.",
+          "Only share data with authorized company personnel, accountants, legal advisors, service providers, or parties approved by management.",
+        ],
+      },
+      {
+        heading: "Security Safeguards",
+        text:
+          "The company should use reasonable administrative, technical, and physical safeguards to protect customer information.",
+        items: [
+          "Require login for system access.",
+          "Restrict database access.",
+          "Use strong passwords and multi-factor authentication where available.",
+          "Review activity logs for sensitive actions.",
+          "Back up important data.",
+          "Limit exports and store exported reports securely.",
+          "Remove access when employees leave or no longer need the system.",
+        ],
+      },
+      {
+        heading: "Privacy Policy Disclaimer",
+        text:
+          "This is a template summary for internal use. The final public Privacy Policy should be generated through a legal-policy service or attorney-reviewed document and customized to the company's actual data practices.",
+      },
+    ],
+  },
+  {
+    id: "termsOfService",
+    title: "Terms of Service Template",
+    icon: "📄",
+    category: "Legal Terms",
+    purpose:
+      "Defines the rules, responsibilities, limitations, and restrictions that apply when users access RK PayTrack.",
+    sections: [
+      {
+        heading: "Acceptance of Terms",
+        text:
+          "By accessing or using RK PayTrack, users agree to follow these terms, company policies, and all approved procedures related to customer records, payments, reports, security, and data handling.",
+      },
+      {
+        heading: "Authorized Access",
+        text:
+          "RK PayTrack is intended only for authorized users. The company may grant, suspend, restrict, or remove access at any time.",
+        items: [
+          "Users must keep login credentials confidential.",
+          "Users must not access data unless they have a business need.",
+          "Users must not allow another person to use their account.",
+          "Users must report suspected unauthorized access immediately.",
+        ],
+      },
+      {
+        heading: "User Responsibilities",
+        text:
+          "Users are responsible for the accuracy and appropriateness of the records they create, edit, export, print, or rely on.",
+        items: [
+          "Confirm customer identity before discussing account information.",
+          "Verify amounts and payment methods before saving payments.",
+          "Use voiding procedures instead of deleting incorrect financial records.",
+          "Review reports before using them for decisions.",
+          "Do not misuse the system, data, exports, receipts, or customer information.",
+        ],
+      },
+      {
+        heading: "Prohibited Conduct",
+        text:
+          "Users must not perform actions that could harm the company, customers, software, data integrity, security, or legal compliance.",
+        items: [
+          "No unauthorized copying, distribution, resale, or sublicensing.",
+          "No malicious use, tampering, hacking, scraping, automated abuse, or bypassing controls.",
+          "No false entries, misleading notes, unauthorized edits, or fraudulent records.",
+          "No use of the app for unlawful, abusive, discriminatory, harassing, or unauthorized purposes.",
+        ],
+      },
+      {
+        heading: "Termination and Access Removal",
+        text:
+          "The company may remove access if a user violates policy, changes roles, leaves employment, creates security risk, or no longer has a business need.",
+      },
+      {
+        heading: "Template Notice",
+        text:
+          "This Terms of Service content is a starting template and should be reviewed by legal counsel before public release, customer-facing use, resale, licensing, or vendor use.",
+      },
+    ],
+  },
+  {
+    id: "developerVendorDisclaimer",
+    title: "Developer & Vendor Disclaimer",
+    icon: "🧑‍💻",
+    category: "Legal Terms",
+    purpose:
+      "Clarifies the limits of the developer/vendor role and the responsibilities of the business using RK PayTrack.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "This policy explains that RK PayTrack is a business-support tool. It helps organize records, but final business decisions remain the responsibility of the company and authorized users.",
+      },
+      {
+        heading: "No Guarantee of Error-Free Records",
+        text:
+          "The software may calculate, display, or organize information based on data entered by users. Incorrect user input, missing records, duplicate entries, incorrect dates, incorrect payment methods, or changed business rules can affect results.",
+        items: [
+          "Users must verify records before relying on balances, reports, receipts, statements, or due schedules.",
+          "Management should review reports before accounting, legal, collection, tax, or customer-facing use.",
+          "The developer/vendor is not responsible for errors caused by incorrect data entry, unauthorized use, ignored warnings, failure to follow procedures, or misuse of the system.",
+        ],
+      },
+      {
+        heading: "No Legal, Tax, Accounting, or Collection Advice",
+        text:
+          "RK PayTrack does not provide legal, tax, accounting, credit, lending, collection, or financial advice. The company should consult qualified professionals before making decisions that require professional judgment.",
+      },
+      {
+        heading: "Business Responsibility",
+        text:
+          "The company using RK PayTrack is responsible for approving policies, training users, reviewing records, complying with applicable laws, handling customer communications, securing exported files, and validating reports.",
+      },
+      {
+        heading: "Attorney Review Required",
+        text:
+          "This disclaimer is a template. A lawyer should review vendor agreements, limitation-of-liability language, indemnity clauses, service scope, support obligations, privacy commitments, and data processing responsibilities before external licensing or resale.",
+      },
+    ],
+  },
+  {
+    id: "limitationOfLiability",
+    title: "Limitation of Liability Template",
+    icon: "🛡️",
+    category: "Legal Terms",
+    purpose:
+      "Provides draft limitation language to reduce risk when RK PayTrack is used, licensed, or supported.",
+    sections: [
+      {
+        heading: "Important Warning",
+        text:
+          "Limitation-of-liability language can help reduce risk, but it is not a guaranteed lawsuit shield. Enforceability depends on the contract, state law, the parties, the facts, and attorney-reviewed wording.",
+      },
+      {
+        heading: "Draft Limitation Concept",
+        text:
+          "To the maximum extent permitted by applicable law, RK PayTrack and its developer/vendor should not be responsible for indirect, incidental, special, consequential, exemplary, punitive, or business-loss damages arising from use or inability to use the software.",
+        items: [
+          "Loss of profits.",
+          "Loss of revenue.",
+          "Data-entry mistakes by users.",
+          "Unauthorized user actions.",
+          "Incorrect payment records entered by users.",
+          "Customer disputes caused by inaccurate or incomplete business records.",
+          "Failure to verify reports before business use.",
+        ],
+      },
+      {
+        heading: "Maximum Liability Concept",
+        text:
+          "A vendor agreement may include a maximum liability cap, such as fees paid for the software or services during a defined period. This must be drafted and approved by an attorney.",
+      },
+      {
+        heading: "User Misuse",
+        text:
+          "Users and the company are responsible for consequences caused by misuse, unauthorized exports, false entries, sharing passwords, ignoring warnings, bypassing controls, or using the software for improper purposes.",
+      },
+    ],
+  },
+  {
+    id: "dataPrivacyRights",
+    title: "Data Privacy Rights Notice",
+    icon: "🌐",
+    category: "Privacy",
+    purpose:
+      "Summarizes privacy-rights concepts that may apply depending on customer location, business size, and applicable law.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Privacy laws may give individuals rights related to access, correction, deletion, portability, opt-out, or restriction of certain personal information. Applicability depends on the business, customer location, data use, and legal thresholds.",
+      },
+      {
+        heading: "Possible Privacy Rights",
+        text:
+          "Depending on applicable law, individuals may have some or all of the following rights.",
+        items: [
+          "Request access to personal information.",
+          "Request correction of inaccurate personal information.",
+          "Request deletion of certain personal information.",
+          "Request a copy of personal information.",
+          "Opt out of certain sales, sharing, targeted advertising, or profiling where applicable.",
+          "Limit certain uses of sensitive personal information where applicable.",
+        ],
+      },
+      {
+        heading: "Company Review Required",
+        text:
+          "The company should define who handles privacy requests, how identity is verified, how responses are documented, and whether the law actually applies to the request.",
+      },
+      {
+        heading: "Internal Reminder",
+        text:
+          "Employees should not promise deletion, correction, or disclosure of customer records without management review because records may be needed for accounting, contracts, disputes, collections, taxes, warranties, legal holds, or business recordkeeping.",
+      },
+    ],
+  },
+  {
+    id: "ccpaNotice",
+    title: "CCPA / US State Privacy Notice",
+    icon: "🇺🇸",
+    category: "Compliance",
+    purpose:
+      "Provides a practical checklist for California and US state privacy-law awareness.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "This notice helps management think about California and other US privacy requirements. It is not a final legal determination of whether the company is covered.",
+      },
+      {
+        heading: "Business Applicability Review",
+        text:
+          "Management should review whether CCPA/CPRA or other US state privacy laws apply based on revenue, number of consumers, data-sharing practices, customer location, and other statutory thresholds.",
+        items: [
+          "Check whether the business meets California privacy-law thresholds.",
+          "Check whether personal information is sold, shared, or used for targeted advertising.",
+          "Check whether customer data is disclosed to service providers, contractors, accountants, lenders, collection vendors, or software providers.",
+          "Check whether a privacy policy must list categories of personal information collected and purposes of use.",
+          "Check whether privacy requests must be received, verified, tracked, and answered.",
+        ],
+      },
+      {
+        heading: "Employee Rule",
+        text:
+          "Employees should forward any privacy, deletion, access, correction, subpoena, legal, or data request to management instead of responding on their own.",
+      },
+    ],
+  },
+  {
+    id: "gdprNotice",
+    title: "GDPR Notice",
+    icon: "🇪🇺",
+    category: "Compliance",
+    purpose:
+      "Provides a GDPR awareness checklist if RK PayTrack ever handles personal data connected to individuals located in the EU/EEA.",
+    sections: [
+      {
+        heading: "When to Review GDPR",
+        text:
+          "Management should review GDPR obligations if the company offers goods or services to people located in the EU/EEA, monitors behavior of people in the EU/EEA, receives EU/EEA customer data, or transfers EU/EEA personal data through vendors.",
+      },
+      {
+        heading: "GDPR Checklist",
+        text:
+          "If GDPR applies, the company should not rely only on this internal policy page. A formal privacy program may be needed.",
+        items: [
+          "Identify legal basis for processing personal data.",
+          "Publish a GDPR-compliant privacy notice.",
+          "Define data subject request procedures.",
+          "Review vendor/data processing agreements.",
+          "Review cross-border transfer requirements.",
+          "Keep data only as long as needed.",
+          "Use appropriate security safeguards.",
+          "Document breach response procedures.",
+        ],
+      },
+      {
+        heading: "Employee Rule",
+        text:
+          "Employees should report any international privacy request, EU/EEA-related data request, deletion request, access request, or data complaint to management immediately.",
+      },
+    ],
+  },
+  {
+    id: "trademarkNotice",
+    title: "Trademark & USPTO Check",
+    icon: "™️",
+    category: "Trademark",
+    purpose:
+      "Provides steps for checking whether the RK PayTrack name or logo may conflict with existing trademarks.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Before treating RK PayTrack as a final product name, public brand, or resale product, the business should check whether the name, logo, or similar names may conflict with existing marks.",
+      },
+      {
+        heading: "USPTO Search Checklist",
+        text:
+          "Use the official USPTO trademark search system and search broadly, not only exact matches.",
+        items: [
+          "Search for RK PayTrack.",
+          "Search for PayTrack.",
+          "Search for Pay Track.",
+          "Search for RK Payment Tracking.",
+          "Search similar spellings, spacing, and sounds.",
+          "Search related software, finance, payment, dealership, SaaS, and business-management categories.",
+          "Check live and dead marks, owners, goods/services, and classes.",
+          "Save screenshots or PDFs of searches for internal records.",
+        ],
+      },
+      {
+        heading: "Attorney Review",
+        text:
+          "A trademark attorney should review search results before filing an application, selling the software, branding publicly, or sending marketing material to customers.",
+      },
+      {
+        heading: "No Ownership Claim Until Reviewed",
+        text:
+          "Use of the name in the app does not guarantee trademark ownership, registration, or freedom to operate.",
       },
     ],
   },
@@ -400,8 +797,9 @@ const policies = [
         items: [
           "Select the correct customer deal.",
           "Select the correct due installment.",
-          "Enter the actual amount received.",
-          "Use notes for special situations or partial payments.",
+          "Enter only the actual amount received.",
+          "Use the correct payment method.",
+          "Add clear notes for special situations or partial payments.",
         ],
       },
       {
@@ -412,13 +810,14 @@ const policies = [
           "Verify the invoice number.",
           "Verify the customer name and work title.",
           "Confirm the open maintenance balance.",
+          "Record the actual amount received.",
           "Print or save the maintenance receipt if requested.",
         ],
       },
       {
         heading: "No Estimated Payments",
         text:
-          "Users must not enter estimated, expected, or fake payments. Only actual received and verified payments should be recorded.",
+          "Users must not enter estimated, expected, future, fake, or unverified payments. Only actual received and verified payments should be recorded.",
       },
     ],
   },
@@ -433,12 +832,12 @@ const policies = [
       {
         heading: "When to Void",
         text:
-          "Void a payment only when it was entered incorrectly, duplicated, or needs to be removed from balance calculations.",
+          "Void a payment only when it was entered incorrectly, duplicated, or needs to be excluded from balance calculations.",
       },
       {
         heading: "Why Void Instead of Delete?",
         text:
-          "Voiding keeps a record that the payment existed while excluding it from totals. This helps maintain better audit history.",
+          "Voiding keeps a record that the payment existed while excluding it from totals. This helps maintain audit history and protects the business from unexplained missing payment records.",
       },
       {
         heading: "Void Reason",
@@ -449,8 +848,14 @@ const policies = [
           "Wrong amount entered.",
           "Duplicate payment entry.",
           "Wrong payment method.",
+          "Wrong due date or invoice.",
           "Payment was not actually received.",
         ],
+      },
+      {
+        heading: "Approval",
+        text:
+          "Management may require approval before voiding high-value payments, old payments, or payments that affect customer disputes.",
       },
     ],
   },
@@ -465,17 +870,22 @@ const policies = [
       {
         heading: "Business Records",
         text:
-          "Deal records, maintenance records, payment history, customer notes, promises, invoices, receipts, and reports should be retained according to company recordkeeping needs and applicable business requirements.",
+          "Deal records, maintenance records, payment history, customer notes, promises, invoices, receipts, follow-up notes, activity logs, and reports should be retained according to company recordkeeping needs and applicable business requirements.",
       },
       {
-        heading: "Deleted or Voided Records",
+        heading: "Voided and Corrected Records",
         text:
-          "Payment records should generally be voided instead of permanently deleted so the business can maintain a clear history of account activity.",
+          "Payment records should generally be voided instead of permanently deleted so the business can maintain a clear account history.",
       },
       {
         heading: "Archived Data",
         text:
-          "Old, closed, paid-off, cancelled, or defaulted accounts may be archived when they are no longer active but should remain available for business review when needed.",
+          "Old, closed, paid-off, cancelled, defaulted, or inactive accounts may be archived when they are no longer active but should remain available for business review when needed.",
+      },
+      {
+        heading: "Activity Log Retention",
+        text:
+          "To control database size, routine activity logs may be retained for a limited period, such as 180 days or one year, unless management requires longer retention for disputes, audits, accounting, or legal holds.",
       },
     ],
   },
@@ -495,17 +905,26 @@ const policies = [
       {
         heading: "Least Privilege",
         text:
-          "Users should only receive the permissions needed to perform their job duties. Sensitive actions such as deleting, voiding, exporting, or editing financial records should be limited.",
+          "Users should only receive the permissions needed to perform their job duties. Sensitive actions should be restricted.",
+        items: [
+          "Voiding payments.",
+          "Editing deal totals.",
+          "Editing maintenance invoice totals.",
+          "Exporting reports.",
+          "Viewing activity logs.",
+          "Changing user access.",
+          "Deleting or archiving records.",
+        ],
       },
       {
         heading: "Access Removal",
         text:
-          "Access should be removed when an employee no longer needs the system, changes roles, or leaves the company.",
+          "Access should be removed when an employee no longer needs the system, changes roles, leaves the company, or creates security risk.",
       },
       {
         heading: "Account Security",
         text:
-          "Users must protect their login credentials and immediately report suspected unauthorized access.",
+          "Users must protect login credentials and immediately report suspected unauthorized access.",
       },
     ],
   },
@@ -530,9 +949,10 @@ const policies = [
           "Use strong passwords.",
           "Enable multi-factor authentication where available.",
           "Restrict database access.",
-          "Use role-based permissions.",
-          "Review exported reports carefully.",
-          "Avoid storing passwords in code.",
+          "Use authenticated database policies before production.",
+          "Use role-based permissions when multiple employees use the app.",
+          "Review sensitive activity logs.",
+          "Avoid storing service role keys in frontend code.",
           "Keep software dependencies updated.",
           "Package and distribute the Electron app only through approved channels.",
         ],
@@ -541,31 +961,6 @@ const policies = [
         heading: "Suspicious Activity",
         text:
           "Users should report unusual system behavior, incorrect records, unauthorized changes, suspicious exports, or suspected security incidents immediately.",
-      },
-    ],
-  },
-  {
-    id: "backupRecovery",
-    title: "Backup & Disaster Recovery Policy",
-    icon: "💾",
-    category: "Data",
-    purpose:
-      "Defines expectations for protecting data and restoring operations if something goes wrong.",
-    sections: [
-      {
-        heading: "Backups",
-        text:
-          "The company should maintain regular backups of important RK PayTrack data, including customers, deals, payments, promises, maintenance records, maintenance payments, and reports.",
-      },
-      {
-        heading: "Recovery",
-        text:
-          "If the system becomes unavailable, management should have a process to restore access, recover data, and continue critical payment operations.",
-      },
-      {
-        heading: "Testing",
-        text:
-          "Backups and recovery steps should be tested periodically to confirm that data can actually be restored when needed.",
       },
     ],
   },
@@ -580,7 +975,7 @@ const policies = [
       {
         heading: "Incident Examples",
         text:
-          "An incident may include unauthorized access, missing records, incorrect payment changes, suspicious exports, system failure, or possible data exposure.",
+          "An incident may include unauthorized access, missing records, incorrect payment changes, suspicious exports, system failure, malware, device loss, or possible customer-data exposure.",
       },
       {
         heading: "Reporting",
@@ -595,10 +990,42 @@ const policies = [
           "Identify what happened.",
           "Limit access if needed.",
           "Review affected records.",
+          "Preserve logs and relevant exports.",
           "Correct incorrect data.",
+          "Notify appropriate people if required.",
           "Document the issue.",
           "Improve controls to prevent repeat issues.",
         ],
+      },
+    ],
+  },
+  {
+    id: "backupRecovery",
+    title: "Backup & Disaster Recovery Policy",
+    icon: "💾",
+    category: "Data",
+    purpose:
+      "Defines expectations for protecting data and restoring operations if something goes wrong.",
+    sections: [
+      {
+        heading: "Backups",
+        text:
+          "The company should maintain regular backups of important RK PayTrack data, including customers, deals, payments, promises, maintenance records, maintenance payments, follow-up notes, and reports.",
+      },
+      {
+        heading: "Exports",
+        text:
+          "CSV exports can be used as an additional business backup, but exported files must be protected because they may contain customer and financial information.",
+      },
+      {
+        heading: "Recovery",
+        text:
+          "If the system becomes unavailable, management should have a process to restore access, recover data, and continue critical payment operations.",
+      },
+      {
+        heading: "Testing",
+        text:
+          "Backups and recovery steps should be tested periodically to confirm that data can actually be restored when needed.",
       },
     ],
   },
@@ -613,12 +1040,12 @@ const policies = [
       {
         heading: "Exported Data",
         text:
-          "Reports may include customer names, phone numbers, deal balances, payment history, promises, maintenance balances, and other sensitive business information.",
+          "Reports may include customer names, phone numbers, deal balances, payment history, promises, maintenance balances, notes, and other sensitive business information.",
       },
       {
         heading: "Approved Use",
         text:
-          "Reports should be exported only for management review, accounting, reconciliation, collections, or authorized business needs.",
+          "Reports should be exported only for management review, accounting, reconciliation, collections, authorized business needs, or backup purposes.",
       },
       {
         heading: "Sharing Restrictions",
@@ -628,6 +1055,7 @@ const policies = [
           "Do not send reports to personal email accounts.",
           "Do not upload reports to unapproved websites.",
           "Do not leave reports on shared computers.",
+          "Do not print reports unnecessarily.",
           "Delete old exports when they are no longer needed.",
         ],
       },
@@ -644,17 +1072,22 @@ const policies = [
       {
         heading: "Accuracy",
         text:
-          "RK PayTrack helps organize and calculate dealership payment information, but users must verify important records before relying on them for financial, legal, tax, or collection decisions.",
+          "RK PayTrack helps organize and calculate dealership payment information, but users must verify important records before relying on them for financial, legal, tax, accounting, customer, or collection decisions.",
       },
       {
-        heading: "No Legal or Tax Advice",
+        heading: "No Professional Advice",
         text:
-          "The software does not provide legal, tax, accounting, or financial advice. Management should consult qualified professionals when needed.",
+          "The software does not provide legal, tax, accounting, lending, credit, collection, or financial advice. Management should consult qualified professionals when needed.",
       },
       {
         heading: "User Review Required",
         text:
           "Users should review payment amounts, balances, due dates, promises, exports, invoices, receipts, and reports for accuracy before taking action.",
+      },
+      {
+        heading: "Final Legal Documents",
+        text:
+          "This internal policy page is not a substitute for final attorney-reviewed Privacy Policy, Terms of Service, End User License Agreement, Data Processing Agreement, or vendor contract.",
       },
     ],
   },
@@ -777,6 +1210,10 @@ function printHtmlWithIframe(html, title) {
             display: flex;
             justify-content: space-between;
           }
+          @media print {
+            body { padding: 0; }
+            .doc { border: none; }
+          }
         </style>
       </head>
       <body>${html}</body>
@@ -882,6 +1319,11 @@ const pageWrapper = {
   gap: "18px",
 };
 
+const mobilePageWrapper = {
+  ...pageWrapper,
+  gap: "12px",
+};
+
 const heroCard = {
   background: "linear-gradient(135deg, #0A1A2F 0%, #102A4C 55%, #1d4ed8 100%)",
   borderRadius: "22px",
@@ -893,6 +1335,13 @@ const heroCard = {
   gap: "18px",
   flexWrap: "wrap",
   boxShadow: "0 16px 38px rgba(15, 23, 42, 0.24)",
+};
+
+const mobileHeroCard = {
+  ...heroCard,
+  borderRadius: "18px",
+  padding: "18px",
+  gap: "14px",
 };
 
 const eyebrow = {
@@ -911,6 +1360,11 @@ const pageTitle = {
   color: "white",
 };
 
+const mobilePageTitle = {
+  ...pageTitle,
+  fontSize: "25px",
+};
+
 const pageDescription = {
   marginTop: "8px",
   marginBottom: 0,
@@ -919,11 +1373,22 @@ const pageDescription = {
   lineHeight: "1.5",
 };
 
+const mobilePageDescription = {
+  ...pageDescription,
+  fontSize: "14px",
+};
+
 const heroPills = {
   display: "flex",
   gap: "8px",
   flexWrap: "wrap",
   marginTop: "14px",
+};
+
+const mobileHeroPills = {
+  ...heroPills,
+  gap: "6px",
+  marginTop: "12px",
 };
 
 const heroPill = {
@@ -942,6 +1407,13 @@ const heroStats = {
   flexWrap: "wrap",
 };
 
+const mobileHeroStats = {
+  ...heroStats,
+  width: "100%",
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+};
+
 const heroStatCard = {
   background: "rgba(255,255,255,0.12)",
   border: "1px solid rgba(255,255,255,0.22)",
@@ -950,6 +1422,12 @@ const heroStatCard = {
   minWidth: "120px",
   display: "grid",
   gap: "5px",
+};
+
+const mobileHeroStatCard = {
+  ...heroStatCard,
+  minWidth: 0,
+  padding: "12px",
 };
 
 const noticeBox = {
@@ -966,6 +1444,12 @@ const quickPolicyGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
   gap: "14px",
+};
+
+const mobileQuickPolicyGrid = {
+  ...quickPolicyGrid,
+  gridTemplateColumns: "1fr",
+  gap: "10px",
 };
 
 const quickPolicyCard = {
@@ -1015,6 +1499,12 @@ const toolbar = {
   boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
 };
 
+const mobileToolbar = {
+  ...toolbar,
+  padding: "12px",
+  gap: "8px",
+};
+
 const searchInput = {
   flex: "1 1 360px",
   border: "1px solid #d1d5db",
@@ -1024,6 +1514,13 @@ const searchInput = {
   outline: "none",
 };
 
+const mobileSearchInput = {
+  ...searchInput,
+  flex: "1 1 100%",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
 const selectStyle = {
   border: "1px solid #d1d5db",
   borderRadius: "12px",
@@ -1031,6 +1528,13 @@ const selectStyle = {
   fontSize: "14px",
   outline: "none",
   background: "white",
+};
+
+const mobileSelectStyle = {
+  ...selectStyle,
+  flex: "1 1 100%",
+  width: "100%",
+  boxSizing: "border-box",
 };
 
 const clearButton = {
@@ -1043,11 +1547,23 @@ const clearButton = {
   fontWeight: "900",
 };
 
+const mobileClearButton = {
+  ...clearButton,
+  width: "100%",
+};
+
 const contentGrid = {
   display: "grid",
   gridTemplateColumns: "320px minmax(0, 1fr)",
   gap: "18px",
   alignItems: "flex-start",
+};
+
+const mobileContentGrid = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: "12px",
+  alignItems: "start",
 };
 
 const policyList = {
@@ -1060,6 +1576,16 @@ const policyList = {
   top: "20px",
   maxHeight: "calc(100vh - 40px)",
   overflowY: "auto",
+};
+
+const mobilePolicyList = {
+  ...policyList,
+  position: "static",
+  top: "auto",
+  maxHeight: "none",
+  overflowY: "visible",
+  borderRadius: "18px",
+  padding: "10px",
 };
 
 const policyListHeader = {
@@ -1085,6 +1611,12 @@ const policyButton = {
   color: "#374151",
   fontWeight: "900",
   marginBottom: "6px",
+};
+
+const mobilePolicyButton = {
+  ...policyButton,
+  padding: "11px",
+  marginBottom: "7px",
 };
 
 const activePolicyButton = {
@@ -1128,6 +1660,12 @@ const policyContent = {
   minWidth: 0,
 };
 
+const mobilePolicyContent = {
+  ...policyContent,
+  borderRadius: "18px",
+  padding: "16px",
+};
+
 const policyContentHeader = {
   borderBottom: "1px solid #e5e7eb",
   paddingBottom: "16px",
@@ -1137,6 +1675,13 @@ const policyContentHeader = {
   gap: "14px",
   alignItems: "flex-start",
   flexWrap: "wrap",
+};
+
+const mobilePolicyContentHeader = {
+  ...policyContentHeader,
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: "12px",
 };
 
 const policyCategoryBadge = {
@@ -1161,6 +1706,12 @@ const policyTitle = {
   fontSize: "26px",
 };
 
+const mobilePolicyTitle = {
+  ...policyTitle,
+  fontSize: "22px",
+  alignItems: "flex-start",
+};
+
 const policyTitleIcon = {
   fontSize: "28px",
 };
@@ -1183,11 +1734,21 @@ const printButton = {
   fontWeight: "900",
 };
 
+const mobilePrintButton = {
+  ...printButton,
+  width: "100%",
+};
+
 const policyMetaGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
   gap: "12px",
   marginBottom: "18px",
+};
+
+const mobilePolicyMetaGrid = {
+  ...policyMetaGrid,
+  gridTemplateColumns: "1fr",
 };
 
 const policyMetaCard = {
@@ -1213,6 +1774,13 @@ const sectionBox = {
   border: "1px solid #e5e7eb",
   borderRadius: "18px",
   background: "#ffffff",
+};
+
+const mobileSectionBox = {
+  ...sectionBox,
+  gridTemplateColumns: "1fr",
+  gap: "10px",
+  padding: "14px",
 };
 
 const sectionNumber = {
@@ -1244,6 +1812,7 @@ const sectionList = {
   marginTop: "10px",
   color: "#374151",
   lineHeight: "1.6",
+  paddingLeft: "20px",
 };
 
 const sectionListItem = {
@@ -1261,6 +1830,12 @@ const acknowledgementBox = {
   alignItems: "flex-start",
   gap: "14px",
   flexWrap: "wrap",
+};
+
+const mobileAcknowledgementBox = {
+  ...acknowledgementBox,
+  display: "grid",
+  gridTemplateColumns: "1fr",
 };
 
 const acknowledgementTitle = {
@@ -1287,6 +1862,13 @@ const acknowledgementCheck = {
   cursor: "pointer",
   fontWeight: "900",
   color: "#111827",
+};
+
+const mobileAcknowledgementCheck = {
+  ...acknowledgementCheck,
+  width: "100%",
+  justifyContent: "center",
+  boxSizing: "border-box",
 };
 
 const acknowledgedBox = {

@@ -12,6 +12,7 @@ import {
 import { formatMoney } from "../utils/moneyUtils";
 import { Link } from "react-router-dom";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { logActivity } from "../api/activityLogsApi";
 
 const todayString = new Date().toISOString().split("T")[0];
 
@@ -72,6 +73,38 @@ function Maintenance() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePrintMaintenanceInvoice = (job) => {
+    const totals = calculateMaintenanceTotals(job);
+
+    printMaintenanceInvoice(job);
+
+    void logActivity({
+      action: "PRINT",
+      module: "Maintenance",
+      entity_type: "maintenance_invoice",
+      entity_id: job?.id,
+      entity_label: job?.invoice_no || job?.customer_name || "Maintenance Invoice",
+      description: `Maintenance invoice ${
+        job?.invoice_no || "—"
+      } printed for ${job?.customer_name || "customer"}.`,
+      metadata: {
+        maintenance_job_id: job?.id || null,
+        invoice_no: job?.invoice_no || "",
+        customer_id: job?.customer_id || null,
+        customer_name: job?.customer_name || "",
+        phone: job?.phone || "",
+        job_title: job?.job_title || "",
+        truck: job?.truck || "",
+        year: job?.year || "",
+        vin: job?.vin || "",
+        total_amount: totals.totalAmount,
+        total_paid: totals.totalPaid,
+        balance: totals.balance,
+        balance_status: totals.balanceStatus,
+      },
+    });
   };
 
   const enrichedJobs = useMemo(() => {
@@ -435,7 +468,8 @@ function Maintenance() {
 
                             <button
                               type="button"
-                              onClick={() => printMaintenanceInvoice(job)}
+                              // onClick={() => printMaintenanceInvoice(job)}
+                              onClick={() => handlePrintMaintenanceInvoice(job)}
                               style={printButton}
                             >
                               Invoice
@@ -466,7 +500,42 @@ function Maintenance() {
           initialData={emptyForm}
           onClose={() => setShowAddModal(false)}
           onSubmit={async (form) => {
-            await createMaintenanceJob(form);
+            const savedJob = await createMaintenanceJob(form);
+          
+            await logActivity({
+              action: "CREATE",
+              module: "Maintenance",
+              entity_type: "maintenance_job",
+              entity_id: savedJob?.id || form.invoice_no || "",
+              entity_label:
+                savedJob?.invoice_no ||
+                form.invoice_no ||
+                form.customer_name ||
+                "Maintenance Record",
+              description: `Maintenance record created for ${
+                form.customer_name || "customer"
+              }${form.invoice_no ? `, invoice ${form.invoice_no}` : ""}.`,
+              metadata: {
+                maintenance_job_id: savedJob?.id || null,
+                invoice_no: savedJob?.invoice_no || form.invoice_no || "",
+                customer_id: savedJob?.customer_id || form.customer_id || null,
+                customer_name: form.customer_name || "",
+                phone: form.phone || "",
+                truck: form.truck || "",
+                year: form.year || "",
+                vin: form.vin || "",
+                technician: form.technician || "",
+                job_title: form.job_title || "",
+                work_status: form.work_status || "",
+                labor_amount: Number(form.labor_amount || 0),
+                parts_amount: Number(form.parts_amount || 0),
+                tax_amount: Number(form.tax_amount || 0),
+                discount_amount: Number(form.discount_amount || 0),
+                start_date: form.start_date || "",
+                due_date: form.due_date || "",
+              },
+            });
+          
             setShowAddModal(false);
             await loadMaintenance();
           }}
@@ -479,7 +548,46 @@ function Maintenance() {
           initialData={editingJob}
           onClose={() => setEditingJob(null)}
           onSubmit={async (form) => {
-            await updateMaintenanceJob(editingJob.id, form);
+            const previousJob = editingJob;
+            const previousTotals = calculateMaintenanceTotals(previousJob);
+          
+            const updatedJob = await updateMaintenanceJob(editingJob.id, form);
+          
+            const newTotal =
+              Number(form.labor_amount || 0) +
+              Number(form.parts_amount || 0) +
+              Number(form.tax_amount || 0) -
+              Number(form.discount_amount || 0);
+          
+            await logActivity({
+              action: "UPDATE",
+              module: "Maintenance",
+              entity_type: "maintenance_job",
+              entity_id: previousJob?.id,
+              entity_label:
+                form.invoice_no ||
+                previousJob?.invoice_no ||
+                form.customer_name ||
+                "Maintenance Record",
+              description: `Maintenance record ${
+                form.invoice_no || previousJob?.invoice_no || "—"
+              } updated for ${form.customer_name || "customer"}.`,
+              metadata: {
+                maintenance_job_id: previousJob?.id || null,
+                invoice_no_before: previousJob?.invoice_no || "",
+                invoice_no_after: form.invoice_no || "",
+                customer_name_before: previousJob?.customer_name || "",
+                customer_name_after: form.customer_name || "",
+                work_status_before: previousJob?.work_status || "",
+                work_status_after: form.work_status || "",
+                job_title_before: previousJob?.job_title || "",
+                job_title_after: form.job_title || "",
+                total_before: previousTotals.totalAmount,
+                total_after: Math.max(newTotal, 0),
+                updated_job_id: updatedJob?.id || previousJob?.id || null,
+              },
+            });
+          
             setEditingJob(null);
             await loadMaintenance();
           }}
@@ -491,14 +599,50 @@ function Maintenance() {
           job={paymentJob}
           onClose={() => setPaymentJob(null)}
           onSubmit={async (payment) => {
+            const previousBalance = calculateMaintenanceTotals(paymentJob).balance;
+            const paidAmount = Number(payment.amount_paid || 0);
+            const remainingBalance = Math.max(previousBalance - paidAmount, 0);
+          
             const savedPayment = await addMaintenancePayment(payment);
-
+          
+            await logActivity({
+              action: "PAYMENT",
+              module: "Maintenance",
+              entity_type: "maintenance_payment",
+              entity_id: savedPayment?.id || payment.maintenance_job_id,
+              entity_label:
+                paymentJob?.invoice_no ||
+                paymentJob?.customer_name ||
+                "Maintenance Payment",
+              description: `Maintenance payment of ${formatMoney(paidAmount)} recorded for ${
+                paymentJob?.customer_name || "customer"
+              } on invoice ${paymentJob?.invoice_no || "—"}.`,
+              metadata: {
+                payment_id: savedPayment?.id || null,
+                maintenance_job_id: payment.maintenance_job_id,
+                customer_id: payment.customer_id || paymentJob?.customer_id || null,
+                customer_name: paymentJob?.customer_name || "",
+                phone: paymentJob?.phone || "",
+                invoice_no: paymentJob?.invoice_no || "",
+                job_title: paymentJob?.job_title || "",
+                truck: paymentJob?.truck || "",
+                year: paymentJob?.year || "",
+                vin: paymentJob?.vin || "",
+                amount_paid: paidAmount,
+                previous_balance: previousBalance,
+                remaining_balance: remainingBalance,
+                payment_date: payment.payment_date,
+                payment_method: payment.payment_method,
+                payment_status: remainingBalance > 0 ? "Partial" : "Paid",
+              },
+            });
+          
             setReceiptData({
               job: paymentJob,
               payment: savedPayment,
-              previousBalance: calculateMaintenanceTotals(paymentJob).balance,
+              previousBalance,
             });
-
+          
             setPaymentJob(null);
             await loadMaintenance();
           }}
@@ -510,7 +654,37 @@ function Maintenance() {
           job={promiseJob}
           onClose={() => setPromiseJob(null)}
           onSubmit={async (promise) => {
-            await addMaintenancePromise(promise);
+            const savedPromise = await addMaintenancePromise(promise);
+          
+            await logActivity({
+              action: "CREATE",
+              module: "Maintenance",
+              entity_type: "maintenance_promise",
+              entity_id: savedPromise?.id || promise.maintenance_job_id,
+              entity_label:
+                promiseJob?.invoice_no ||
+                promiseJob?.customer_name ||
+                "Maintenance Promise",
+              description: `Maintenance payment promise scheduled for ${
+                promiseJob?.customer_name || "customer"
+              } on ${formatDate(promise.promised_date)} for ${formatMoney(
+                Number(promise.promised_amount || 0)
+              )}.`,
+              metadata: {
+                promise_id: savedPromise?.id || null,
+                maintenance_job_id: promise.maintenance_job_id,
+                customer_id: promise.customer_id || promiseJob?.customer_id || null,
+                customer_name: promiseJob?.customer_name || "",
+                phone: promiseJob?.phone || "",
+                invoice_no: promiseJob?.invoice_no || "",
+                job_title: promiseJob?.job_title || "",
+                promised_date: promise.promised_date,
+                promised_amount: Number(promise.promised_amount || 0),
+                promise_status: promise.promise_status,
+                notes: promise.notes || "",
+              },
+            });
+          
             setPromiseJob(null);
             await loadMaintenance();
           }}
@@ -529,7 +703,8 @@ function Maintenance() {
             setPromiseJob(viewJob);
             setViewJob(null);
           }}
-          onPrintInvoice={() => printMaintenanceInvoice(viewJob)}
+          // onPrintInvoice={() => printMaintenanceInvoice(viewJob)}
+          onPrintInvoice={() => handlePrintMaintenanceInvoice(viewJob)}
         />
       )}
 
@@ -1149,6 +1324,33 @@ function MaintenanceReceiptModal({ receiptData, onClose }) {
     });
 
     printHtmlWithIframe(html, "Maintenance Payment Receipt");
+
+    void logActivity({
+      action: "PRINT",
+      module: "Receipts",
+      entity_type: "maintenance_receipt",
+      entity_id: payment?.id || job?.id,
+      entity_label:
+        job?.invoice_no ||
+        job?.customer_name ||
+        "Maintenance Payment Receipt",
+      description: `Maintenance payment receipt printed for ${
+        job?.customer_name || "customer"
+      }, invoice ${job?.invoice_no || "—"}.`,
+      metadata: {
+        payment_id: payment?.id || null,
+        maintenance_job_id: job?.id || null,
+        invoice_no: job?.invoice_no || "",
+        customer_id: job?.customer_id || null,
+        customer_name: job?.customer_name || "",
+        phone: job?.phone || "",
+        amount_paid: Number(payment?.amount_paid || 0),
+        payment_date: payment?.payment_date || "",
+        payment_method: payment?.payment_method || "",
+        previous_balance: previousBalance,
+        remaining_balance: remainingBalance,
+      },
+    });
   };
 
   return (

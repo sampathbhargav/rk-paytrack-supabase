@@ -3,6 +3,7 @@ import { getDeals } from "../api/dealsApi";
 import { getPayments, addPayment } from "../api/paymentsApi";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
+import { logActivity } from "../api/activityLogsApi";
 import PaymentReceipt from "./PaymentReceipt";
 
 const initialFormData = {
@@ -170,53 +171,56 @@ function PaymentForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+  
     setMessage("");
     setMessageType("");
     setReceiptPrompt(null);
     setReceipt(null);
-
+  
     const validationError = validatePaymentForm();
-
+  
     if (validationError) {
       setMessage(validationError);
       setMessageType("error");
       scrollToMessageArea();
       return;
     }
-
+  
     const confirmed = window.confirm(
       "Are you sure you want to save this payment? This will affect the balance and payment schedule."
     );
-
+  
     if (!confirmed) return;
-
+  
     try {
       setIsSaving(true);
-
+  
       const selectedDealData = deals.find((deal) => deal.id === formData.dealId);
-
-      await addPayment(formData);
-
+  
+      const savedPayment = await addPayment(formData);
+      const savedPaymentRecord = Array.isArray(savedPayment)
+        ? savedPayment[0]
+        : savedPayment;
+  
       const totalPaidForDealBeforeThisPayment = activePayments
         .filter((payment) => payment.deal_id === formData.dealId)
         .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
-
+  
       const newTotalPaid =
         totalPaidForDealBeforeThisPayment + Number(formData.amountPaid || 0);
-
+  
       const remainingBalance = Math.max(
         Number(selectedDealData?.total_amount || 0) - newTotalPaid,
         0
       );
-
+  
       const paymentType =
         Number(formData.amountPaid || 0) >= Number(formData.amountDue || 0)
           ? "Full Payment"
           : "Partial Payment";
-
+  
       const receiptData = {
-        paymentId: "",
+        paymentId: savedPaymentRecord?.id || "",
         customerName: selectedDealData?.customers?.customer_name || "",
         phone: selectedDealData?.customers?.phone || "",
         dealTag: selectedDealData?.deal_tag || "",
@@ -234,9 +238,48 @@ function PaymentForm() {
         remainingBalance,
         notes: formData.notes || "",
       };
-
+  
+      await logActivity({
+        action: "PAYMENT",
+        module: "Payments",
+        entity_type: "deal_payment",
+        entity_id: savedPaymentRecord?.id || formData.dealId,
+        entity_label:
+          selectedDealData?.deal_tag ||
+          selectedDealData?.customers?.customer_name ||
+          "Deal Payment",
+        description: `Deal payment of ${formatMoney(
+          Number(formData.amountPaid || 0)
+        )} recorded for ${
+          selectedDealData?.customers?.customer_name || "customer"
+        } on deal ${selectedDealData?.deal_tag || "—"}.`,
+        metadata: {
+          payment_id: savedPaymentRecord?.id || null,
+          deal_id: formData.dealId,
+          customer_id: selectedDealData?.customer_id || null,
+          customer_name: selectedDealData?.customers?.customer_name || "",
+          phone: selectedDealData?.customers?.phone || "",
+          deal_tag: selectedDealData?.deal_tag || "",
+          deal_type: selectedDealData?.deal_type || "",
+          deal_subtype: selectedDealData?.deal_subtype || "",
+          truck: selectedDealData?.truck || "",
+          year: selectedDealData?.year || "",
+          vin: selectedDealData?.vin || "",
+          amount_due: Number(formData.amountDue || 0),
+          amount_paid: Number(formData.amountPaid || 0),
+          remaining_installment_amount: remainingAmount,
+          remaining_deal_balance: remainingBalance,
+          payment_date: formData.paymentDate,
+          due_date: formData.dueDate,
+          payment_method: formData.paymentMethod,
+          payment_type: paymentType,
+          promised_date: formData.promisedDate || "",
+          notes: formData.notes || "",
+        },
+      });
+  
       setReceiptPrompt(receiptData);
-
+  
       setMessage(
         `Payment saved successfully. ${formatMoney(
           Number(formData.amountPaid || 0)
@@ -244,11 +287,12 @@ function PaymentForm() {
           selectedDealData?.customers?.customer_name || "customer"
         }.`
       );
+  
       setMessageType("success");
       scrollToMessageArea();
-
+  
       setFormData(initialFormData);
-
+  
       await loadData({ clearMessages: false });
     } catch (error) {
       setMessage(`Failed to save payment: ${error.message}`);
@@ -258,7 +302,7 @@ function PaymentForm() {
       setIsSaving(false);
     }
   };
-
+  
   return (
     <form onSubmit={handleSubmit} style={formStyle}>
       <div style={formHeader}>

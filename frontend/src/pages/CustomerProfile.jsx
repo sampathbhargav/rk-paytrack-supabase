@@ -10,6 +10,7 @@ import {
 } from "../api/customerProfileApi";
 import { calculateMaintenanceTotals } from "../api/maintenanceApi";
 import { formatMoney } from "../utils/moneyUtils";
+import CustomerFollowUps from "../components/CustomerFollowUps";
 
 function CustomerProfile() {
   const { customerId } = useParams();
@@ -351,6 +352,10 @@ function CustomerProfile() {
           </table>
         </div>
       </SectionCard>
+      <CustomerFollowUps
+        customerId={customer?.id}
+        customerName={customer?.customer_name || ""}
+      />
     </div>
   );
 }

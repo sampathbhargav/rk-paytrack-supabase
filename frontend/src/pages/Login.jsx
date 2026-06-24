@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import loginLogo from "../assets/login-logo.png";
@@ -18,6 +18,22 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 820 : false
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 820);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   const updateForm = (field, value) => {
     setError("");
@@ -48,24 +64,32 @@ function Login() {
   };
 
   return (
-    <div style={pageWrapper}>
-      <div style={loginShell}>
-        <div style={brandPanel}>
-          <div style={logoCard}>
-            <img src={loginLogo} alt="RK PayTrack Logo" style={logoStyle} />
+    <div style={isMobile ? mobilePageWrapper : pageWrapper}>
+      <div style={isMobile ? mobileLoginShell : loginShell}>
+        <div style={isMobile ? mobileBrandPanel : brandPanel}>
+          <div style={isMobile ? mobileLogoCard : logoCard}>
+            <img
+              src={loginLogo}
+              alt="RK PayTrack Logo"
+              style={isMobile ? mobileLogoStyle : logoStyle}
+            />
           </div>
 
-          <div style={brandContent}>
-            <div style={brandBadge}>RK PAYTRACK</div>
+          <div style={isMobile ? mobileBrandContent : brandContent}>
+            <div style={isMobile ? mobileBrandBadge : brandBadge}>
+              RK PAYTRACK
+            </div>
 
-            <h1 style={brandTitle}>Welcome to RK PayTrack</h1>
+            <h1 style={isMobile ? mobileBrandTitle : brandTitle}>
+              Welcome to RK PayTrack
+            </h1>
 
-            <p style={brandDescription}>
+            <p style={isMobile ? mobileBrandDescription : brandDescription}>
               Securely manage financed deals, customer payments, promises,
               maintenance balances, and account follow-up in one place.
             </p>
 
-            <div style={featureGrid}>
+            <div style={isMobile ? mobileFeatureGrid : featureGrid}>
               <FeatureItem
                 title="Customer Tracking"
                 text="Track deals, balances, due dates, and payment history."
@@ -82,13 +106,21 @@ function Login() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} style={loginCard}>
+        <form
+          onSubmit={handleSubmit}
+          style={isMobile ? mobileLoginCard : loginCard}
+        >
           <div style={cardHeader}>
             <div style={miniLogoWrap}>
-              <img src={loginLogo} alt="RK PayTrack" style={miniLogoStyle} />
+              <img
+                src={loginLogo}
+                alt="RK PayTrack"
+                style={isMobile ? mobileMiniLogoStyle : miniLogoStyle}
+              />
             </div>
 
-            <h2 style={cardTitle}>Sign In</h2>
+            <h2 style={isMobile ? mobileCardTitle : cardTitle}>Sign In</h2>
+
             <p style={cardDescription}>
               Enter your email and password to access RK PayTrack.
             </p>
@@ -103,7 +135,7 @@ function Login() {
               value={form.email}
               onChange={(event) => updateForm("email", event.target.value)}
               placeholder="name@company.com"
-              style={inputStyle}
+              style={isMobile ? mobileInputStyle : inputStyle}
               autoComplete="email"
               required
             />
@@ -118,7 +150,7 @@ function Login() {
                 value={form.password}
                 onChange={(event) => updateForm("password", event.target.value)}
                 placeholder="Enter your password"
-                style={passwordInput}
+                style={isMobile ? mobilePasswordInput : passwordInput}
                 autoComplete="current-password"
                 required
               />
@@ -137,7 +169,7 @@ function Login() {
             type="submit"
             disabled={loading}
             style={{
-              ...loginButton,
+              ...(isMobile ? mobileLoginButton : loginButton),
               opacity: loading ? 0.75 : 1,
               cursor: loading ? "not-allowed" : "pointer",
             }}
@@ -179,6 +211,14 @@ const pageWrapper = {
   boxSizing: "border-box",
 };
 
+const mobilePageWrapper = {
+  ...pageWrapper,
+  minHeight: "100dvh",
+  alignItems: "flex-start",
+  padding: "14px",
+  overflowY: "auto",
+};
+
 const loginShell = {
   width: "100%",
   maxWidth: "1120px",
@@ -192,6 +232,14 @@ const loginShell = {
   backdropFilter: "blur(8px)",
 };
 
+const mobileLoginShell = {
+  ...loginShell,
+  maxWidth: "460px",
+  gridTemplateColumns: "1fr",
+  borderRadius: "22px",
+  overflow: "hidden",
+};
+
 const brandPanel = {
   padding: "42px",
   color: "white",
@@ -200,6 +248,15 @@ const brandPanel = {
   justifyContent: "center",
   gap: "26px",
   minHeight: "560px",
+};
+
+const mobileBrandPanel = {
+  ...brandPanel,
+  padding: "20px",
+  minHeight: "auto",
+  gap: "14px",
+  alignItems: "center",
+  textAlign: "center",
 };
 
 const logoCard = {
@@ -211,6 +268,12 @@ const logoCard = {
   boxShadow: "0 18px 40px rgba(0,0,0,0.18)",
 };
 
+const mobileLogoCard = {
+  ...logoCard,
+  padding: "12px",
+  borderRadius: "18px",
+};
+
 const logoStyle = {
   width: "260px",
   maxWidth: "100%",
@@ -219,8 +282,18 @@ const logoStyle = {
   objectFit: "contain",
 };
 
+const mobileLogoStyle = {
+  ...logoStyle,
+  width: "180px",
+};
+
 const brandContent = {
   maxWidth: "620px",
+};
+
+const mobileBrandContent = {
+  ...brandContent,
+  maxWidth: "100%",
 };
 
 const brandBadge = {
@@ -235,11 +308,24 @@ const brandBadge = {
   marginBottom: "14px",
 };
 
+const mobileBrandBadge = {
+  ...brandBadge,
+  margin: "0 auto 10px",
+  fontSize: "11px",
+  padding: "7px 10px",
+};
+
 const brandTitle = {
   margin: 0,
   fontSize: "42px",
   lineHeight: "1.08",
   color: "white",
+};
+
+const mobileBrandTitle = {
+  ...brandTitle,
+  fontSize: "25px",
+  lineHeight: "1.15",
 };
 
 const brandDescription = {
@@ -249,10 +335,21 @@ const brandDescription = {
   fontSize: "15px",
 };
 
+const mobileBrandDescription = {
+  ...brandDescription,
+  marginTop: "10px",
+  fontSize: "13px",
+  lineHeight: "1.5",
+};
+
 const featureGrid = {
   display: "grid",
   gap: "14px",
   marginTop: "26px",
+};
+
+const mobileFeatureGrid = {
+  display: "none",
 };
 
 const featureItem = {
@@ -299,6 +396,11 @@ const loginCard = {
   justifyContent: "center",
 };
 
+const mobileLoginCard = {
+  ...loginCard,
+  padding: "22px",
+};
+
 const cardHeader = {
   marginBottom: "22px",
   textAlign: "center",
@@ -317,10 +419,20 @@ const miniLogoStyle = {
   display: "block",
 };
 
+const mobileMiniLogoStyle = {
+  ...miniLogoStyle,
+  width: "150px",
+};
+
 const cardTitle = {
   margin: 0,
   color: "#111827",
   fontSize: "28px",
+};
+
+const mobileCardTitle = {
+  ...cardTitle,
+  fontSize: "24px",
 };
 
 const cardDescription = {
@@ -338,6 +450,7 @@ const errorBox = {
   padding: "12px",
   marginBottom: "16px",
   fontWeight: "800",
+  lineHeight: "1.4",
 };
 
 const fieldGroup = {
@@ -362,6 +475,12 @@ const inputStyle = {
   boxSizing: "border-box",
 };
 
+const mobileInputStyle = {
+  ...inputStyle,
+  fontSize: "16px",
+  minHeight: "46px",
+};
+
 const passwordWrapper = {
   display: "flex",
   border: "1px solid #d1d5db",
@@ -376,6 +495,13 @@ const passwordInput = {
   padding: "12px",
   fontSize: "14px",
   outline: "none",
+  minWidth: 0,
+};
+
+const mobilePasswordInput = {
+  ...passwordInput,
+  fontSize: "16px",
+  minHeight: "46px",
 };
 
 const showButton = {
@@ -386,6 +512,7 @@ const showButton = {
   padding: "0 12px",
   cursor: "pointer",
   fontWeight: "900",
+  flexShrink: 0,
 };
 
 const loginButton = {
@@ -398,6 +525,12 @@ const loginButton = {
   cursor: "pointer",
   marginTop: "6px",
   boxShadow: "0 10px 22px rgba(29, 78, 216, 0.25)",
+};
+
+const mobileLoginButton = {
+  ...loginButton,
+  minHeight: "48px",
+  fontSize: "15px",
 };
 
 const loginNote = {

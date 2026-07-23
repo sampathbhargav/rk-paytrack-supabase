@@ -4,10 +4,11 @@ export async function createCustomer(customerData) {
   const { data, error } = await supabase
     .from("customers")
     .insert({
-      customer_name: customerData.customerName,
-      phone: customerData.phone,
-      email: customerData.email,
-      address: customerData.address,
+      customer_name: customerData.customerName || "",
+      company_name: customerData.companyName || null,
+      phone: customerData.phone || "",
+      email: customerData.email || "",
+      address: customerData.address || "",
     })
     .select()
     .single();
@@ -23,10 +24,12 @@ export async function updateCustomer(customerId, customerData) {
   const { data, error } = await supabase
     .from("customers")
     .update({
-      customer_name: customerData.customerName,
-      phone: customerData.phone,
-      email: customerData.email,
-      address: customerData.address,
+      customer_name: customerData.customerName || "",
+      company_name: customerData.companyName || null,
+      phone: customerData.phone || "",
+      email: customerData.email || "",
+      address: customerData.address || "",
+      updated_at: new Date().toISOString(),
     })
     .eq("id", customerId)
     .select()
@@ -40,7 +43,9 @@ export async function updateCustomer(customerId, customerData) {
 export async function getCustomers() {
   const { data, error } = await supabase
     .from("customers")
-    .select("*")
+    .select(
+      "id, customer_name, company_name, phone, email, address, created_at, updated_at"
+    )
     .order("customer_name", { ascending: true });
 
   if (error) {
@@ -53,7 +58,9 @@ export async function getCustomers() {
 export async function getCustomerDashboardRows() {
   const { data: customers, error: customerError } = await supabase
     .from("customers")
-    .select("*")
+    .select(
+      "id, customer_name, company_name, phone, email, address, created_at, updated_at"
+    )
     .order("customer_name", { ascending: true });
 
   if (customerError) {
@@ -142,6 +149,7 @@ export async function getCustomerDashboardRows() {
 
     return {
       ...customer,
+      company_name: customer.company_name || "",
       deal_count: customerDeals.length,
       maintenance_count: customerMaintenance.length,
       deal_balance: dealBalance,

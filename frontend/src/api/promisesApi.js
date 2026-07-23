@@ -1,38 +1,45 @@
 import { supabase } from "../supabaseClient";
 
+const promiseDealJoin = `
+  *,
+  deals (
+    id,
+    deal_tag,
+    deal_type,
+    deal_subtype,
+    customer_id,
+    customers (
+      id,
+      customer_name,
+      company_name,
+      phone,
+      email,
+      address
+    )
+  )
+`;
+
 export async function getPromises() {
   const { data, error } = await supabase
     .from("payment_promises")
-    .select(`
-      *,
-      deals (
-        id,
-        deal_tag,
-        deal_type,
-        deal_subtype,
-        customers (
-          customer_name,
-          phone
-        )
-      )
-    `)
+    .select(promiseDealJoin)
     .order("promised_date", { ascending: true });
 
   if (error) throw error;
 
-  return data;
+  return markBrokenPromisesInUI(data || []);
 }
 
 export async function getPromisesByDealId(dealId) {
   const { data, error } = await supabase
     .from("payment_promises")
-    .select("*")
+    .select(promiseDealJoin)
     .eq("deal_id", dealId)
     .order("promised_date", { ascending: true });
 
   if (error) throw error;
 
-  return markBrokenPromisesInUI(data);
+  return markBrokenPromisesInUI(data || []);
 }
 
 export async function updateBrokenPromises() {
@@ -61,18 +68,13 @@ export async function markPromisePaidAndCreatePayment({
     throw new Error("Promise remaining amount must be greater than 0.");
   }
 
-  // Create payment record for the promised remaining amount
   const { data: payment, error: paymentError } = await supabase
     .from("payments")
     .insert({
       deal_id: promise.deal_id,
       promise_id: promise.id,
       payment_date: paymentDate,
-
-      // IMPORTANT:
-      // This connects the promise payment back to the original installment.
       due_date: promise.original_due_date,
-
       amount_due: amountPaid,
       amount_paid: amountPaid,
       remaining_amount: 0,
@@ -87,14 +89,13 @@ export async function markPromisePaidAndCreatePayment({
 
   if (paymentError) throw paymentError;
 
-  // Mark promise as paid
   const { data: updatedPromise, error: promiseError } = await supabase
     .from("payment_promises")
     .update({
       promise_status: "Paid",
     })
     .eq("id", promise.id)
-    .select()
+    .select(promiseDealJoin)
     .single();
 
   if (promiseError) throw promiseError;
@@ -105,7 +106,7 @@ export async function markPromisePaidAndCreatePayment({
   };
 }
 
-function markBrokenPromisesInUI(promises) {
+function markBrokenPromisesInUI(promises = []) {
   const today = new Date().toISOString().split("T")[0];
 
   return promises.map((promise) => {
@@ -124,16 +125,11 @@ function markBrokenPromisesInUI(promises) {
   });
 }
 
-export async function reschedulePromise({
-  promise,
-  newPromisedDate,
-  reason,
-}) {
+export async function reschedulePromise({ promise, newPromisedDate, reason }) {
   if (!newPromisedDate) {
     throw new Error("New promised date is required.");
   }
 
-  // 1. Mark old promise as Rescheduled
   const { error: oldPromiseError } = await supabase
     .from("payment_promises")
     .update({
@@ -144,7 +140,6 @@ export async function reschedulePromise({
 
   if (oldPromiseError) throw oldPromiseError;
 
-  // 2. Create new promise for the same remaining amount
   const { data: newPromise, error: newPromiseError } = await supabase
     .from("payment_promises")
     .insert({
@@ -162,7 +157,7 @@ export async function reschedulePromise({
       rescheduled_from_date: promise.promised_date,
       reschedule_reason: reason || "",
     })
-    .select()
+    .select(promiseDealJoin)
     .single();
 
   if (newPromiseError) throw newPromiseError;
@@ -195,7 +190,6 @@ export async function partialPayPromiseAndCreateNewPromise({
 
   const newRemaining = Math.max(oldRemaining - paidAmount, 0);
 
-  // 1. Create payment for the amount customer paid now
   const { data: payment, error: paymentError } = await supabase
     .from("payments")
     .insert({
@@ -217,7 +211,6 @@ export async function partialPayPromiseAndCreateNewPromise({
 
   if (paymentError) throw paymentError;
 
-  // 2. Mark old promise as Partial Paid
   const { error: oldPromiseError } = await supabase
     .from("payment_promises")
     .update({
@@ -230,7 +223,6 @@ export async function partialPayPromiseAndCreateNewPromise({
 
   if (oldPromiseError) throw oldPromiseError;
 
-  // 3. Create new promise for remaining amount
   const { data: newPromise, error: newPromiseError } = await supabase
     .from("payment_promises")
     .insert({
@@ -246,9 +238,10 @@ export async function partialPayPromiseAndCreateNewPromise({
         `Remaining promise amount ${newRemaining} promised for ${newPromisedDate}.`,
       parent_promise_id: promise.id,
       rescheduled_from_date: promise.promised_date,
-      reschedule_reason: "Partial promise payment received and remaining amount re-promised.",
+      reschedule_reason:
+        "Partial promise payment received and remaining amount re-promised.",
     })
-    .select()
+    .select(promiseDealJoin)
     .single();
 
   if (newPromiseError) throw newPromiseError;

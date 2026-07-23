@@ -1,5 +1,9 @@
-import { useState } from "react";
-import { createCustomer } from "../api/customersApi";
+import { useEffect, useMemo, useState } from "react";
+import {
+  createCustomer,
+  getCustomers,
+  updateCustomer,
+} from "../api/customersApi";
 import { createDeal, checkDealTagExists } from "../api/dealsApi";
 import { logActivity } from "../api/activityLogsApi";
 import {
@@ -8,7 +12,9 @@ import {
 } from "../utils/dealDateUtils";
 
 const initialFormData = {
+  selectedCustomerId: "",
   customerName: "",
+  companyName: "",
   phone: "",
   email: "",
   address: "",
@@ -29,15 +35,89 @@ const initialFormData = {
 
 function DealForm() {
   const [formData, setFormData] = useState(initialFormData);
+  const [allCustomers, setAllCustomers] = useState([]);
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   const isCashDeal = formData.dealType === "Cash";
   const isInHouseDeal = formData.dealType === "In-house";
-
   const isRegistrationMoneyDeal = formData.dealType === "Registration Money";
-  const isOneTimeScheduledDeal = isRegistrationMoneyDeal;
+
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  const loadCustomers = async () => {
+    try {
+      const customers = await getCustomers();
+      setAllCustomers(customers || []);
+    } catch (error) {
+      console.warn("Unable to load existing customers:", error.message);
+    }
+  };
+
+  const selectedCustomer = useMemo(() => {
+    if (!formData.selectedCustomerId) return null;
+
+    return allCustomers.find(
+      (customer) => customer.id === formData.selectedCustomerId
+    );
+  }, [allCustomers, formData.selectedCustomerId]);
+
+  const customerMatches = useMemo(() => {
+    const searchText = formData.customerName.trim().toLowerCase();
+
+    if (searchText.length < 2) return [];
+
+    return (allCustomers || [])
+      .filter((customer) => {
+        const haystack = [
+          customer.customer_name,
+          customer.company_name,
+          customer.phone,
+          customer.email,
+          customer.address,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(searchText);
+      })
+      .slice(0, 8);
+  }, [allCustomers, formData.customerName]);
+
+  const handleSelectExistingCustomer = (customer) => {
+    setFormData((prev) => ({
+      ...prev,
+      selectedCustomerId: customer.id,
+      customerName: customer.customer_name || "",
+      companyName: customer.company_name || "",
+      phone: customer.phone || "",
+      email: customer.email || "",
+      address: customer.address || "",
+    }));
+
+    setCustomerSearchOpen(false);
+    setMessage("");
+    setMessageType("");
+  };
+
+  const clearSelectedCustomer = () => {
+    setFormData((prev) => ({
+      ...prev,
+      selectedCustomerId: "",
+      customerName: "",
+      companyName: "",
+      phone: "",
+      email: "",
+      address: "",
+    }));
+
+    setCustomerSearchOpen(false);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -51,25 +131,30 @@ function DealForm() {
         [name]: value,
       };
 
+      if (name === "customerName") {
+        updated.selectedCustomerId = "";
+        setCustomerSearchOpen(true);
+      }
+
       if (name === "dealType") {
         if (value !== "In-house") {
           updated.dealSubtype = "";
         }
-      
+
         if (value === "Cash") {
           updated.monthlyPayment = "";
           updated.dueDay = "";
           updated.term = "";
           updated.maturityDate = "";
         }
-      
+
         if (value === "Registration Money") {
           updated.term = "1";
-      
+
           if (updated.totalAmount) {
             updated.monthlyPayment = updated.totalAmount;
           }
-      
+
           if (updated.startDate) {
             const dueDay = getDueDayFromStartDate(updated.startDate);
             updated.dueDay = dueDay;
@@ -81,16 +166,29 @@ function DealForm() {
       if (name === "totalAmount" && updated.dealType === "Registration Money") {
         updated.monthlyPayment = value;
         updated.term = "1";
+
+        if (updated.startDate) {
+          updated.maturityDate = updated.startDate;
+        }
       }
-      
-      if (name === "startDate" && value && updated.dealType === "Registration Money") {
+
+      if (
+        name === "startDate" &&
+        value &&
+        updated.dealType === "Registration Money"
+      ) {
         const dueDay = getDueDayFromStartDate(value);
         updated.dueDay = dueDay;
         updated.term = "1";
         updated.maturityDate = value;
       }
 
-      if (name === "startDate" && value && updated.dealType !== "Cash") {
+      if (
+        name === "startDate" &&
+        value &&
+        updated.dealType !== "Cash" &&
+        updated.dealType !== "Registration Money"
+      ) {
         const dueDay = getDueDayFromStartDate(value);
         updated.dueDay = dueDay;
 
@@ -103,7 +201,11 @@ function DealForm() {
         }
       }
 
-      if (name === "term" && updated.dealType !== "Cash") {
+      if (
+        name === "term" &&
+        updated.dealType !== "Cash" &&
+        updated.dealType !== "Registration Money"
+      ) {
         updated.maturityDate = calculateMaturityDate(
           updated.startDate,
           updated.dueDay,
@@ -111,7 +213,11 @@ function DealForm() {
         );
       }
 
-      if (name === "dueDay" && updated.dealType !== "Cash") {
+      if (
+        name === "dueDay" &&
+        updated.dealType !== "Cash" &&
+        updated.dealType !== "Registration Money"
+      ) {
         updated.maturityDate = calculateMaturityDate(
           updated.startDate,
           value,
@@ -127,6 +233,7 @@ function DealForm() {
     return {
       ...formData,
       customerName: formData.customerName.trim(),
+      companyName: formData.companyName.trim(),
       phone: formData.phone.trim(),
       email: formData.email.trim(),
       address: formData.address.trim(),
@@ -177,11 +284,11 @@ function DealForm() {
       if (!data.startDate) {
         return "Tentative due date is required for Registration Money deals.";
       }
-    
+
       if (!data.totalAmount || Number(data.totalAmount) <= 0) {
         return "Registration money amount must be greater than 0.";
       }
-    
+
       return "";
     }
 
@@ -235,7 +342,9 @@ function DealForm() {
     const data = cleanFormData();
 
     const confirmed = window.confirm(
-      "Are you sure you want to create this customer and deal?"
+      data.selectedCustomerId
+        ? "Are you sure you want to add this new deal to the selected existing customer?"
+        : "Are you sure you want to create this customer and deal?"
     );
 
     if (!confirmed) return;
@@ -251,12 +360,25 @@ function DealForm() {
         return;
       }
 
-      const customer = await createCustomer({
-        customerName: data.customerName,
-        phone: data.phone,
-        email: data.email,
-        address: data.address,
-      });
+      let customer;
+
+      if (data.selectedCustomerId) {
+        customer = await updateCustomer(data.selectedCustomerId, {
+          customerName: data.customerName,
+          companyName: data.companyName,
+          phone: data.phone,
+          email: data.email,
+          address: data.address,
+        });
+      } else {
+        customer = await createCustomer({
+          customerName: data.customerName,
+          companyName: data.companyName,
+          phone: data.phone,
+          email: data.email,
+          address: data.address,
+        });
+      }
 
       const savedDeal = await createDeal({
         customerId: customer.id,
@@ -289,18 +411,22 @@ function DealForm() {
             : data.maturityDate,
         notes: data.notes,
       });
-      
+
       await logActivity({
         action: "CREATE",
         module: "Deals",
         entity_type: "deal",
         entity_id: savedDeal?.id || data.dealTag,
         entity_label: data.dealTag || data.customerName || "New Deal",
-        description: `Deal ${data.dealTag} created for ${data.customerName}.`,
+        description: data.selectedCustomerId
+          ? `Deal ${data.dealTag} added to existing customer ${data.customerName}.`
+          : `Deal ${data.dealTag} created for new customer ${data.customerName}.`,
         metadata: {
           deal_id: savedDeal?.id || null,
           customer_id: customer?.id || null,
+          used_existing_customer: Boolean(data.selectedCustomerId),
           customer_name: data.customerName,
+          company_name: data.companyName || "",
           phone: data.phone,
           email: data.email,
           address: data.address,
@@ -335,9 +461,16 @@ function DealForm() {
         },
       });
 
-      setMessage("Customer and deal created successfully.");
+      setMessage(
+        data.selectedCustomerId
+          ? "New deal added to existing customer successfully."
+          : "Customer and deal created successfully."
+      );
+
       setMessageType("success");
       setFormData(initialFormData);
+      setCustomerSearchOpen(false);
+      await loadCustomers();
     } catch (error) {
       setMessage(`Failed to create deal: ${error.message}`);
       setMessageType("error");
@@ -352,7 +485,9 @@ function DealForm() {
         <div>
           <h2 style={formTitle}>Deal Entry Form</h2>
           <p style={formDescription}>
-            Enter customer details, deal information, and payment schedule setup.
+            Search for an existing customer or type a new customer name. If you
+            select an existing customer, phone, email, company name, and address
+            will auto-fill.
           </p>
         </div>
 
@@ -372,16 +507,93 @@ function DealForm() {
 
       <Section
         title="Customer Information"
-        description="Basic customer contact details used for payment follow-up."
+        description="Search existing customers or create a new customer profile."
       >
         <div style={grid}>
+          <div style={customerSearchWrapper}>
+            <label style={labelStyle}>
+              Customer Name / Search Customer{" "}
+              <span style={requiredMark}>*</span>
+            </label>
+
+            <input
+              name="customerName"
+              type="text"
+              value={formData.customerName}
+              onChange={handleChange}
+              onFocus={() => setCustomerSearchOpen(true)}
+              required
+              placeholder="Start typing customer name, company, phone, or email..."
+              style={inputStyle}
+              autoComplete="off"
+            />
+
+            {selectedCustomer && (
+              <div style={selectedCustomerBox}>
+                <div>
+                  <strong>Using existing customer</strong>
+                  <p>
+                    {selectedCustomer.customer_name}
+                    {selectedCustomer.company_name
+                      ? ` · ${selectedCustomer.company_name}`
+                      : ""}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={clearSelectedCustomer}
+                  style={clearCustomerButton}
+                >
+                  Change
+                </button>
+              </div>
+            )}
+
+            {customerSearchOpen &&
+              !formData.selectedCustomerId &&
+              customerMatches.length > 0 && (
+                <div style={customerDropdown}>
+                  {customerMatches.map((customer) => (
+                    <button
+                      type="button"
+                      key={customer.id}
+                      style={customerDropdownItem}
+                      onClick={() => handleSelectExistingCustomer(customer)}
+                    >
+                      <strong>{customer.customer_name || "Unnamed"}</strong>
+
+                      <span>
+                        {customer.company_name
+                          ? `${customer.company_name} · `
+                          : ""}
+                        {customer.phone || "No phone"}
+                        {customer.email ? ` · ${customer.email}` : ""}
+                      </span>
+
+                      {customer.address && <small>{customer.address}</small>}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+            {customerSearchOpen &&
+              !formData.selectedCustomerId &&
+              formData.customerName.trim().length >= 2 &&
+              customerMatches.length === 0 && (
+                <div style={noCustomerMatchBox}>
+                  No existing customer found. A new customer will be created.
+                </div>
+              )}
+          </div>
+
           <Input
-            label="Customer Name"
-            name="customerName"
-            value={formData.customerName}
+            label="Company Name"
+            name="companyName"
+            value={formData.companyName}
             onChange={handleChange}
-            required
-            placeholder="Example: Rohit Kapoor"
+            placeholder="Example: RK Logistics LLC"
+            helperText="Optional"
           />
 
           <Input
@@ -480,7 +692,11 @@ function DealForm() {
           />
 
           <Input
-            label="Total Amount"
+            label={
+              isRegistrationMoneyDeal
+                ? "Registration Money Amount"
+                : "Total Amount"
+            }
             name="totalAmount"
             type="number"
             value={formData.totalAmount}
@@ -497,6 +713,8 @@ function DealForm() {
         description={
           isCashDeal
             ? "Cash deals do not require a monthly schedule."
+            : isRegistrationMoneyDeal
+            ? "Registration Money is treated as a one-time scheduled receivable."
             : "Schedule is calculated from start date, due day, term, and monthly payment."
         }
       >
@@ -504,6 +722,14 @@ function DealForm() {
           <div style={infoBox}>
             Cash deal selected. Monthly payment, due day, term, and maturity date
             are not required.
+          </div>
+        )}
+
+        {isRegistrationMoneyDeal && (
+          <div style={infoBox}>
+            Registration Money selected. Use the tentative due date as the date
+            the customer is expected to pay title or registration money. Term
+            will stay 1 and monthly payment will match the total amount.
           </div>
         )}
 
@@ -524,13 +750,15 @@ function DealForm() {
           />
 
           <Input
-            label={isRegistrationMoneyDeal ? "One-Time Amount" : "Monthly Payment"}
+            label={
+              isRegistrationMoneyDeal ? "One-Time Amount" : "Monthly Payment"
+            }
             name="monthlyPayment"
             type="number"
             value={formData.monthlyPayment}
             onChange={handleChange}
             required={!isCashDeal}
-            disabled={isCashDeal}
+            disabled={isCashDeal || isRegistrationMoneyDeal}
             placeholder="Example: 500"
           />
 
@@ -541,9 +769,9 @@ function DealForm() {
             value={formData.dueDay}
             onChange={handleChange}
             required={!isCashDeal}
-            disabled={isCashDeal}
+            disabled={isCashDeal || isRegistrationMoneyDeal}
             placeholder="Auto from start date"
-            helperText="Auto-filled from start date but can be edited."
+            helperText="Auto-filled from start date but can be edited for normal payment deals."
           />
 
           <Input
@@ -564,7 +792,7 @@ function DealForm() {
             value={formData.maturityDate}
             onChange={handleChange}
             readOnly
-            disabled={isCashDeal}
+            disabled={isCashDeal || isRegistrationMoneyDeal}
             helperText={
               isRegistrationMoneyDeal
                 ? "Same as tentative due date for Registration Money."
@@ -599,6 +827,7 @@ function DealForm() {
             setFormData(initialFormData);
             setMessage("");
             setMessageType("");
+            setCustomerSearchOpen(false);
           }}
           disabled={isSaving}
         >
@@ -767,6 +996,70 @@ const grid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
   gap: "16px",
+};
+
+const customerSearchWrapper = {
+  position: "relative",
+  zIndex: 5,
+};
+
+const selectedCustomerBox = {
+  marginTop: "8px",
+  background: "#ecfdf5",
+  border: "1px solid #bbf7d0",
+  borderRadius: "12px",
+  padding: "10px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "10px",
+};
+
+const clearCustomerButton = {
+  background: "#0A1A2F",
+  color: "white",
+  border: "none",
+  borderRadius: "999px",
+  padding: "7px 10px",
+  cursor: "pointer",
+  fontWeight: "900",
+};
+
+const customerDropdown = {
+  position: "absolute",
+  top: "74px",
+  left: 0,
+  right: 0,
+  background: "white",
+  border: "1px solid #d1d5db",
+  borderRadius: "14px",
+  boxShadow: "0 16px 35px rgba(15, 23, 42, 0.18)",
+  zIndex: 50,
+  overflow: "hidden",
+};
+
+const customerDropdownItem = {
+  width: "100%",
+  background: "white",
+  border: "none",
+  borderBottom: "1px solid #f1f5f9",
+  padding: "12px",
+  cursor: "pointer",
+  textAlign: "left",
+  display: "grid",
+  gap: "4px",
+  color: "#111827",
+};
+
+const noCustomerMatchBox = {
+  marginTop: "8px",
+  background: "#fffbeb",
+  border: "1px solid #fde68a",
+  color: "#92400e",
+  borderRadius: "12px",
+  padding: "10px",
+  fontSize: "12px",
+  fontWeight: "800",
 };
 
 const labelStyle = {

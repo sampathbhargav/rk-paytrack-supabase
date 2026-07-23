@@ -16,6 +16,7 @@ function EditDeal() {
 
   const [formData, setFormData] = useState({
     customerName: "",
+    companyName: "",
     phone: "",
     email: "",
     address: "",
@@ -45,6 +46,7 @@ function EditDeal() {
 
   useEffect(() => {
     loadDeal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId]);
 
   const loadDeal = async () => {
@@ -58,6 +60,7 @@ function EditDeal() {
 
       const loadedData = {
         customerName: deal.customers?.customer_name || "",
+        companyName: deal.customers?.company_name || "",
         phone: deal.customers?.phone || "",
         email: deal.customers?.email || "",
         address: deal.customers?.address || "",
@@ -89,6 +92,7 @@ function EditDeal() {
     return {
       ...data,
       customerName: data.customerName.trim(),
+      companyName: data.companyName.trim(),
       phone: data.phone.trim(),
       email: data.email.trim(),
       address: data.address.trim(),
@@ -148,7 +152,11 @@ function EditDeal() {
         }
       }
 
-      if (name === "startDate" && value && updated.dealType === "Registration Money") {
+      if (
+        name === "startDate" &&
+        value &&
+        updated.dealType === "Registration Money"
+      ) {
         const dueDay = getDueDayFromStartDate(value);
         updated.dueDay = dueDay;
         updated.term = "1";
@@ -325,6 +333,7 @@ function EditDeal() {
 
       await updateCustomer(customerId, {
         customerName: data.customerName,
+        companyName: data.companyName,
         phone: data.phone,
         email: data.email,
         address: data.address,
@@ -421,8 +430,8 @@ function EditDeal() {
         <div>
           <h1 style={pageTitle}>Edit Deal</h1>
           <p style={pageDescription}>
-            Update customer information, deal details, schedule fields, status,
-            and internal notes.
+            Update customer information, company name, deal details, schedule
+            fields, status, and internal notes.
           </p>
         </div>
 
@@ -445,7 +454,7 @@ function EditDeal() {
       <form onSubmit={handleSubmit} style={formStyle}>
         <Section
           title="Customer Information"
-          description="Basic customer contact details used for follow-up and records."
+          description="Basic customer and company contact details used for follow-up and records."
         >
           <div style={grid}>
             <Input
@@ -454,6 +463,14 @@ function EditDeal() {
               value={formData.customerName}
               onChange={handleChange}
               required
+            />
+
+            <Input
+              label="Company Name"
+              name="companyName"
+              value={formData.companyName}
+              onChange={handleChange}
+              helperText="Optional"
             />
 
             <Input

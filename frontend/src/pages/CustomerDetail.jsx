@@ -32,6 +32,7 @@ function CustomerDetail() {
 
   useEffect(() => {
     loadCustomerDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId]);
 
   const loadCustomerDetail = async () => {
@@ -78,6 +79,8 @@ function CustomerDetail() {
       </div>
     );
   }
+
+  const customerCompanyName = deal.customers?.company_name?.trim() || "";
 
   const activePayments = payments.filter(
     (payment) => payment.payment_status !== "Voided"
@@ -268,6 +271,13 @@ function CustomerDetail() {
             {deal.customers?.customer_name || "Customer"}
           </h1>
 
+          {customerCompanyName && (
+            <div style={companyNameBadge}>
+              <span>🏢</span>
+              <strong>{customerCompanyName}</strong>
+            </div>
+          )}
+
           <p style={dealTagText}>Deal #{deal.deal_tag || "—"}</p>
 
           <div style={statusRow}>
@@ -283,6 +293,11 @@ function CustomerDetail() {
 
           <div style={sidebarDivider} />
 
+          <InfoLine
+            label="Customer Name"
+            value={deal.customers?.customer_name || "—"}
+          />
+          <InfoLine label="Company Name" value={customerCompanyName || "—"} />
           <InfoLine label="Phone" value={deal.customers?.phone || "—"} />
           <InfoLine label="Email" value={deal.customers?.email || "—"} />
           <InfoLine label="Address" value={deal.customers?.address || "—"} />
@@ -318,6 +333,10 @@ function CustomerDetail() {
 
                 {deal.deal_subtype && (
                   <span style={subTypeBadge}>{deal.deal_subtype}</span>
+                )}
+
+                {customerCompanyName && (
+                  <span style={companySmallBadge}>🏢 {customerCompanyName}</span>
                 )}
               </div>
 
@@ -454,6 +473,7 @@ function CustomerDetail() {
       </div>
 
       <PaymentReceipt receipt={receipt} onClose={() => setReceipt(null)} />
+
       <CustomerFollowUps
         customerId={deal?.customer_id}
         customerName={deal?.customers?.customer_name || ""}
@@ -829,6 +849,22 @@ const customerName = {
   color: "#111827",
   fontSize: "24px",
   lineHeight: "1.2",
+  overflowWrap: "anywhere",
+};
+
+const companyNameBadge = {
+  marginTop: "10px",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "7px",
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  padding: "7px 10px",
+  fontSize: "12px",
+  maxWidth: "100%",
+  overflowWrap: "anywhere",
 };
 
 const dealTagText = {
@@ -947,6 +983,22 @@ const subTypeBadge = {
   background: "#f8fafc",
   color: "#475569",
   border: "1px solid #e2e8f0",
+};
+
+const companySmallBadge = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "fit-content",
+  padding: "8px 13px",
+  borderRadius: "999px",
+  fontWeight: "900",
+  fontSize: "13px",
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+  maxWidth: "100%",
+  overflowWrap: "anywhere",
 };
 
 const accountDescription = {

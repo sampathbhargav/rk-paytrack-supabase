@@ -9,8 +9,8 @@ function AddDeal() {
           <div style={eyebrow}>Create New Record</div>
           <h1 style={pageTitle}>Add Customer / Deal</h1>
           <p style={pageDescription}>
-            Create a new customer profile, deal record, and payment schedule in
-            RK PayTrack.
+            Create a new customer profile, optional company name, deal record,
+            and payment schedule in RK PayTrack.
           </p>
         </div>
 
@@ -25,7 +25,7 @@ function AddDeal() {
         <InfoCard
           icon="👤"
           title="Customer Details"
-          description="Enter customer name, phone, email, and address."
+          description="Enter customer name, optional company name, phone, email, and address."
         />
 
         <InfoCard
@@ -46,8 +46,9 @@ function AddDeal() {
           <div>
             <h2 style={sectionTitle}>New Deal Form</h2>
             <p style={sectionDescription}>
-              Complete the form carefully. This information will be used for
-              schedules, payments, promises, receipts, and reports.
+              Complete the form carefully. Customer name is required, but company
+              name is optional. This information will be used for schedules,
+              payments, promises, receipts, and reports.
             </p>
           </div>
 

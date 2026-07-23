@@ -36,6 +36,7 @@ function Customers() {
     return customers.filter((customer) => {
       return (
         customer.customer_name?.toLowerCase().includes(text) ||
+        customer.company_name?.toLowerCase().includes(text) ||
         customer.phone?.toLowerCase().includes(text) ||
         customer.email?.toLowerCase().includes(text) ||
         customer.address?.toLowerCase().includes(text)
@@ -55,7 +56,8 @@ function Customers() {
           <div style={eyebrow}>Customer Management</div>
           <h1 style={pageTitle}>Customers</h1>
           <p style={pageDescription}>
-            Search customers, review balances, and open the full customer profile.
+            Search customers, company names, balances, and open the full
+            customer profile.
           </p>
         </div>
 
@@ -68,7 +70,12 @@ function Customers() {
 
       <div style={metricGrid}>
         <MetricCard label="Customers" value={filteredCustomers.length} />
-        <MetricCard label="Total Balance" value={formatMoney(totalBalance)} tone={totalBalance > 0 ? "danger" : "success"} />
+
+        <MetricCard
+          label="Total Balance"
+          value={formatMoney(totalBalance)}
+          tone={totalBalance > 0 ? "danger" : "success"}
+        />
       </div>
 
       <div style={filterCard}>
@@ -76,78 +83,96 @@ function Customers() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, phone, email, or address..."
+          placeholder="Search customer name, company name, phone, email, or address..."
           style={inputStyle}
         />
       </div>
+
       {loading ? (
         <LoadingSpinner message="Loading customers..." />
       ) : (
-      <div style={tableCard}>
-        <div style={tableWrapper}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Customer</th>
-                <th style={thStyle}>Phone</th>
-                <th style={thStyle}>Email</th>
-                <th style={centerTh}>Deals</th>
-                <th style={centerTh}>Maintenance</th>
-                <th style={rightTh}>Deal Balance</th>
-                <th style={rightTh}>Maintenance Balance</th>
-                <th style={rightTh}>Total Balance</th>
-                <th style={centerTh}>Action</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredCustomers.length === 0 ? (
+        <div style={tableCard}>
+          <div style={tableWrapper}>
+            <table style={tableStyle}>
+              <thead>
                 <tr>
-                  <td style={emptyCell} colSpan="9">
-                    No customers found.
-                  </td>
+                  <th style={thStyle}>Customer</th>
+                  <th style={thStyle}>Phone</th>
+                  <th style={thStyle}>Email</th>
+                  <th style={centerTh}>Deals</th>
+                  <th style={centerTh}>Maintenance</th>
+                  <th style={rightTh}>Deal Balance</th>
+                  <th style={rightTh}>Maintenance Balance</th>
+                  <th style={rightTh}>Total Balance</th>
+                  <th style={centerTh}>Action</th>
                 </tr>
-              ) : (
-                filteredCustomers.map((customer) => (
-                  <tr key={customer.id}>
-                    <td style={tdStyle}>
-                      <Link to={`/customers/${customer.id}`} style={customerLink}>
-                        {customer.customer_name || "—"}
-                      </Link>
-                      <div style={smallText}>{customer.address || ""}</div>
-                    </td>
+              </thead>
 
-                    <td style={tdStyle}>{customer.phone || "—"}</td>
-                    <td style={tdStyle}>{customer.email || "—"}</td>
-                    <td style={centerTd}>{customer.deal_count}</td>
-                    <td style={centerTd}>{customer.maintenance_count}</td>
-                    <td style={rightTd}>{formatMoney(customer.deal_balance)}</td>
-                    <td style={rightTd}>{formatMoney(customer.maintenance_balance)}</td>
-
-                    <td style={rightTd}>
-                      <strong
-                        style={
-                          Number(customer.total_balance || 0) > 0
-                            ? dangerText
-                            : successText
-                        }
-                      >
-                        {formatMoney(customer.total_balance)}
-                      </strong>
-                    </td>
-
-                    <td style={centerTd}>
-                      <Link to={`/customers/${customer.id}`} style={viewButton}>
-                        View Profile
-                      </Link>
+              <tbody>
+                {filteredCustomers.length === 0 ? (
+                  <tr>
+                    <td style={emptyCell} colSpan="9">
+                      No customers found.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredCustomers.map((customer) => (
+                    <tr key={customer.id}>
+                      <td style={tdStyle}>
+                        <Link
+                          to={`/customers/${customer.id}`}
+                          style={customerLink}
+                        >
+                          {customer.customer_name || "—"}
+                        </Link>
+
+                        {customer.company_name && (
+                          <div style={companyNameText}>
+                            🏢 {customer.company_name}
+                          </div>
+                        )}
+
+                        <div style={smallText}>{customer.address || ""}</div>
+                      </td>
+
+                      <td style={tdStyle}>{customer.phone || "—"}</td>
+                      <td style={tdStyle}>{customer.email || "—"}</td>
+                      <td style={centerTd}>{customer.deal_count}</td>
+                      <td style={centerTd}>{customer.maintenance_count}</td>
+                      <td style={rightTd}>
+                        {formatMoney(customer.deal_balance)}
+                      </td>
+                      <td style={rightTd}>
+                        {formatMoney(customer.maintenance_balance)}
+                      </td>
+
+                      <td style={rightTd}>
+                        <strong
+                          style={
+                            Number(customer.total_balance || 0) > 0
+                              ? dangerText
+                              : successText
+                          }
+                        >
+                          {formatMoney(customer.total_balance)}
+                        </strong>
+                      </td>
+
+                      <td style={centerTd}>
+                        <Link
+                          to={`/customers/${customer.id}`}
+                          style={viewButton}
+                        >
+                          View Profile
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
       )}
     </div>
   );
@@ -163,8 +188,14 @@ function MetricCard({ label, value, tone = "default" }) {
 }
 
 function getMetricTone(tone) {
-  if (tone === "success") return { background: "#f0fdf4", borderColor: "#bbf7d0" };
-  if (tone === "danger") return { background: "#fef2f2", borderColor: "#fecaca" };
+  if (tone === "success") {
+    return { background: "#f0fdf4", borderColor: "#bbf7d0" };
+  }
+
+  if (tone === "danger") {
+    return { background: "#fef2f2", borderColor: "#fecaca" };
+  }
+
   return { background: "white", borderColor: "#e5e7eb" };
 }
 
@@ -337,6 +368,20 @@ const customerLink = {
   fontWeight: "900",
   textDecoration: "underline",
   textUnderlineOffset: "3px",
+};
+
+const companyNameText = {
+  marginTop: "5px",
+  color: "#1d4ed8",
+  fontSize: "12px",
+  fontWeight: "900",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  padding: "5px 8px",
+  display: "inline-flex",
+  maxWidth: "100%",
+  overflowWrap: "anywhere",
 };
 
 const viewButton = {

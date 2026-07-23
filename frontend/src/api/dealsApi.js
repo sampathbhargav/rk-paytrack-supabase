@@ -1,22 +1,28 @@
 import { supabase } from "../supabaseClient";
 
+const customerJoin = `
+  id,
+  customer_name,
+  company_name,
+  phone,
+  email,
+  address
+`;
+
 export async function getDeals() {
   const { data, error } = await supabase
     .from("deals")
     .select(`
       *,
       customers (
-        customer_name,
-        phone,
-        email,
-        address
+        ${customerJoin}
       )
     `)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
 
-  return data;
+  return data || [];
 }
 
 export async function getDealById(dealId) {
@@ -25,10 +31,7 @@ export async function getDealById(dealId) {
     .select(`
       *,
       customers (
-        customer_name,
-        phone,
-        email,
-        address
+        ${customerJoin}
       )
     `)
     .eq("id", dealId)
@@ -45,10 +48,7 @@ export async function getDealByTag(dealTag) {
     .select(`
       *,
       customers (
-        customer_name,
-        phone,
-        email,
-        address
+        ${customerJoin}
       )
     `)
     .eq("deal_tag", dealTag)
@@ -60,27 +60,46 @@ export async function getDealByTag(dealTag) {
 }
 
 export async function createDeal(dealData) {
+  const isCashDeal = dealData.dealType === "Cash";
+
   const { data, error } = await supabase
     .from("deals")
     .insert({
       deal_tag: dealData.dealTag,
       customer_id: dealData.customerId,
+
       deal_type: dealData.dealType,
       deal_subtype:
         dealData.dealType === "In-house" ? dealData.dealSubtype || null : null,
+
       start_date: dealData.startDate || null,
-      truck: dealData.truck,
-      year: dealData.year,
-      vin: dealData.vin,
+
+      truck: dealData.truck || "",
+      year: dealData.year || "",
+      vin: dealData.vin || "",
+
       total_amount: Number(dealData.totalAmount || 0),
-      monthly_payment: Number(dealData.monthlyPayment || 0),
-      due_day: Number(dealData.dueDay || 0),
-      term: Number(dealData.term || 0),
-      maturity_date: dealData.maturityDate || null,
-      status: "Active",
+      monthly_payment: isCashDeal ? 0 : Number(dealData.monthlyPayment || 0),
+
+      due_day: isCashDeal
+        ? null
+        : dealData.dueDay
+        ? Number(dealData.dueDay)
+        : null,
+
+      term: isCashDeal ? null : dealData.term ? Number(dealData.term) : null,
+
+      maturity_date: isCashDeal ? null : dealData.maturityDate || null,
+
+      status: dealData.status || "Active",
       notes: dealData.notes || "",
     })
-    .select()
+    .select(`
+      *,
+      customers (
+        ${customerJoin}
+      )
+    `)
     .single();
 
   if (error) throw error;
@@ -89,27 +108,47 @@ export async function createDeal(dealData) {
 }
 
 export async function updateDeal(dealId, dealData) {
+  const isCashDeal = dealData.dealType === "Cash";
+
   const { data, error } = await supabase
     .from("deals")
     .update({
       deal_tag: dealData.dealTag,
+
       deal_type: dealData.dealType,
       deal_subtype:
         dealData.dealType === "In-house" ? dealData.dealSubtype || null : null,
+
       start_date: dealData.startDate || null,
-      truck: dealData.truck,
-      year: dealData.year,
-      vin: dealData.vin,
+
+      truck: dealData.truck || "",
+      year: dealData.year || "",
+      vin: dealData.vin || "",
+
       total_amount: Number(dealData.totalAmount || 0),
-      monthly_payment: Number(dealData.monthlyPayment || 0),
-      due_day: dealData.dueDay ? Number(dealData.dueDay) : null,
-      term: dealData.term ? Number(dealData.term) : null,
-      maturity_date: dealData.maturityDate || null,
+      monthly_payment: isCashDeal ? 0 : Number(dealData.monthlyPayment || 0),
+
+      due_day: isCashDeal
+        ? null
+        : dealData.dueDay
+        ? Number(dealData.dueDay)
+        : null,
+
+      term: isCashDeal ? null : dealData.term ? Number(dealData.term) : null,
+
+      maturity_date: isCashDeal ? null : dealData.maturityDate || null,
+
       status: dealData.status || "Active",
       notes: dealData.notes || "",
+      updated_at: new Date().toISOString(),
     })
     .eq("id", dealId)
-    .select()
+    .select(`
+      *,
+      customers (
+        ${customerJoin}
+      )
+    `)
     .single();
 
   if (error) throw error;

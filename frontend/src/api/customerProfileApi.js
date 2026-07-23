@@ -4,7 +4,9 @@ import { getPromises } from "./promisesApi";
 export async function getCustomerProfileById(customerId) {
   const { data, error } = await supabase
     .from("customers")
-    .select("*")
+    .select(
+      "id, customer_name, company_name, phone, email, address, created_at, updated_at"
+    )
     .eq("id", customerId)
     .single();
 
@@ -20,7 +22,16 @@ export async function getDealsByCustomerId(customerId) {
     .from("deals")
     .select(`
       *,
-      customers (*)
+      customers (
+        id,
+        customer_name,
+        company_name,
+        phone,
+        email,
+        address,
+        created_at,
+        updated_at
+      )
     `)
     .eq("customer_id", customerId)
     .order("created_at", { ascending: false });
@@ -49,14 +60,14 @@ export async function getPaymentsByDealIds(dealIds) {
 }
 
 export async function getPromisesByDealIds(dealIds) {
-    if (!dealIds || dealIds.length === 0) return [];
-  
-    const allPromises = await getPromises();
-  
-    return (allPromises || []).filter((promise) =>
-      dealIds.includes(promise.deal_id)
-    );
-  }
+  if (!dealIds || dealIds.length === 0) return [];
+
+  const allPromises = await getPromises();
+
+  return (allPromises || []).filter((promise) =>
+    dealIds.includes(promise.deal_id)
+  );
+}
 
 export async function getMaintenanceJobsByCustomerId(customerId) {
   const { data, error } = await supabase

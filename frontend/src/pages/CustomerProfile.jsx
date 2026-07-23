@@ -26,6 +26,7 @@ function CustomerProfile() {
 
   useEffect(() => {
     loadCustomerProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
 
   const loadCustomerProfile = async () => {
@@ -79,11 +80,6 @@ function CustomerProfile() {
     }));
   }, [maintenanceJobs]);
 
-  const dealTotal = dealsWithTotals.reduce(
-    (sum, deal) => sum + Number(deal.totals.totalAmount || 0),
-    0
-  );
-
   const dealPaid = dealsWithTotals.reduce(
     (sum, deal) => sum + Number(deal.totals.totalPaid || 0),
     0
@@ -91,11 +87,6 @@ function CustomerProfile() {
 
   const dealBalance = dealsWithTotals.reduce(
     (sum, deal) => sum + Number(deal.totals.balance || 0),
-    0
-  );
-
-  const maintenanceTotal = maintenanceWithTotals.reduce(
-    (sum, job) => sum + Number(job.totals.totalAmount || 0),
     0
   );
 
@@ -110,6 +101,7 @@ function CustomerProfile() {
   );
 
   const totalCustomerBalance = dealBalance + maintenanceBalance;
+  const companyName = customer?.company_name?.trim();
 
   const openDeals = dealsWithTotals.filter(
     (deal) =>
@@ -129,7 +121,7 @@ function CustomerProfile() {
     return (
       <div style={pageWrapper}>
         <button type="button" onClick={() => navigate(-1)} style={backButton}>
-            ← Back
+          ← Back
         </button>
 
         <div style={errorBox}>{error}</div>
@@ -149,16 +141,24 @@ function CustomerProfile() {
     <div style={pageWrapper}>
       <div style={topNav}>
         <button type="button" onClick={() => navigate(-1)} style={backButton}>
-            ← Back
+          ← Back
         </button>
       </div>
 
       <div style={profileHero}>
         <div style={avatarCircle}>{getInitials(customer.customer_name)}</div>
 
-        <div style={{ minWidth: 0 }}>
+        <div style={heroCustomerInfo}>
           <div style={eyebrow}>Customer Profile</div>
-          <h1 style={customerName}>{customer.customer_name}</h1>
+
+          <h1 style={customerNameStyle}>{customer.customer_name}</h1>
+
+          {companyName && (
+            <div style={companyNamePill}>
+              <span style={companyIcon}>🏢</span>
+              <span>{companyName}</span>
+            </div>
+          )}
 
           <div style={customerMeta}>
             <span>{customer.phone || "No phone"}</span>
@@ -173,13 +173,45 @@ function CustomerProfile() {
         </div>
       </div>
 
+      <div style={customerInfoGrid}>
+        <InfoTile label="Customer Name" value={customer.customer_name || "—"} />
+        <InfoTile label="Company Name" value={companyName || "—"} />
+        <InfoTile label="Phone" value={customer.phone || "—"} />
+        <InfoTile label="Email" value={customer.email || "—"} />
+        <InfoTile label="Address" value={customer.address || "—"} wide />
+      </div>
+
       <div style={metricGrid}>
-        <MetricCard label="Deal Balance" value={formatMoney(dealBalance)} tone={dealBalance > 0 ? "danger" : "success"} />
-        <MetricCard label="Maintenance Balance" value={formatMoney(maintenanceBalance)} tone={maintenanceBalance > 0 ? "danger" : "success"} />
-        <MetricCard label="Total Balance" value={formatMoney(totalCustomerBalance)} tone={totalCustomerBalance > 0 ? "danger" : "success"} />
-        <MetricCard label="Open Deals" value={openDeals.length} tone={openDeals.length > 0 ? "warning" : "success"} />
-        <MetricCard label="Open Maintenance" value={openMaintenance.length} tone={openMaintenance.length > 0 ? "warning" : "success"} />
-        <MetricCard label="Total Paid" value={formatMoney(dealPaid + maintenancePaid)} tone="success" />
+        <MetricCard
+          label="Deal Balance"
+          value={formatMoney(dealBalance)}
+          tone={dealBalance > 0 ? "danger" : "success"}
+        />
+        <MetricCard
+          label="Maintenance Balance"
+          value={formatMoney(maintenanceBalance)}
+          tone={maintenanceBalance > 0 ? "danger" : "success"}
+        />
+        <MetricCard
+          label="Total Balance"
+          value={formatMoney(totalCustomerBalance)}
+          tone={totalCustomerBalance > 0 ? "danger" : "success"}
+        />
+        <MetricCard
+          label="Open Deals"
+          value={openDeals.length}
+          tone={openDeals.length > 0 ? "warning" : "success"}
+        />
+        <MetricCard
+          label="Open Maintenance"
+          value={openMaintenance.length}
+          tone={openMaintenance.length > 0 ? "warning" : "success"}
+        />
+        <MetricCard
+          label="Total Paid"
+          value={formatMoney(dealPaid + maintenancePaid)}
+          tone="success"
+        />
       </div>
 
       <SectionCard
@@ -222,7 +254,8 @@ function CustomerProfile() {
                       </td>
 
                       <td style={tdStyle}>
-                        {`${deal.year || ""} ${deal.truck || ""}`.trim() || "—"}
+                        {`${deal.year || ""} ${deal.truck || ""}`.trim() ||
+                          "—"}
                         <div style={smallText}>{deal.vin || ""}</div>
                       </td>
 
@@ -239,8 +272,12 @@ function CustomerProfile() {
                         </span>
                       </td>
 
-                      <td style={tdStyle}>{formatMoney(deal.totals.totalAmount)}</td>
-                      <td style={tdStyle}>{formatMoney(deal.totals.totalPaid)}</td>
+                      <td style={tdStyle}>
+                        {formatMoney(deal.totals.totalAmount)}
+                      </td>
+                      <td style={tdStyle}>
+                        {formatMoney(deal.totals.totalPaid)}
+                      </td>
 
                       <td style={tdStyle}>
                         <strong
@@ -329,7 +366,9 @@ function CustomerProfile() {
                       </span>
                     </td>
 
-                    <td style={tdStyle}>{formatMoney(job.totals.totalAmount)}</td>
+                    <td style={tdStyle}>
+                      {formatMoney(job.totals.totalAmount)}
+                    </td>
                     <td style={tdStyle}>{formatMoney(job.totals.totalPaid)}</td>
 
                     <td style={tdStyle}>
@@ -352,6 +391,7 @@ function CustomerProfile() {
           </table>
         </div>
       </SectionCard>
+
       <CustomerFollowUps
         customerId={customer?.id}
         customerName={customer?.customer_name || ""}
@@ -384,6 +424,15 @@ function MetricCard({ label, value, tone = "default" }) {
   );
 }
 
+function InfoTile({ label, value, wide }) {
+  return (
+    <div style={wide ? { ...infoTile, gridColumn: "span 2" } : infoTile}>
+      <span style={infoTileLabel}>{label}</span>
+      <strong style={infoTileValue}>{value || "—"}</strong>
+    </div>
+  );
+}
+
 function getInitials(name) {
   if (!name) return "RK";
 
@@ -405,9 +454,18 @@ function formatDate(dateString) {
 }
 
 function getMetricTone(tone) {
-  if (tone === "success") return { background: "#f0fdf4", borderColor: "#bbf7d0" };
-  if (tone === "danger") return { background: "#fef2f2", borderColor: "#fecaca" };
-  if (tone === "warning") return { background: "#fffbeb", borderColor: "#fde68a" };
+  if (tone === "success") {
+    return { background: "#f0fdf4", borderColor: "#bbf7d0" };
+  }
+
+  if (tone === "danger") {
+    return { background: "#fef2f2", borderColor: "#fecaca" };
+  }
+
+  if (tone === "warning") {
+    return { background: "#fffbeb", borderColor: "#fde68a" };
+  }
+
   return { background: "white", borderColor: "#e5e7eb" };
 }
 
@@ -415,44 +473,94 @@ function getStatusBadge(status) {
   const base = badgeBase;
 
   if (status === "Paid Off" || status === "Closed") {
-    return { ...base, background: "#dcfce7", color: "#166534", borderColor: "#bbf7d0" };
+    return {
+      ...base,
+      background: "#dcfce7",
+      color: "#166534",
+      borderColor: "#bbf7d0",
+    };
   }
 
   if (status === "Completed" || status === "In Progress") {
-    return { ...base, background: "#dbeafe", color: "#1d4ed8", borderColor: "#bfdbfe" };
+    return {
+      ...base,
+      background: "#dbeafe",
+      color: "#1d4ed8",
+      borderColor: "#bfdbfe",
+    };
   }
 
   if (status === "Repo" || status === "Defaulted" || status === "Overdue") {
-    return { ...base, background: "#fee2e2", color: "#991b1b", borderColor: "#fecaca" };
+    return {
+      ...base,
+      background: "#fee2e2",
+      color: "#991b1b",
+      borderColor: "#fecaca",
+    };
   }
 
   if (status === "Cancelled") {
-    return { ...base, background: "#f3f4f6", color: "#6b7280", borderColor: "#e5e7eb" };
+    return {
+      ...base,
+      background: "#f3f4f6",
+      color: "#6b7280",
+      borderColor: "#e5e7eb",
+    };
   }
 
-  return { ...base, background: "#fef3c7", color: "#92400e", borderColor: "#fde68a" };
+  return {
+    ...base,
+    background: "#fef3c7",
+    color: "#92400e",
+    borderColor: "#fde68a",
+  };
 }
 
 function getBalanceBadge(status) {
   const base = badgeBase;
 
   if (status === "Paid" || status === "No Charge") {
-    return { ...base, background: "#dcfce7", color: "#166534", borderColor: "#bbf7d0" };
+    return {
+      ...base,
+      background: "#dcfce7",
+      color: "#166534",
+      borderColor: "#bbf7d0",
+    };
   }
 
   if (status === "Promised") {
-    return { ...base, background: "#dbeafe", color: "#1d4ed8", borderColor: "#bfdbfe" };
+    return {
+      ...base,
+      background: "#dbeafe",
+      color: "#1d4ed8",
+      borderColor: "#bfdbfe",
+    };
   }
 
   if (status === "Partial") {
-    return { ...base, background: "#fef3c7", color: "#92400e", borderColor: "#fde68a" };
+    return {
+      ...base,
+      background: "#fef3c7",
+      color: "#92400e",
+      borderColor: "#fde68a",
+    };
   }
 
   if (status === "Overdue" || status === "Broken Promise") {
-    return { ...base, background: "#fee2e2", color: "#991b1b", borderColor: "#fecaca" };
+    return {
+      ...base,
+      background: "#fee2e2",
+      color: "#991b1b",
+      borderColor: "#fecaca",
+    };
   }
 
-  return { ...base, background: "#f3f4f6", color: "#374151", borderColor: "#d1d5db" };
+  return {
+    ...base,
+    background: "#f3f4f6",
+    color: "#374151",
+    borderColor: "#d1d5db",
+  };
 }
 
 const pageWrapper = {
@@ -464,19 +572,6 @@ const pageWrapper = {
 
 const topNav = {
   marginBottom: "18px",
-};
-
-const backLink = {
-  display: "inline-flex",
-  alignItems: "center",
-  color: "#0A1A2F",
-  textDecoration: "none",
-  fontWeight: "900",
-  background: "#ffffff",
-  border: "1px solid #e5e7eb",
-  borderRadius: "999px",
-  padding: "9px 13px",
-  boxShadow: "0 4px 12px rgba(15, 23, 42, 0.06)",
 };
 
 const profileHero = {
@@ -506,6 +601,11 @@ const avatarCircle = {
   flexShrink: 0,
 };
 
+const heroCustomerInfo = {
+  minWidth: 0,
+  flex: "1 1 320px",
+};
+
 const eyebrow = {
   fontSize: "12px",
   fontWeight: "900",
@@ -515,10 +615,31 @@ const eyebrow = {
   marginBottom: "8px",
 };
 
-const customerName = {
+const customerNameStyle = {
   margin: 0,
   fontSize: "30px",
   color: "white",
+  overflowWrap: "anywhere",
+};
+
+const companyNamePill = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "7px",
+  marginTop: "10px",
+  background: "rgba(255,255,255,0.13)",
+  border: "1px solid rgba(255,255,255,0.25)",
+  color: "#ffffff",
+  borderRadius: "999px",
+  padding: "7px 11px",
+  fontSize: "13px",
+  fontWeight: "900",
+  maxWidth: "100%",
+  overflowWrap: "anywhere",
+};
+
+const companyIcon = {
+  flexShrink: 0,
 };
 
 const customerMeta = {
@@ -528,6 +649,7 @@ const customerMeta = {
   marginTop: "9px",
   color: "#e5e7eb",
   fontSize: "13px",
+  overflowWrap: "anywhere",
 };
 
 const grandBalanceCard = {
@@ -539,6 +661,37 @@ const grandBalanceCard = {
   display: "grid",
   gap: "5px",
   minWidth: "220px",
+};
+
+const customerInfoGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: "12px",
+  marginBottom: "18px",
+};
+
+const infoTile = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "14px",
+  padding: "13px",
+  display: "grid",
+  gap: "5px",
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+  minWidth: 0,
+};
+
+const infoTileLabel = {
+  color: "#667085",
+  fontSize: "12px",
+  fontWeight: "900",
+  textTransform: "uppercase",
+};
+
+const infoTileValue = {
+  color: "#111827",
+  fontSize: "14px",
+  overflowWrap: "anywhere",
 };
 
 const metricGrid = {
@@ -700,17 +853,17 @@ const errorBox = {
 };
 
 const backButton = {
-    display: "inline-flex",
-    alignItems: "center",
-    color: "#0A1A2F",
-    textDecoration: "none",
-    fontWeight: "900",
-    background: "#ffffff",
-    border: "1px solid #e5e7eb",
-    borderRadius: "999px",
-    padding: "9px 13px",
-    boxShadow: "0 4px 12px rgba(15, 23, 42, 0.06)",
-    cursor: "pointer",
-  };
+  display: "inline-flex",
+  alignItems: "center",
+  color: "#0A1A2F",
+  textDecoration: "none",
+  fontWeight: "900",
+  background: "#ffffff",
+  border: "1px solid #e5e7eb",
+  borderRadius: "999px",
+  padding: "9px 13px",
+  boxShadow: "0 4px 12px rgba(15, 23, 42, 0.06)",
+  cursor: "pointer",
+};
 
 export default CustomerProfile;

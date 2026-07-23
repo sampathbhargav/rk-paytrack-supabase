@@ -178,215 +178,236 @@ function Dashboard() {
 
       {error && <div style={errorBox}>{error}</div>}
 
-{loading && deals.length === 0 ? (
-  <LoadingSpinner message="Loading dashboard data..." height="520px" />
-) : (
-  <>
-    <div style={prioritySection}>
-        <div style={sectionHeaderRow}>
-          <div>
-            <h2 style={sectionTitle}>Today’s Collection Priorities</h2>
-            <p style={sectionDescription}>
-              High-priority follow-ups that need attention today.
-            </p>
-          </div>
-        </div>
+      {loading && deals.length === 0 ? (
+        <LoadingSpinner message="Loading dashboard data..." height="520px" />
+      ) : (
+        <>
+          <div style={prioritySection}>
+            <div style={sectionHeaderRow}>
+              <div>
+                <h2 style={sectionTitle}>Today’s Collection Priorities</h2>
+                <p style={sectionDescription}>
+                  High-priority follow-ups that need attention today.
+                </p>
+              </div>
+            </div>
 
-        <div style={priorityCardGrid}>
-          <MetricCard
-            icon="🚨"
+            <div style={priorityCardGrid}>
+              <MetricCard
+                icon="🚨"
+                title="Past Due Customers"
+                value={pastDueScheduled.length}
+                subtitle="Scheduled payments late"
+                tone="danger"
+              />
+
+              <MetricCard
+                icon="💰"
+                title="Past Due Amount"
+                value={formatMoney(totalPastDueScheduled)}
+                subtitle="Remaining scheduled balance"
+                tone="danger"
+              />
+
+              <MetricCard
+                icon="📅"
+                title="Due Today"
+                value={scheduledDueToday.length}
+                subtitle={formatMoney(totalRemainingToday)}
+                tone="warning"
+              />
+
+              <MetricCard
+                icon="🤝"
+                title="Promises Due Today"
+                value={promisesDueToday.length}
+                subtitle={formatMoney(totalPromisesDueToday)}
+                tone="info"
+              />
+
+              <MetricCard
+                icon="⚠️"
+                title="Broken Promises"
+                value={brokenPromises.length}
+                subtitle="Promise date missed"
+                tone="danger"
+              />
+
+              <MetricCard
+                icon="📌"
+                title="Past Due Promise Amount"
+                value={formatMoney(totalPastDuePromiseAmount)}
+                subtitle="Broken promise balance"
+                tone="danger"
+              />
+            </div>
+          </div>
+
+          <div style={summaryStrip}>
+            <SummaryItem label="Active Deals" value={deals.length} />
+            <SummaryItem
+              label="Total Financed"
+              value={formatMoney(totalFinanced)}
+            />
+            <SummaryItem
+              label="Total Collected"
+              value={formatMoney(totalCollected)}
+            />
+            <SummaryItem
+              label="Pending Balance"
+              value={formatMoney(pendingBalance)}
+            />
+            <SummaryItem label="Pending Promises" value={pendingPromises.length} />
+          </div>
+
+          <DashboardSection
             title="Past Due Customers"
-            value={pastDueScheduled.length}
-            subtitle="Scheduled payments late"
+            description="Scheduled installments before today that still have remaining balance."
+            count={pastDueScheduled.length}
             tone="danger"
-          />
+          >
+            {pastDueScheduled.length === 0 ? (
+              <EmptyState
+                icon="✅"
+                title="No past due customers."
+                message="There are no unpaid scheduled installments before today."
+              />
+            ) : (
+              <PastDueTable items={pastDueScheduled} />
+            )}
+          </DashboardSection>
 
-          <MetricCard
-            icon="💰"
-            title="Past Due Amount"
-            value={formatMoney(totalPastDueScheduled)}
-            subtitle="Remaining scheduled balance"
+          <div style={twoColumnGrid}>
+            <DashboardSection
+              title="Due Today"
+              description="Scheduled installments due today that are unpaid or partially paid."
+              count={scheduledDueToday.length}
+              tone="warning"
+            >
+              {scheduledDueToday.length === 0 ? (
+                <EmptyState
+                  icon="📅"
+                  title="No scheduled payments due today."
+                  message="There are no active scheduled installments due today."
+                />
+              ) : (
+                <FollowUpTable items={scheduledDueToday} />
+              )}
+            </DashboardSection>
+
+            <DashboardSection
+              title="Promises Due Today"
+              description="Customer promises that need follow-up today."
+              count={promisesDueToday.length}
+              tone="info"
+            >
+              {promisesDueToday.length === 0 ? (
+                <EmptyState
+                  icon="🤝"
+                  title="No promises due today."
+                  message="There are no active customer promises due today."
+                />
+              ) : (
+                <PromiseFollowUpTable promises={promisesDueToday} />
+              )}
+            </DashboardSection>
+          </div>
+
+          <DashboardSection
+            title="Past Due Promises"
+            description="Customer promises where the promised date has passed and payment was not completed."
+            count={pastDuePromises.length}
             tone="danger"
-          />
+          >
+            {pastDuePromises.length === 0 ? (
+              <EmptyState
+                icon="✅"
+                title="No past due promises."
+                message="There are no broken customer promises at this time."
+              />
+            ) : (
+              <PromiseFollowUpTable promises={pastDuePromises} />
+            )}
+          </DashboardSection>
 
-          <MetricCard
-            icon="📅"
-            title="Due Today"
-            value={scheduledDueToday.length}
-            subtitle={formatMoney(totalRemainingToday)}
-            tone="warning"
-          />
+          <div style={twoColumnGrid}>
+            <div style={financeCard}>
+              <div style={sectionHeaderRow}>
+                <div>
+                  <h2 style={sectionTitle}>Financial Summary</h2>
+                  <p style={sectionDescription}>
+                    Overall collection and balance snapshot.
+                  </p>
+                </div>
+              </div>
 
-          <MetricCard
-            icon="🤝"
-            title="Promises Due Today"
-            value={promisesDueToday.length}
-            subtitle={formatMoney(totalPromisesDueToday)}
-            tone="info"
-          />
+              <div style={smallMetricGrid}>
+                <MiniCard title="Active Deals" value={deals.length} />
+                <MiniCard
+                  title="Total Financed"
+                  value={formatMoney(totalFinanced)}
+                />
+                <MiniCard
+                  title="Total Collected"
+                  value={formatMoney(totalCollected)}
+                />
+                <MiniCard
+                  title="Pending Balance"
+                  value={formatMoney(pendingBalance)}
+                />
+                <MiniCard title="Pending Promises" value={pendingPromises.length} />
+                <MiniCard
+                  title="Promise Amount Due Today"
+                  value={formatMoney(totalPromisesDueToday)}
+                />
+                <MiniCard
+                  title="Remaining Due Today"
+                  value={formatMoney(totalRemainingToday)}
+                />
+              </div>
+            </div>
 
-          <MetricCard
-            icon="⚠️"
-            title="Broken Promises"
-            value={brokenPromises.length}
-            subtitle="Promise date missed"
-            tone="danger"
-          />
+            <div style={financeCard}>
+              <div style={sectionHeaderRow}>
+                <div>
+                  <h2 style={sectionTitle}>Balance by Deal Type</h2>
+                  <p style={sectionDescription}>
+                    Current outstanding balance by finance category.
+                  </p>
+                </div>
+              </div>
 
-          <MetricCard
-            icon="📌"
-            title="Past Due Promise Amount"
-            value={formatMoney(totalPastDuePromiseAmount)}
-            subtitle="Broken promise balance"
-            tone="danger"
-          />
-        </div>
-      </div>
-
-      <div style={summaryStrip}>
-        <SummaryItem label="Active Deals" value={deals.length} />
-        <SummaryItem label="Total Financed" value={formatMoney(totalFinanced)} />
-        <SummaryItem label="Total Collected" value={formatMoney(totalCollected)} />
-        <SummaryItem label="Pending Balance" value={formatMoney(pendingBalance)} />
-        <SummaryItem label="Pending Promises" value={pendingPromises.length} />
-      </div>
-
-      <DashboardSection
-        title="Past Due Customers"
-        description="Scheduled installments before today that still have remaining balance."
-        count={pastDueScheduled.length}
-        tone="danger"
-      >
-        {pastDueScheduled.length === 0 ? (
-          <EmptyState
-            icon="✅"
-            title="No past due customers."
-            message="There are no unpaid scheduled installments before today."
-          />
-        ) : (
-          <PastDueTable items={pastDueScheduled} />
-        )}
-      </DashboardSection>
-
-      <div style={twoColumnGrid}>
-        <DashboardSection
-          title="Due Today"
-          description="Scheduled installments due today that are unpaid or partially paid."
-          count={scheduledDueToday.length}
-          tone="warning"
-        >
-          {scheduledDueToday.length === 0 ? (
-            <EmptyState
-              icon="📅"
-              title="No scheduled payments due today."
-              message="There are no active scheduled installments due today."
-            />
-          ) : (
-            <FollowUpTable items={scheduledDueToday} />
-          )}
-        </DashboardSection>
-
-        <DashboardSection
-          title="Promises Due Today"
-          description="Customer promises that need follow-up today."
-          count={promisesDueToday.length}
-          tone="info"
-        >
-          {promisesDueToday.length === 0 ? (
-            <EmptyState
-              icon="🤝"
-              title="No promises due today."
-              message="There are no active customer promises due today."
-            />
-          ) : (
-            <PromiseFollowUpTable promises={promisesDueToday} />
-          )}
-        </DashboardSection>
-      </div>
-
-      <DashboardSection
-        title="Past Due Promises"
-        description="Customer promises where the promised date has passed and payment was not completed."
-        count={pastDuePromises.length}
-        tone="danger"
-      >
-        {pastDuePromises.length === 0 ? (
-          <EmptyState
-            icon="✅"
-            title="No past due promises."
-            message="There are no broken customer promises at this time."
-          />
-        ) : (
-          <PromiseFollowUpTable promises={pastDuePromises} />
-        )}
-      </DashboardSection>
-
-      <div style={twoColumnGrid}>
-        <div style={financeCard}>
-          <div style={sectionHeaderRow}>
-            <div>
-              <h2 style={sectionTitle}>Financial Summary</h2>
-              <p style={sectionDescription}>
-                Overall collection and balance snapshot.
-              </p>
+              <div style={dealTypeList}>
+                <DealTypeRow
+                  label="In-house"
+                  value={balanceByDealType["In-house"] || 0}
+                />
+                <DealTypeRow
+                  label="Down Finance"
+                  value={balanceByDealType["Down Finance"] || 0}
+                />
+                <DealTypeRow
+                  label="Borrow Money"
+                  value={balanceByDealType["Borrow Money"] || 0}
+                />
+                <DealTypeRow
+                  label="Motor Finance"
+                  value={balanceByDealType["Motor Finance"] || 0}
+                />
+                <DealTypeRow
+                  label="Registration Money"
+                  value={balanceByDealType["Registration Money"] || 0}
+                />
+                <DealTypeRow
+                  label="Cash"
+                  value={balanceByDealType["Cash"] || 0}
+                />
+              </div>
             </div>
           </div>
-
-          <div style={smallMetricGrid}>
-            <MiniCard title="Active Deals" value={deals.length} />
-            <MiniCard title="Total Financed" value={formatMoney(totalFinanced)} />
-            <MiniCard title="Total Collected" value={formatMoney(totalCollected)} />
-            <MiniCard title="Pending Balance" value={formatMoney(pendingBalance)} />
-            <MiniCard title="Pending Promises" value={pendingPromises.length} />
-            <MiniCard
-              title="Promise Amount Due Today"
-              value={formatMoney(totalPromisesDueToday)}
-            />
-            <MiniCard
-              title="Remaining Due Today"
-              value={formatMoney(totalRemainingToday)}
-            />
-          </div>
-        </div>
-
-        <div style={financeCard}>
-          <div style={sectionHeaderRow}>
-            <div>
-              <h2 style={sectionTitle}>Balance by Deal Type</h2>
-              <p style={sectionDescription}>
-                Current outstanding balance by finance category.
-              </p>
-            </div>
-          </div>
-
-          <div style={dealTypeList}>
-            <DealTypeRow
-              label="In-house"
-              value={balanceByDealType["In-house"] || 0}
-            />
-            <DealTypeRow
-              label="Down Finance"
-              value={balanceByDealType["Down Finance"] || 0}
-            />
-            <DealTypeRow
-              label="Borrow Money"
-              value={balanceByDealType["Borrow Money"] || 0}
-            />
-            <DealTypeRow
-              label="Motor Finance"
-              value={balanceByDealType["Motor Finance"] || 0}
-            />
-            <DealTypeRow
-              label="Registration Money"
-              value={balanceByDealType["Registration Money"] || 0}
-            />
-            <DealTypeRow label="Cash" value={balanceByDealType["Cash"] || 0} />
-          </div>
-          </div>
-      </div>
-    </>
-  )}
-</div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -407,6 +428,16 @@ function DashboardSection({ title, description, count, tone, children }) {
   );
 }
 
+function CustomerCompanyCell({ customerName, companyName }) {
+  return (
+    <div style={customerCellContent}>
+      <strong style={customerNameText}>{customerName || "—"}</strong>
+
+      {companyName && <span style={companyNameText}>🏢 {companyName}</span>}
+    </div>
+  );
+}
+
 function PastDueTable({ items }) {
   return (
     <div style={tableScroll}>
@@ -414,7 +445,7 @@ function PastDueTable({ items }) {
         <thead>
           <tr>
             <th style={stickyTh}>Deal Tag</th>
-            <th style={{ ...th, width: "180px" }}>Customer</th>
+            <th style={{ ...th, width: "220px" }}>Customer</th>
             <th style={{ ...th, width: "120px" }}>Original Due</th>
             <th style={{ ...th, width: "100px" }}>Installment</th>
             <th style={{ ...th, width: "115px" }}>Amount Due</th>
@@ -445,7 +476,10 @@ function PastDueTable({ items }) {
               </td>
 
               <td style={customerCell}>
-                {item.deal.customers?.customer_name || "—"}
+                <CustomerCompanyCell
+                  customerName={item.deal.customers?.customer_name}
+                  companyName={item.deal.customers?.company_name}
+                />
               </td>
 
               <td style={td}>{formatDisplayDate(item.dueDate)}</td>
@@ -480,7 +514,7 @@ function FollowUpTable({ items }) {
         <thead>
           <tr>
             <th style={stickyTh}>Deal Tag</th>
-            <th style={{ ...th, width: "180px" }}>Customer</th>
+            <th style={{ ...th, width: "220px" }}>Customer</th>
             <th style={{ ...th, width: "120px" }}>Due Date</th>
             <th style={{ ...th, width: "100px" }}>Installment</th>
             <th style={{ ...th, width: "110px" }}>Due</th>
@@ -510,7 +544,10 @@ function FollowUpTable({ items }) {
               </td>
 
               <td style={customerCell}>
-                {item.deal.customers?.customer_name || "—"}
+                <CustomerCompanyCell
+                  customerName={item.deal.customers?.customer_name}
+                  companyName={item.deal.customers?.company_name}
+                />
               </td>
 
               <td style={td}>{formatDisplayDate(item.dueDate)}</td>
@@ -539,7 +576,7 @@ function PromiseFollowUpTable({ promises }) {
         <thead>
           <tr>
             <th style={stickyTh}>Deal Tag</th>
-            <th style={{ ...th, width: "180px" }}>Customer</th>
+            <th style={{ ...th, width: "220px" }}>Customer</th>
             <th style={{ ...th, width: "125px" }}>Phone</th>
             <th style={{ ...th, width: "125px" }}>Original Due</th>
             <th style={{ ...th, width: "130px" }}>Promised Date</th>
@@ -574,7 +611,10 @@ function PromiseFollowUpTable({ promises }) {
               </td>
 
               <td style={customerCell}>
-                {promise.deals?.customers?.customer_name || "—"}
+                <CustomerCompanyCell
+                  customerName={promise.deals?.customers?.customer_name}
+                  companyName={promise.deals?.customers?.company_name}
+                />
               </td>
 
               <td style={td}>{promise.deals?.customers?.phone || "—"}</td>
@@ -1091,7 +1131,7 @@ const tableScroll = {
 
 const pastDueTableStyle = {
   width: "100%",
-  minWidth: "1160px",
+  minWidth: "1220px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -1099,7 +1139,7 @@ const pastDueTableStyle = {
 
 const dueTodayTableStyle = {
   width: "100%",
-  minWidth: "950px",
+  minWidth: "1010px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -1107,7 +1147,7 @@ const dueTodayTableStyle = {
 
 const promiseTableStyle = {
   width: "100%",
-  minWidth: "1000px",
+  minWidth: "1060px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -1164,9 +1204,45 @@ const customerCell = {
   ...td,
   whiteSpace: "normal",
   wordBreak: "break-word",
+  overflowWrap: "anywhere",
   lineHeight: "1.35",
   color: "#111827",
   fontWeight: "700",
+  overflow: "visible",
+  textOverflow: "clip",
+};
+
+const customerCellContent = {
+  display: "grid",
+  gap: "5px",
+  maxWidth: "100%",
+  minWidth: 0,
+};
+
+const customerNameText = {
+  color: "#0A1A2F",
+  fontWeight: "900",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+  lineHeight: "1.25",
+};
+
+const companyNameText = {
+  color: "#1d4ed8",
+  fontSize: "11px",
+  fontWeight: "900",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  padding: "4px 7px",
+  display: "inline-flex",
+  width: "fit-content",
+  maxWidth: "100%",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+  lineHeight: "1.25",
 };
 
 const moneyDueCell = {

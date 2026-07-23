@@ -22,11 +22,11 @@ function DealTable({ deals, loading = false }) {
   const sortedDeals = [...deals].sort((a, b) => {
     const aTag = Number(a.deal_tag);
     const bTag = Number(b.deal_tag);
-  
+
     if (!Number.isNaN(aTag) && !Number.isNaN(bTag)) {
       return bTag - aTag;
     }
-  
+
     return String(b.deal_tag || "").localeCompare(String(a.deal_tag || ""));
   });
 
@@ -36,8 +36,8 @@ function DealTable({ deals, loading = false }) {
         <div>
           <h3 style={tableTitle}>Deal List</h3>
           <p style={tableSubtitle}>
-          Showing {sortedDeals.length} customer deal
-          {sortedDeals.length === 1 ? "" : "s"}
+            Showing {sortedDeals.length} customer deal
+            {sortedDeals.length === 1 ? "" : "s"}
           </p>
         </div>
 
@@ -49,7 +49,7 @@ function DealTable({ deals, loading = false }) {
           <table style={tableStyle}>
             <colgroup>
               <col style={{ width: "125px" }} />
-              <col style={{ width: "210px" }} />
+              <col style={{ width: "250px" }} />
               <col style={{ width: "135px" }} />
               <col style={{ width: "125px" }} />
               <col style={{ width: "145px" }} />
@@ -78,24 +78,16 @@ function DealTable({ deals, loading = false }) {
             </thead>
 
             <tbody>
-              {sortedDeals.map((deal, index) => (
-                <tr
-                  key={deal.id}
-                  style={{
-                    ...tableRow,
-                    background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#eef2ff";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background =
-                      index % 2 === 0 ? "#ffffff" : "#f8fafc";
-                  }}
-                >
-                  <td
+              {sortedDeals.map((deal, index) => {
+                const customerId = deal.customer_id || deal.customers?.id;
+                const customerName = deal.customers?.customer_name || "—";
+                const companyName = deal.customers?.company_name || "";
+
+                return (
+                  <tr
+                    key={deal.id}
                     style={{
-                      ...stickyTd,
+                      ...tableRow,
                       background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
                     }}
                     onMouseEnter={(e) => {
@@ -106,68 +98,92 @@ function DealTable({ deals, loading = false }) {
                         index % 2 === 0 ? "#ffffff" : "#f8fafc";
                     }}
                   >
-                    <Link to={`/deals/${deal.id}`} style={dealLink}>
-                      {deal.deal_tag || "—"}
-                    </Link>
-                  </td>
-
-                  <td style={customerCell}>
-                    {deal.customer_id ? (
-                      <Link to={`/customers/${deal.customer_id}`} style={customerLink}>
-                        {deal.customers?.customer_name || "—"}
+                    <td
+                      style={{
+                        ...stickyTd,
+                        background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "#eef2ff";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background =
+                          index % 2 === 0 ? "#ffffff" : "#f8fafc";
+                      }}
+                    >
+                      <Link to={`/deals/${deal.id}`} style={dealLink}>
+                        {deal.deal_tag || "—"}
                       </Link>
-                    ) : deal.customers?.id ? (
-                      <Link to={`/customers/${deal.customers.id}`} style={customerLink}>
-                        {deal.customers?.customer_name || "—"}
-                      </Link>
-                    ) : (
-                      <strong>{deal.customers?.customer_name || "—"}</strong>
-                    )}
-                  </td>
+                    </td>
 
-                  <td style={td}>{deal.customers?.phone || "—"}</td>
+                    <td style={customerCell}>
+                      {customerId ? (
+                        <Link
+                          to={`/customers/${customerId}`}
+                          style={customerLink}
+                        >
+                          {customerName}
+                        </Link>
+                      ) : (
+                        <strong style={customerNameText}>{customerName}</strong>
+                      )}
 
-                  <td style={td}>
-                    <span style={getStatusStyle(deal.status)}>
-                      {deal.status || "Active"}
-                    </span>
-                  </td>
+                      {companyName && (
+                        <div style={companyNameText}>🏢 {companyName}</div>
+                      )}
 
-                  <td style={wrapCell}>
-                    <span style={dealTypeBadge}>{deal.deal_type || "—"}</span>
-                  </td>
+                      {deal.customers?.address && (
+                        <div style={customerAddressText}>
+                          {deal.customers.address}
+                        </div>
+                      )}
+                    </td>
 
-                  <td style={wrapCell}>
-                    <span style={truckText}>
-                      {`${deal.year || ""} ${deal.truck || ""}`.trim() || "—"}
-                    </span>
-                  </td>
+                    <td style={td}>{deal.customers?.phone || "—"}</td>
 
-                  <td style={rightMoneyCell}>
-                    {formatMoney(deal.total_amount)}
-                  </td>
+                    <td style={td}>
+                      <span style={getStatusStyle(deal.status)}>
+                        {deal.status || "Active"}
+                      </span>
+                    </td>
 
-                  <td style={rightMoneyCell}>
-                    {formatMoney(deal.monthly_payment)}
-                  </td>
+                    <td style={wrapCell}>
+                      <span style={dealTypeBadge}>{deal.deal_type || "—"}</span>
+                    </td>
 
-                  <td style={centerCell}>{deal.due_day || "—"}</td>
+                    <td style={wrapCell}>
+                      <span style={truckText}>
+                        {`${deal.year || ""} ${deal.truck || ""}`.trim() ||
+                          "—"}
+                      </span>
+                    </td>
 
-                  <td style={centerCell}>{deal.term || "—"}</td>
+                    <td style={rightMoneyCell}>
+                      {formatMoney(deal.total_amount)}
+                    </td>
 
-                  <td style={centerCell}>
-                    <div style={actionGroup}>
-                      <Link to={`/deals/${deal.id}`} style={viewLink}>
-                        View
-                      </Link>
+                    <td style={rightMoneyCell}>
+                      {formatMoney(deal.monthly_payment)}
+                    </td>
 
-                      <Link to={`/deals/${deal.id}/edit`} style={editLink}>
-                        Edit
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    <td style={centerCell}>{deal.due_day || "—"}</td>
+
+                    <td style={centerCell}>{deal.term || "—"}</td>
+
+                    <td style={centerCell}>
+                      <div style={actionGroup}>
+                        <Link to={`/deals/${deal.id}`} style={viewLink}>
+                          View
+                        </Link>
+
+                        <Link to={`/deals/${deal.id}/edit`} style={editLink}>
+                          Edit
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -310,7 +326,7 @@ const tableScroll = {
 
 const tableStyle = {
   width: "100%",
-  minWidth: "1490px",
+  minWidth: "1530px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -376,8 +392,11 @@ const stickyTd = {
 const customerCell = {
   ...td,
   whiteSpace: "normal",
+  overflow: "visible",
+  textOverflow: "clip",
   wordBreak: "break-word",
-  lineHeight: "1.4",
+  overflowWrap: "anywhere",
+  lineHeight: "1.35",
   color: "#111827",
 };
 
@@ -385,6 +404,7 @@ const wrapCell = {
   ...td,
   whiteSpace: "normal",
   wordBreak: "break-word",
+  overflowWrap: "anywhere",
   lineHeight: "1.35",
 };
 
@@ -406,6 +426,53 @@ const dealLink = {
   textDecoration: "none",
   fontSize: "15px",
   cursor: "pointer",
+};
+
+const customerLink = {
+  color: "#0A1A2F",
+  fontWeight: "900",
+  textDecoration: "underline",
+  textUnderlineOffset: "3px",
+  cursor: "pointer",
+  display: "inline-block",
+  maxWidth: "100%",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+};
+
+const customerNameText = {
+  color: "#0A1A2F",
+  fontWeight: "900",
+  display: "inline-block",
+  maxWidth: "100%",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+};
+
+const companyNameText = {
+  marginTop: "5px",
+  color: "#1d4ed8",
+  fontSize: "12px",
+  fontWeight: "900",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  padding: "5px 8px",
+  display: "inline-flex",
+  maxWidth: "100%",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+};
+
+const customerAddressText = {
+  marginTop: "5px",
+  color: "#667085",
+  fontSize: "12px",
+  lineHeight: "1.35",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
 };
 
 const dealTypeBadge = {
@@ -465,14 +532,6 @@ const emptyState = {
 const emptyIcon = {
   fontSize: "34px",
   marginBottom: "10px",
-};
-
-const customerLink = {
-  color: "#0A1A2F",
-  fontWeight: "900",
-  textDecoration: "underline",
-  textUnderlineOffset: "3px",
-  cursor: "pointer",
 };
 
 export default DealTable;

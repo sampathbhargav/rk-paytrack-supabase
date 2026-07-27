@@ -9,6 +9,18 @@ const customerJoin = `
   address
 `;
 
+function normalizeReferralPaid(value) {
+  return value === true || value === "true" || value === "Yes" || value === "Paid";
+}
+
+function normalizeReferralAmount(dealData) {
+  const isPaid = normalizeReferralPaid(dealData.referralMoneyPaid);
+
+  if (!isPaid) return 0;
+
+  return Number(dealData.referralAmountPaid || 0);
+}
+
 export async function getDeals() {
   const { data, error } = await supabase
     .from("deals")
@@ -61,6 +73,7 @@ export async function getDealByTag(dealTag) {
 
 export async function createDeal(dealData) {
   const isCashDeal = dealData.dealType === "Cash";
+  const referralMoneyPaid = normalizeReferralPaid(dealData.referralMoneyPaid);
 
   const { data, error } = await supabase
     .from("deals")
@@ -91,6 +104,11 @@ export async function createDeal(dealData) {
 
       maturity_date: isCashDeal ? null : dealData.maturityDate || null,
 
+      referred_by_name: dealData.referredByName || "",
+      referred_by_phone: dealData.referredByPhone || "",
+      referral_money_paid: referralMoneyPaid,
+      referral_amount_paid: normalizeReferralAmount(dealData),
+
       status: dealData.status || "Active",
       notes: dealData.notes || "",
     })
@@ -109,6 +127,7 @@ export async function createDeal(dealData) {
 
 export async function updateDeal(dealId, dealData) {
   const isCashDeal = dealData.dealType === "Cash";
+  const referralMoneyPaid = normalizeReferralPaid(dealData.referralMoneyPaid);
 
   const { data, error } = await supabase
     .from("deals")
@@ -137,6 +156,11 @@ export async function updateDeal(dealId, dealData) {
       term: isCashDeal ? null : dealData.term ? Number(dealData.term) : null,
 
       maturity_date: isCashDeal ? null : dealData.maturityDate || null,
+
+      referred_by_name: dealData.referredByName || "",
+      referred_by_phone: dealData.referredByPhone || "",
+      referral_money_paid: referralMoneyPaid,
+      referral_amount_paid: normalizeReferralAmount(dealData),
 
       status: dealData.status || "Active",
       notes: dealData.notes || "",

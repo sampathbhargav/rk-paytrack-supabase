@@ -30,6 +30,10 @@ const initialFormData = {
   dueDay: "",
   term: "",
   maturityDate: "",
+  referredByName: "",
+  referredByPhone: "",
+  referralMoneyPaid: "No",
+  referralAmountPaid: "",
   notes: "",
 };
 
@@ -134,6 +138,12 @@ function DealForm() {
       if (name === "customerName") {
         updated.selectedCustomerId = "";
         setCustomerSearchOpen(true);
+      }
+
+      if (name === "referralMoneyPaid") {
+        if (value === "No") {
+          updated.referralAmountPaid = "";
+        }
       }
 
       if (name === "dealType") {
@@ -241,6 +251,10 @@ function DealForm() {
       truck: formData.truck.trim(),
       year: formData.year.trim(),
       vin: formData.vin.trim().toUpperCase(),
+      referredByName: formData.referredByName.trim(),
+      referredByPhone: formData.referredByPhone.trim(),
+      referralMoneyPaid: formData.referralMoneyPaid,
+      referralAmountPaid: formData.referralAmountPaid,
       notes: formData.notes.trim(),
     };
   };
@@ -278,6 +292,20 @@ function DealForm() {
 
     if (!data.totalAmount || Number(data.totalAmount) <= 0) {
       return "Total amount must be greater than 0.";
+    }
+
+    if (
+      data.referralAmountPaid &&
+      Number(data.referralAmountPaid) < 0
+    ) {
+      return "Referral amount paid cannot be negative.";
+    }
+
+    if (
+      data.referralMoneyPaid === "Yes" &&
+      (!data.referralAmountPaid || Number(data.referralAmountPaid) <= 0)
+    ) {
+      return "Referral amount paid is required when referral money is marked as paid.";
     }
 
     if (data.dealType === "Registration Money") {
@@ -409,6 +437,13 @@ function DealForm() {
             : data.dealType === "Registration Money"
             ? data.startDate
             : data.maturityDate,
+        referredByName: data.referredByName,
+        referredByPhone: data.referredByPhone,
+        referralMoneyPaid: data.referralMoneyPaid === "Yes",
+        referralAmountPaid:
+          data.referralMoneyPaid === "Yes"
+            ? Number(data.referralAmountPaid || 0)
+            : 0,
         notes: data.notes,
       });
 
@@ -457,6 +492,13 @@ function DealForm() {
               : data.dealType === "Registration Money"
               ? data.startDate
               : data.maturityDate,
+          referred_by_name: data.referredByName || "",
+          referred_by_phone: data.referredByPhone || "",
+          referral_money_paid: data.referralMoneyPaid === "Yes",
+          referral_amount_paid:
+            data.referralMoneyPaid === "Yes"
+              ? Number(data.referralAmountPaid || 0)
+              : 0,
           notes: data.notes,
         },
       });
@@ -709,6 +751,60 @@ function DealForm() {
       </Section>
 
       <Section
+        title="Referral Information"
+        description="Optional referral tracking for who referred this customer and whether referral money was paid."
+      >
+        <div style={referralInfoBox}>
+          Add referral information only if this customer or deal came from a
+          referral. Leave it blank if there is no referral.
+        </div>
+
+        <div style={grid}>
+          <Input
+            label="Referred By Name"
+            name="referredByName"
+            value={formData.referredByName}
+            onChange={handleChange}
+            placeholder="Example: John Smith"
+            helperText="Optional"
+          />
+
+          <Input
+            label="Referred By Phone"
+            name="referredByPhone"
+            value={formData.referredByPhone}
+            onChange={handleChange}
+            placeholder="Example: 2145551111"
+            helperText="Optional"
+          />
+
+          <Select
+            label="Referral Money Paid?"
+            name="referralMoneyPaid"
+            value={formData.referralMoneyPaid}
+            onChange={handleChange}
+            options={["No", "Yes"]}
+            required
+          />
+
+          <Input
+            label="Referral Amount Paid"
+            name="referralAmountPaid"
+            type="number"
+            value={formData.referralAmountPaid}
+            onChange={handleChange}
+            placeholder="Example: 500"
+            disabled={formData.referralMoneyPaid === "No"}
+            helperText={
+              formData.referralMoneyPaid === "Yes"
+                ? "Required when referral money is marked paid."
+                : "Disabled unless referral money is paid."
+            }
+          />
+        </div>
+      </Section>
+
+      <Section
         title="Payment Schedule"
         description={
           isCashDeal
@@ -804,13 +900,13 @@ function DealForm() {
 
       <Section
         title="Internal Deal Notes"
-        description="Special agreements, title notes, tax/title details, down payment details, or internal comments."
+        description="Special agreements, title notes, tax/title details, down payment details, referral notes, or internal comments."
       >
         <textarea
           name="notes"
           value={formData.notes}
           onChange={handleChange}
-          placeholder="Example: Customer paid $2,500 cash for tax/title. Remaining amount financed over 7 months..."
+          placeholder="Example: Customer paid $2,500 cash for tax/title. Referral paid $500 to John Smith..."
           style={notesInput}
         />
       </Section>
@@ -1151,6 +1247,16 @@ const infoBox = {
   borderRadius: "10px",
   color: "#475569",
   marginBottom: "16px",
+};
+
+const referralInfoBox = {
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  padding: "13px",
+  borderRadius: "10px",
+  color: "#1d4ed8",
+  marginBottom: "16px",
+  fontWeight: "800",
 };
 
 export default DealForm;

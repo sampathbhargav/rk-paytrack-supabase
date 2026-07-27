@@ -32,6 +32,10 @@ function EditDeal() {
     dueDay: "",
     term: "",
     maturityDate: "",
+    referredByName: "",
+    referredByPhone: "",
+    referralMoneyPaid: "No",
+    referralAmountPaid: "",
     status: "Active",
     notes: "",
   });
@@ -76,6 +80,13 @@ function EditDeal() {
         dueDay: deal.due_day || "",
         term: deal.term || "",
         maturityDate: deal.maturity_date || "",
+        referredByName: deal.referred_by_name || "",
+        referredByPhone: deal.referred_by_phone || "",
+        referralMoneyPaid: deal.referral_money_paid ? "Yes" : "No",
+        referralAmountPaid:
+          Number(deal.referral_amount_paid || 0) > 0
+            ? deal.referral_amount_paid
+            : "",
         status: deal.status || "Active",
         notes: deal.notes || "",
       };
@@ -100,6 +111,10 @@ function EditDeal() {
       truck: data.truck.trim(),
       year: data.year.trim(),
       vin: data.vin.trim().toUpperCase(),
+      referredByName: data.referredByName.trim(),
+      referredByPhone: data.referredByPhone.trim(),
+      referralMoneyPaid: data.referralMoneyPaid,
+      referralAmountPaid: data.referralAmountPaid,
       notes: data.notes.trim(),
     };
   };
@@ -115,6 +130,10 @@ function EditDeal() {
         ...prev,
         [name]: value,
       };
+
+      if (name === "referralMoneyPaid" && value === "No") {
+        updated.referralAmountPaid = "";
+      }
 
       if (name === "dealType") {
         if (value !== "In-house") {
@@ -242,6 +261,17 @@ function EditDeal() {
 
     if (!data.totalAmount || Number(data.totalAmount) < 0) {
       return "Total amount is required and cannot be negative.";
+    }
+
+    if (data.referralAmountPaid && Number(data.referralAmountPaid) < 0) {
+      return "Referral amount paid cannot be negative.";
+    }
+
+    if (
+      data.referralMoneyPaid === "Yes" &&
+      (!data.referralAmountPaid || Number(data.referralAmountPaid) <= 0)
+    ) {
+      return "Referral amount paid is required when referral money is marked as paid.";
     }
 
     if (data.dealType === "Registration Money") {
@@ -383,6 +413,13 @@ function EditDeal() {
         dueDay: finalDueDay,
         term: finalTerm,
         maturityDate: finalMaturityDate,
+        referredByName: data.referredByName,
+        referredByPhone: data.referredByPhone,
+        referralMoneyPaid: data.referralMoneyPaid === "Yes",
+        referralAmountPaid:
+          data.referralMoneyPaid === "Yes"
+            ? Number(data.referralAmountPaid || 0)
+            : 0,
         status: data.status,
         notes: data.notes,
       });
@@ -430,8 +467,8 @@ function EditDeal() {
         <div>
           <h1 style={pageTitle}>Edit Deal</h1>
           <p style={pageDescription}>
-            Update customer information, company name, deal details, schedule
-            fields, status, and internal notes.
+            Update customer information, company name, deal details, referral
+            information, schedule fields, status, and internal notes.
           </p>
         </div>
 
@@ -594,6 +631,57 @@ function EditDeal() {
         </Section>
 
         <Section
+          title="Referral Information"
+          description="Optional referral tracking for who referred this customer and whether referral money was paid."
+        >
+          <div style={referralInfoBox}>
+            Use this section to track the person who referred the customer, their
+            phone number, and whether referral money has already been paid.
+          </div>
+
+          <div style={grid}>
+            <Input
+              label="Referred By Name"
+              name="referredByName"
+              value={formData.referredByName}
+              onChange={handleChange}
+              helperText="Optional"
+            />
+
+            <Input
+              label="Referred By Phone"
+              name="referredByPhone"
+              value={formData.referredByPhone}
+              onChange={handleChange}
+              helperText="Optional"
+            />
+
+            <Select
+              label="Referral Money Paid?"
+              name="referralMoneyPaid"
+              value={formData.referralMoneyPaid}
+              onChange={handleChange}
+              options={["No", "Yes"]}
+              required
+            />
+
+            <Input
+              label="Referral Amount Paid"
+              name="referralAmountPaid"
+              type="number"
+              value={formData.referralAmountPaid}
+              onChange={handleChange}
+              disabled={formData.referralMoneyPaid === "No"}
+              helperText={
+                formData.referralMoneyPaid === "Yes"
+                  ? "Required when referral money is marked paid."
+                  : "Disabled unless referral money is paid."
+              }
+            />
+          </div>
+        </Section>
+
+        <Section
           title="Payment Schedule"
           description={
             isCashDeal
@@ -690,7 +778,7 @@ function EditDeal() {
 
         <Section
           title="Internal Deal Notes"
-          description="Special terms, title notes, payment notes, customer agreements, or internal dealership notes."
+          description="Special terms, title notes, payment notes, referral notes, customer agreements, or internal dealership notes."
         >
           <textarea
             name="notes"
@@ -961,6 +1049,16 @@ const infoBox = {
   borderRadius: "10px",
   color: "#475569",
   marginBottom: "16px",
+};
+
+const referralInfoBox = {
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  padding: "13px",
+  borderRadius: "10px",
+  color: "#1d4ed8",
+  marginBottom: "16px",
+  fontWeight: "800",
 };
 
 const buttonRow = {

@@ -82,6 +82,13 @@ function CustomerDetail() {
 
   const customerCompanyName = deal.customers?.company_name?.trim() || "";
 
+  const referredByName = deal.referred_by_name?.trim() || "";
+  const referredByPhone = deal.referred_by_phone?.trim() || "";
+  const referralMoneyPaid = Boolean(deal.referral_money_paid);
+  const referralAmountPaid = Number(deal.referral_amount_paid || 0);
+  const hasReferralInfo =
+    referredByName || referredByPhone || referralAmountPaid > 0;
+
   const activePayments = payments.filter(
     (payment) => payment.payment_status !== "Voided"
   );
@@ -419,6 +426,57 @@ function CustomerDetail() {
               value={activePayments.length}
               tone="default"
             />
+          </div>
+
+          <div style={referralCard}>
+            <div style={referralHeader}>
+              <div>
+                <div style={referralLabel}>Referral Information</div>
+                <h3 style={referralTitle}>Referred By</h3>
+              </div>
+
+              <span
+                style={referralMoneyPaid ? referralPaidBadge : referralNotPaidBadge}
+              >
+                {referralMoneyPaid ? "Paid" : "Not Paid"}
+              </span>
+            </div>
+
+            {hasReferralInfo ? (
+              <div style={referralGrid}>
+                <div style={referralInfoBox}>
+                  <span style={referralInfoLabel}>Name</span>
+                  <strong style={referralInfoValue}>
+                    {referredByName || "—"}
+                  </strong>
+                </div>
+
+                <div style={referralInfoBox}>
+                  <span style={referralInfoLabel}>Phone</span>
+                  <strong style={referralInfoValue}>
+                    {referredByPhone || "—"}
+                  </strong>
+                </div>
+
+                <div style={referralInfoBox}>
+                  <span style={referralInfoLabel}>Referral Money Paid?</span>
+                  <strong style={referralInfoValue}>
+                    {referralMoneyPaid ? "Yes" : "No"}
+                  </strong>
+                </div>
+
+                <div style={referralInfoBox}>
+                  <span style={referralInfoLabel}>Amount Paid</span>
+                  <strong style={referralAmountValue}>
+                    {formatMoney(referralAmountPaid)}
+                  </strong>
+                </div>
+              </div>
+            ) : (
+              <div style={referralEmptyState}>
+                No referral information added for this deal.
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -1109,6 +1167,103 @@ const metricValue = {
   color: "#111827",
   fontSize: "17px",
   wordBreak: "break-word",
+};
+
+const referralCard = {
+  marginTop: "16px",
+  background: "rgba(255,255,255,0.96)",
+  border: "1px solid rgba(255,255,255,0.24)",
+  borderRadius: "18px",
+  padding: "16px",
+  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.12)",
+};
+
+const referralHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "12px",
+  marginBottom: "14px",
+  flexWrap: "wrap",
+};
+
+const referralLabel = {
+  color: "#2563eb",
+  fontSize: "11px",
+  fontWeight: "900",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  marginBottom: "5px",
+};
+
+const referralTitle = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "18px",
+};
+
+const referralPaidBadge = {
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #bbf7d0",
+  borderRadius: "999px",
+  padding: "7px 12px",
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
+const referralNotPaidBadge = {
+  background: "#fee2e2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+  borderRadius: "999px",
+  padding: "7px 12px",
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
+const referralGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+  gap: "12px",
+};
+
+const referralInfoBox = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "14px",
+  padding: "12px",
+};
+
+const referralInfoLabel = {
+  display: "block",
+  color: "#667085",
+  fontSize: "11px",
+  fontWeight: "900",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  marginBottom: "5px",
+};
+
+const referralInfoValue = {
+  color: "#111827",
+  fontSize: "15px",
+  wordBreak: "break-word",
+};
+
+const referralAmountValue = {
+  color: "#166534",
+  fontSize: "16px",
+  fontWeight: "900",
+};
+
+const referralEmptyState = {
+  background: "#f8fafc",
+  border: "1px dashed #cbd5e1",
+  color: "#667085",
+  borderRadius: "14px",
+  padding: "14px",
+  fontWeight: "800",
 };
 
 const notesPanel = {

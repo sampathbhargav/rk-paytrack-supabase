@@ -10,7 +10,7 @@ function AddDeal() {
           <h1 style={pageTitle}>Add Customer / Deal</h1>
           <p style={pageDescription}>
             Create a new customer profile, optional company name, deal record,
-            and payment schedule in RK PayTrack.
+            referral information, and payment schedule in RK PayTrack.
           </p>
         </div>
 
@@ -39,6 +39,12 @@ function AddDeal() {
           title="Payment Schedule"
           description="Set total amount, monthly payment, due day, term, and maturity."
         />
+
+        <InfoCard
+          icon="🤝"
+          title="Referral Information"
+          description="Add referred by name, phone number, referral paid status, and referral amount paid."
+        />
       </div>
 
       <div style={formCard}>
@@ -47,8 +53,9 @@ function AddDeal() {
             <h2 style={sectionTitle}>New Deal Form</h2>
             <p style={sectionDescription}>
               Complete the form carefully. Customer name is required, but company
-              name is optional. This information will be used for schedules,
-              payments, promises, receipts, and reports.
+              name and referral information are optional. This information will
+              be used for schedules, payments, promises, receipts, reports, and
+              referral tracking.
             </p>
           </div>
 

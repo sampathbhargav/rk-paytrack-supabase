@@ -78,7 +78,28 @@ function PaymentForm() {
 
   const amountDue = Number(formData.amountDue || 0);
   const amountPaid = Number(formData.amountPaid || 0);
-  const remainingAmount = Math.max(amountDue - amountPaid, 0);
+
+  const totalOpenFromSelected = getTotalOpenFromSelectedInstallment(
+    installmentOptions,
+    formData.dueDate
+  );
+
+  const paymentAllocations =
+    selectedDeal && formData.dueDate && amountPaid > 0
+      ? buildPaymentAllocations(installmentOptions, formData.dueDate, amountPaid)
+      : [];
+
+  const selectedInstallmentRemainingAfterPayment = Math.max(
+    amountDue - amountPaid,
+    0
+  );
+
+  const totalRemainingAfterPayment = Math.max(
+    totalOpenFromSelected - amountPaid,
+    0
+  );
+
+  const extraPaymentAmount = Math.max(amountPaid - amountDue, 0);
 
   const clearStatusMessages = () => {
     setMessage("");
@@ -150,20 +171,26 @@ function PaymentForm() {
       return "Amount paid must be greater than 0.";
     }
 
-    if (Number(formData.amountPaid) > Number(formData.amountDue)) {
-      return "Amount paid cannot be greater than the remaining amount for this installment.";
+    if (Number(formData.amountPaid) > Number(totalOpenFromSelected || 0)) {
+      return `Amount paid cannot be greater than the total open balance from this installment forward. Maximum allowed is ${formatMoney(
+        totalOpenFromSelected
+      )}.`;
     }
 
     if (!formData.paymentMethod) {
       return "Payment method is required.";
     }
 
-    if (remainingAmount > 0 && !formData.promisedDate) {
-      return "Promised date is required when the customer pays partial amount.";
+    if (amountPaid < amountDue && !formData.promisedDate) {
+      return "Promised date is required when the customer pays a partial amount on the selected installment.";
     }
 
     if (formData.promisedDate && formData.promisedDate < formData.paymentDate) {
       return "Promised date cannot be before the payment date.";
+    }
+
+    if (paymentAllocations.length === 0) {
+      return "Unable to apply this payment to the selected installment.";
     }
 
     return "";
@@ -171,56 +198,97 @@ function PaymentForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-  
+
     setMessage("");
     setMessageType("");
     setReceiptPrompt(null);
     setReceipt(null);
-  
+
     const validationError = validatePaymentForm();
-  
+
     if (validationError) {
       setMessage(validationError);
       setMessageType("error");
       scrollToMessageArea();
       return;
     }
-  
+
+    const allocationText = paymentAllocations
+      .map(
+        (allocation) =>
+          `Installment ${allocation.installmentNumber} (${formatDisplayDate(
+            allocation.dueDate
+          )}) - ${formatMoney(allocation.amountApplied)}`
+      )
+      .join("\n");
+
     const confirmed = window.confirm(
-      "Are you sure you want to save this payment? This will affect the balance and payment schedule."
+      `Are you sure you want to save this payment?\n\nThis payment will be applied like this:\n\n${allocationText}`
     );
-  
+
     if (!confirmed) return;
-  
+
     try {
       setIsSaving(true);
-  
+
       const selectedDealData = deals.find((deal) => deal.id === formData.dealId);
-  
-      const savedPayment = await addPayment(formData);
-      const savedPaymentRecord = Array.isArray(savedPayment)
-        ? savedPayment[0]
-        : savedPayment;
-  
+
+      const savedPaymentRecords = [];
+
+      for (const allocation of paymentAllocations) {
+        const isSelectedInstallment = allocation.dueDate === formData.dueDate;
+        const isPartialSelectedInstallment =
+          isSelectedInstallment && amountPaid < amountDue;
+
+        const paymentPayload = {
+          ...formData,
+          dueDate: allocation.dueDate,
+          amountDue: allocation.remainingForDueDate,
+          amountPaid: allocation.amountApplied,
+          promisedDate: isPartialSelectedInstallment
+            ? formData.promisedDate
+            : "",
+          notes: buildAllocationNote({
+            originalNotes: formData.notes,
+            allocation,
+            totalPayment: amountPaid,
+            isSplitPayment: paymentAllocations.length > 1,
+          }),
+        };
+
+        const savedPayment = await addPayment(paymentPayload);
+        const savedPaymentRecord = Array.isArray(savedPayment)
+          ? savedPayment[0]
+          : savedPayment;
+
+        if (savedPaymentRecord) {
+          savedPaymentRecords.push(savedPaymentRecord);
+        }
+      }
+
+      const firstSavedPayment = savedPaymentRecords[0] || null;
+
       const totalPaidForDealBeforeThisPayment = activePayments
         .filter((payment) => payment.deal_id === formData.dealId)
         .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
-  
+
       const newTotalPaid =
         totalPaidForDealBeforeThisPayment + Number(formData.amountPaid || 0);
-  
+
       const remainingBalance = Math.max(
         Number(selectedDealData?.total_amount || 0) - newTotalPaid,
         0
       );
-  
+
       const paymentType =
-        Number(formData.amountPaid || 0) >= Number(formData.amountDue || 0)
+        paymentAllocations.length > 1
+          ? "Split Payment"
+          : Number(formData.amountPaid || 0) >= Number(formData.amountDue || 0)
           ? "Full Payment"
           : "Partial Payment";
-  
+
       const receiptData = {
-        paymentId: savedPaymentRecord?.id || "",
+        paymentId: firstSavedPayment?.id || "",
         customerName: selectedDealData?.customers?.customer_name || "",
         phone: selectedDealData?.customers?.phone || "",
         dealTag: selectedDealData?.deal_tag || "",
@@ -236,14 +304,19 @@ function PaymentForm() {
         paymentType,
         paymentStatus: "Active",
         remainingBalance,
-        notes: formData.notes || "",
+        notes:
+          paymentAllocations.length > 1
+            ? `Payment was automatically applied across ${
+                paymentAllocations.length
+              } installments:\n${allocationText}\n\n${formData.notes || ""}`
+            : formData.notes || "",
       };
-  
+
       await logActivity({
         action: "PAYMENT",
         module: "Payments",
         entity_type: "deal_payment",
-        entity_id: savedPaymentRecord?.id || formData.dealId,
+        entity_id: firstSavedPayment?.id || formData.dealId,
         entity_label:
           selectedDealData?.deal_tag ||
           selectedDealData?.customers?.customer_name ||
@@ -252,9 +325,14 @@ function PaymentForm() {
           Number(formData.amountPaid || 0)
         )} recorded for ${
           selectedDealData?.customers?.customer_name || "customer"
-        } on deal ${selectedDealData?.deal_tag || "—"}.`,
+        } on deal ${selectedDealData?.deal_tag || "—"}. ${
+          paymentAllocations.length > 1
+            ? "Extra payment was automatically applied to next installment(s)."
+            : ""
+        }`,
         metadata: {
-          payment_id: savedPaymentRecord?.id || null,
+          payment_id: firstSavedPayment?.id || null,
+          payment_ids: savedPaymentRecords.map((payment) => payment.id),
           deal_id: formData.dealId,
           customer_id: selectedDealData?.customer_id || null,
           customer_name: selectedDealData?.customers?.customer_name || "",
@@ -267,7 +345,11 @@ function PaymentForm() {
           vin: selectedDealData?.vin || "",
           amount_due: Number(formData.amountDue || 0),
           amount_paid: Number(formData.amountPaid || 0),
-          remaining_installment_amount: remainingAmount,
+          extra_payment_amount: extraPaymentAmount,
+          selected_installment_remaining_after_payment:
+            selectedInstallmentRemainingAfterPayment,
+          total_open_from_selected: totalOpenFromSelected,
+          total_remaining_after_payment: totalRemainingAfterPayment,
           remaining_deal_balance: remainingBalance,
           payment_date: formData.paymentDate,
           due_date: formData.dueDate,
@@ -275,24 +357,36 @@ function PaymentForm() {
           payment_type: paymentType,
           promised_date: formData.promisedDate || "",
           notes: formData.notes || "",
+          allocations: paymentAllocations.map((allocation) => ({
+            due_date: allocation.dueDate,
+            installment_number: allocation.installmentNumber,
+            installment_remaining_before_payment:
+              allocation.remainingForDueDate,
+            amount_applied: allocation.amountApplied,
+            remaining_after_payment: allocation.remainingAfterPayment,
+          })),
         },
       });
-  
+
       setReceiptPrompt(receiptData);
-  
+
       setMessage(
         `Payment saved successfully. ${formatMoney(
           Number(formData.amountPaid || 0)
         )} was recorded for ${
           selectedDealData?.customers?.customer_name || "customer"
-        }.`
+        }. ${
+          paymentAllocations.length > 1
+            ? "Extra payment was applied to the next installment(s)."
+            : ""
+        }`
       );
-  
+
       setMessageType("success");
       scrollToMessageArea();
-  
+
       setFormData(initialFormData);
-  
+
       await loadData({ clearMessages: false });
     } catch (error) {
       setMessage(`Failed to save payment: ${error.message}`);
@@ -302,15 +396,15 @@ function PaymentForm() {
       setIsSaving(false);
     }
   };
-  
+
   return (
     <form onSubmit={handleSubmit} style={formStyle}>
       <div style={formHeader}>
         <div>
           <h2 style={formTitle}>Payment Entry Form</h2>
           <p style={formDescription}>
-            Record customer payments, partial payments, and promised remaining
-            amounts.
+            Record customer payments, partial payments, promised remaining
+            amounts, and extra payments applied to future installments.
           </p>
         </div>
 
@@ -369,7 +463,7 @@ function PaymentForm() {
 
       <Section
         title="Payment Selection"
-        description="Choose the customer deal and the correct installment being paid."
+        description="Choose the customer deal and the installment where this payment starts."
       >
         <div style={grid}>
           <div>
@@ -435,7 +529,8 @@ function PaymentForm() {
             </select>
 
             <small style={helperTextStyle}>
-              Only unpaid or partially paid installments are shown.
+              If the customer pays extra, the extra amount will automatically go
+              to the next unpaid installment.
             </small>
           </div>
         </div>
@@ -483,11 +578,11 @@ function PaymentForm() {
 
       <Section
         title="Payment Details"
-        description="Confirm amount paid, method, and promise date if payment is partial."
+        description="Enter the total amount received. Extra money is automatically applied to the next installment."
       >
         <div style={grid}>
           <Input
-            label="Amount Due"
+            label="Selected Installment Balance"
             name="amountDue"
             type="number"
             value={formData.amountDue}
@@ -504,7 +599,13 @@ function PaymentForm() {
             value={formData.amountPaid}
             onChange={handleChange}
             required
-            helperText="Cannot be greater than the remaining installment amount."
+            helperText={
+              selectedInstallment
+                ? `Maximum allowed from this installment forward: ${formatMoney(
+                    totalOpenFromSelected
+                  )}`
+                : "Select an installment first."
+            }
           />
 
           <div>
@@ -533,11 +634,11 @@ function PaymentForm() {
             type="date"
             value={formData.promisedDate}
             onChange={handleChange}
-            required={remainingAmount > 0}
+            required={amountPaid > 0 && amountPaid < amountDue}
             helperText={
-              remainingAmount > 0
-                ? "Required because this is a partial payment."
-                : "Only needed if customer leaves a balance on this installment."
+              amountPaid > 0 && amountPaid < amountDue
+                ? "Required because the selected installment still has a balance."
+                : "Not needed when extra payment is applied to future installments."
             }
           />
         </div>
@@ -552,6 +653,69 @@ function PaymentForm() {
         )}
       </Section>
 
+      {paymentAllocations.length > 0 && (
+        <Section
+          title="Payment Allocation Preview"
+          description="This shows exactly how the payment will be applied before saving."
+        >
+          <div style={allocationTableWrapper}>
+            <table style={allocationTable}>
+              <thead>
+                <tr>
+                  <th style={allocationTh}>Installment</th>
+                  <th style={allocationTh}>Due Date</th>
+                  <th style={allocationTh}>Current Remaining</th>
+                  <th style={allocationTh}>Payment Applied</th>
+                  <th style={allocationTh}>Remaining After</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {paymentAllocations.map((allocation) => (
+                  <tr key={allocation.dueDate}>
+                    <td style={allocationTd}>
+                      Installment {allocation.installmentNumber}
+                    </td>
+
+                    <td style={allocationTd}>
+                      {formatDisplayDate(allocation.dueDate)}
+                    </td>
+
+                    <td style={allocationTd}>
+                      {formatMoney(allocation.remainingForDueDate)}
+                    </td>
+
+                    <td style={allocationTd}>
+                      <strong>{formatMoney(allocation.amountApplied)}</strong>
+                    </td>
+
+                    <td style={allocationTd}>
+                      <strong
+                        style={{
+                          color:
+                            allocation.remainingAfterPayment > 0
+                              ? "#991b1b"
+                              : "#166534",
+                        }}
+                      >
+                        {formatMoney(allocation.remainingAfterPayment)}
+                      </strong>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {extraPaymentAmount > 0 && (
+            <div style={extraPaymentBox}>
+              Extra payment detected: {formatMoney(extraPaymentAmount)} will be
+              applied toward the next unpaid installment(s).
+            </div>
+          )}
+        </Section>
+      )}
+
       <Section
         title="Payment Notes"
         description="Optional notes about this payment, promise, method, or customer conversation."
@@ -560,14 +724,14 @@ function PaymentForm() {
           name="notes"
           value={formData.notes}
           onChange={handleChange}
-          placeholder="Example: Customer paid partial amount and promised remaining next Friday."
+          placeholder="Example: Customer paid extra, and the extra amount was applied to the next installment."
           style={notesInput}
         />
       </Section>
 
       <div style={paymentSummaryBox}>
         <div>
-          <span style={summaryLabel}>Amount Due</span>
+          <span style={summaryLabel}>Selected Installment Balance</span>
           <strong>{formatMoney(amountDue)}</strong>
         </div>
 
@@ -577,17 +741,28 @@ function PaymentForm() {
         </div>
 
         <div>
-          <span style={summaryLabel}>Remaining After Payment</span>
-          <strong style={{ color: remainingAmount > 0 ? "#991b1b" : "#166534" }}>
-            {formatMoney(remainingAmount)}
+          <span style={summaryLabel}>Total Remaining After Payment</span>
+          <strong
+            style={{
+              color: totalRemainingAfterPayment > 0 ? "#991b1b" : "#166534",
+            }}
+          >
+            {formatMoney(totalRemainingAfterPayment)}
           </strong>
         </div>
       </div>
 
-      {remainingAmount > 0 && (
+      {amountPaid > 0 && amountPaid < amountDue && (
         <div style={partialWarningBox}>
           This is a partial payment. A promise will be created for the remaining
           amount when a promised date is entered.
+        </div>
+      )}
+
+      {amountPaid > amountDue && (
+        <div style={extraPaymentBox}>
+          This payment is more than the selected installment. The extra amount
+          will automatically go toward the next unpaid installment.
         </div>
       )}
 
@@ -651,7 +826,75 @@ function getInstallmentOptions(deal, payments) {
         status,
       };
     })
-    .filter((item) => item.remainingForDueDate > 0);
+    .filter((item) => Number(item.remainingForDueDate || 0) > 0)
+    .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
+}
+
+function getTotalOpenFromSelectedInstallment(installmentOptions, selectedDueDate) {
+  const selectedIndex = installmentOptions.findIndex(
+    (item) => item.dueDate === selectedDueDate
+  );
+
+  if (selectedIndex === -1) return 0;
+
+  return installmentOptions
+    .slice(selectedIndex)
+    .reduce((sum, item) => sum + Number(item.remainingForDueDate || 0), 0);
+}
+
+function buildPaymentAllocations(
+  installmentOptions,
+  selectedDueDate,
+  amountPaid
+) {
+  const selectedIndex = installmentOptions.findIndex(
+    (item) => item.dueDate === selectedDueDate
+  );
+
+  if (selectedIndex === -1) return [];
+
+  let remainingPayment = Number(amountPaid || 0);
+  const allocations = [];
+
+  installmentOptions.slice(selectedIndex).forEach((installment) => {
+    if (remainingPayment <= 0) return;
+
+    const installmentRemaining = Number(installment.remainingForDueDate || 0);
+    const amountApplied = Math.min(installmentRemaining, remainingPayment);
+
+    if (amountApplied > 0) {
+      allocations.push({
+        ...installment,
+        amountApplied: Number(amountApplied.toFixed(2)),
+        remainingAfterPayment: Number(
+          Math.max(installmentRemaining - amountApplied, 0).toFixed(2)
+        ),
+      });
+    }
+
+    remainingPayment = Number(
+      Math.max(remainingPayment - amountApplied, 0).toFixed(2)
+    );
+  });
+
+  return allocations;
+}
+
+function buildAllocationNote({
+  originalNotes,
+  allocation,
+  totalPayment,
+  isSplitPayment,
+}) {
+  const allocationNote = isSplitPayment
+    ? `Auto-applied from total customer payment of ${formatMoney(
+        totalPayment
+      )}. Applied ${formatMoney(allocation.amountApplied)} to installment ${
+        allocation.installmentNumber
+      } due ${formatDisplayDate(allocation.dueDate)}.`
+    : "";
+
+  return [allocationNote, originalNotes].filter(Boolean).join("\n");
 }
 
 function Section({ title, description, children }) {
@@ -742,7 +985,9 @@ function getDealStatusBadgeStyle(status) {
 function formatDisplayDate(dateString) {
   if (!dateString) return "—";
 
-  const [year, month, day] = dateString.split("-");
+  const [year, month, day] = String(dateString).split("-");
+  if (!year || !month || !day) return dateString;
+
   return `${month}/${day}/${year}`;
 }
 
@@ -884,6 +1129,36 @@ const installmentSummaryBox = {
   color: "#475569",
 };
 
+const allocationTableWrapper = {
+  width: "100%",
+  overflowX: "auto",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+};
+
+const allocationTable = {
+  width: "100%",
+  minWidth: "760px",
+  borderCollapse: "collapse",
+};
+
+const allocationTh = {
+  textAlign: "left",
+  background: "#f8fafc",
+  borderBottom: "1px solid #e5e7eb",
+  padding: "11px",
+  color: "#334155",
+  fontSize: "12px",
+  textTransform: "uppercase",
+};
+
+const allocationTd = {
+  borderBottom: "1px solid #f1f5f9",
+  padding: "11px",
+  color: "#111827",
+  fontSize: "13px",
+};
+
 const notesInput = {
   ...inputStyle,
   minHeight: "100px",
@@ -918,6 +1193,16 @@ const partialWarningBox = {
   padding: "12px",
   borderRadius: "10px",
   marginTop: "14px",
+};
+
+const extraPaymentBox = {
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  color: "#1d4ed8",
+  padding: "12px",
+  borderRadius: "10px",
+  marginTop: "14px",
+  fontWeight: "800",
 };
 
 const buttonRow = {

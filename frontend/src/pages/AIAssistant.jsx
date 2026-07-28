@@ -6,7 +6,7 @@ import { formatMoney } from "../utils/moneyUtils";
 const welcomeMessage = {
   role: "assistant",
   text:
-    "Hi, I am RK Assistant. Ask me about customer balances, payments, maintenance, collections, promises, reports, or deal history.",
+    "Hi, I am RK Assistant. Ask me about customer balances, company names, payments, maintenance, collections, promises, follow-up notes, referral info, reports, or deal history.",
   rows: [],
 };
 
@@ -148,16 +148,18 @@ function AIAssistant() {
           <h1 style={isMobile ? mobilePageTitle : pageTitle}>AI Assistant</h1>
 
           <p style={isMobile ? mobilePageDescription : pageDescription}>
-            Ask business questions about customer balances, payments,
-            maintenance invoices, collections, promises, due dates, and deal
-            history.
+            Ask business questions about customer balances, company names,
+            payments, maintenance invoices, collections, promises, follow-up
+            notes, referral information, due dates, and deal history.
           </p>
 
           <div style={isMobile ? mobileHeroPills : heroPills}>
             <span style={heroPill}>Collections</span>
             <span style={heroPill}>Deal Balances</span>
+            <span style={heroPill}>Follow-Ups</span>
+            <span style={heroPill}>Referrals</span>
             <span style={heroPill}>Maintenance</span>
-            <span style={heroPill}>Customer History</span>
+            <span style={heroPill}>Reports</span>
           </div>
         </div>
 
@@ -178,8 +180,8 @@ function AIAssistant() {
             <div>
               <h2 style={chatTitle}>Ask RK Assistant</h2>
               <p style={chatSubtitle}>
-                Use customer name, phone number, deal tag, invoice number, or
-                payment date.
+                Use customer name, company name, phone number, deal tag, invoice
+                number, payment date, or referral name.
               </p>
             </div>
 
@@ -257,7 +259,7 @@ function AIAssistant() {
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask: Who owes the most? What is Peter balance? Show maintenance balance for invoice 1001..."
+              placeholder="Ask: Who owes the most? What is Peter balance? Show follow-up notes for Peter. Who referred customers? Show maintenance balance for invoice 1001..."
               style={isMobile ? mobileTextareaStyle : textareaStyle}
               rows={isMobile ? 3 : 2}
             />
@@ -321,7 +323,8 @@ function AIAssistant() {
             <p>“Who owes the most?”</p>
             <p>“Who is past due?”</p>
             <p>“What is deal 1721 balance?”</p>
-            <p>“Show maintenance balances.”</p>
+            <p>“Show follow-up notes for Peter.”</p>
+            <p>“Who referred customers?”</p>
             <p>“When did Peter last pay?”</p>
           </div>
 
@@ -339,7 +342,14 @@ function AIAssistant() {
 }
 
 function ResultTable({ rows, isMobile }) {
-  const hiddenColumns = ["customer_id", "deal_id", "maintenance_job_id"];
+  const hiddenColumns = [
+    "customer_id",
+    "deal_id",
+    "maintenance_job_id",
+    "followup_id",
+    "payment_id",
+    "promise_id",
+  ];
 
   const columns = Object.keys(rows[0] || {}).filter(
     (column) => !hiddenColumns.includes(column)
@@ -424,6 +434,8 @@ function formatCellValue(column, value) {
     lowerColumn.includes("amount") ||
     lowerColumn.includes("balance") ||
     lowerColumn.includes("paid") ||
+    lowerColumn.includes("remaining") ||
+    lowerColumn.includes("collected") ||
     lowerColumn.includes("due") ||
     lowerColumn.includes("total");
 
@@ -477,6 +489,8 @@ const quickQuestionGroups = [
       "Who paid last week?",
       "Show payments for deal 1721",
       "When did Peter last pay?",
+      "Show partial payments",
+      "Show extra payments",
     ],
   },
   {
@@ -489,6 +503,33 @@ const quickQuestionGroups = [
       "Show customer payment history",
       "Show customers with open balance",
       "Show paid off customers",
+      "Search by company name",
+      "Show customers by company",
+    ],
+  },
+  {
+    title: "Follow-Ups",
+    icon: "📝",
+    questions: [
+      "Show customer follow-up notes",
+      "Show follow-ups due today",
+      "Show overdue follow-ups",
+      "Show high priority follow-ups",
+      "Show follow-up notes for Peter",
+      "Who needs follow-up?",
+      "Show unresolved follow-ups",
+    ],
+  },
+  {
+    title: "Referrals",
+    icon: "🤝",
+    questions: [
+      "Who referred customers?",
+      "Show referral information",
+      "Show deals with referral money paid",
+      "Show unpaid referrals",
+      "How much referral money was paid?",
+      "Show referrals by customer",
     ],
   },
   {
@@ -513,6 +554,20 @@ const quickQuestionGroups = [
       "Show paid off deals",
       "Show in-house balances",
       "Show down finance balances",
+      "Show registration money deals",
+    ],
+  },
+  {
+    title: "Reports",
+    icon: "📊",
+    questions: [
+      "Show monthly collection summary",
+      "Show customer balance report",
+      "Show collection priority report",
+      "Show paid off deals report",
+      "Show defaulted deals report",
+      "Show past due scheduled payments",
+      "Show payment method breakdown",
     ],
   },
 ];

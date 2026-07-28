@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   addMaintenancePayment,
   addMaintenancePromise,
@@ -9,15 +10,16 @@ import {
   updateBrokenMaintenancePromises,
   updateMaintenanceJob,
 } from "../api/maintenanceApi";
-import { formatMoney } from "../utils/moneyUtils";
-import { Link } from "react-router-dom";
-import LoadingSpinner from "../components/LoadingSpinner";
 import { logActivity } from "../api/activityLogsApi";
+import { exportToCsv } from "../utils/exportUtils";
+import { formatMoney } from "../utils/moneyUtils";
+import LoadingSpinner from "../components/LoadingSpinner";
 
 const todayString = new Date().toISOString().split("T")[0];
 
 const emptyForm = {
   invoice_no: "",
+  customer_id: null,
   customer_type: "Maintenance Only",
   customer_name: "",
   phone: "",
@@ -40,12 +42,31 @@ const emptyForm = {
   notes: "",
 };
 
+const quickFilters = [
+  "All",
+  "Open Balance",
+  "Due Today",
+  "Past Due",
+  "Promises",
+  "Broken Promises",
+  "Completed Not Paid",
+  "Closed/Paid",
+];
+
+const workStatuses = ["Open", "In Progress", "Completed", "Closed", "Cancelled"];
+
 function Maintenance() {
   const [jobs, setJobs] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [quickFilter, setQuickFilter] = useState("All");
-  const [error, setError] = useState("");
+  const [sortBy, setSortBy] = useState("due_date");
+  const [sortDirection, setSortDirection] = useState("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -57,22 +78,221 @@ function Maintenance() {
 
   useEffect(() => {
     loadMaintenance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, quickFilter, sortBy, sortDirection, pageSize]);
 
   const loadMaintenance = async () => {
     try {
       setLoading(true);
-      setError("");
+      setMessage("");
+      setMessageType("");
 
       await updateBrokenMaintenancePromises();
 
       const data = await getMaintenanceJobs();
       setJobs(data || []);
     } catch (error) {
-      setError(error.message || "Unable to load maintenance records.");
+      setMessage(error.message || "Unable to load maintenance records.");
+      setMessageType("error");
     } finally {
       setLoading(false);
     }
+  };
+
+  const enrichedJobs = useMemo(() => {
+    return jobs.map((job) => ({
+      ...job,
+      totals: calculateMaintenanceTotals(job),
+    }));
+  }, [jobs]);
+
+  const stats = useMemo(() => {
+    const activeJobs = enrichedJobs.filter(
+      (job) => job.work_status !== "Closed" && job.work_status !== "Cancelled"
+    );
+
+    const dueToday = enrichedJobs.filter(
+      (job) =>
+        Number(job.totals.balance || 0) > 0 && job.due_date === todayString
+    );
+
+    const pastDue = enrichedJobs.filter(
+      (job) =>
+        Number(job.totals.balance || 0) > 0 &&
+        job.due_date &&
+        job.due_date < todayString
+    );
+
+    const pendingPromises = enrichedJobs.flatMap((job) =>
+      getActiveMaintenancePromises(job).filter(
+        (promise) => promise.promise_status === "Pending"
+      )
+    );
+
+    const brokenPromises = enrichedJobs.flatMap((job) =>
+      (job.maintenance_promises || []).filter(
+        (promise) => promise.promise_status === "Broken"
+      )
+    );
+
+    const completedNotPaid = enrichedJobs.filter(
+      (job) =>
+        job.work_status === "Completed" && Number(job.totals.balance || 0) > 0
+    );
+
+    return {
+      totalAmount: enrichedJobs.reduce(
+        (sum, job) => sum + Number(job.totals.totalAmount || 0),
+        0
+      ),
+      totalPaid: enrichedJobs.reduce(
+        (sum, job) => sum + Number(job.totals.totalPaid || 0),
+        0
+      ),
+      totalBalance: enrichedJobs.reduce(
+        (sum, job) => sum + Number(job.totals.balance || 0),
+        0
+      ),
+      activeJobs,
+      dueToday,
+      pastDue,
+      pendingPromises,
+      brokenPromises,
+      completedNotPaid,
+    };
+  }, [enrichedJobs]);
+
+  const filteredJobs = useMemo(() => {
+    const text = search.trim().toLowerCase();
+
+    const filtered = enrichedJobs.filter((job) => {
+      const companyName = getCompanyName(job);
+
+      const matchesSearch =
+        !text ||
+        [
+          job.invoice_no,
+          job.customer_name,
+          companyName,
+          job.phone,
+          job.email,
+          job.address,
+          job.truck,
+          job.year,
+          job.vin,
+          job.technician,
+          job.job_title,
+          job.job_description,
+          job.work_status,
+          job.customer_type,
+          job.notes,
+          job.totals.balanceStatus,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(text);
+
+      const matchesStatus =
+        statusFilter === "All" || job.work_status === statusFilter;
+
+      const matchesQuickFilter = applyQuickFilter(job, quickFilter);
+
+      return matchesSearch && matchesStatus && matchesQuickFilter;
+    });
+
+    return sortMaintenanceJobs(filtered, sortBy, sortDirection);
+  }, [enrichedJobs, search, statusFilter, quickFilter, sortBy, sortDirection]);
+
+  const filteredStats = useMemo(() => {
+    return {
+      totalAmount: filteredJobs.reduce(
+        (sum, job) => sum + Number(job.totals.totalAmount || 0),
+        0
+      ),
+      totalPaid: filteredJobs.reduce(
+        (sum, job) => sum + Number(job.totals.totalPaid || 0),
+        0
+      ),
+      totalBalance: filteredJobs.reduce(
+        (sum, job) => sum + Number(job.totals.balance || 0),
+        0
+      ),
+    };
+  }, [filteredJobs]);
+
+  const totalPages = Math.max(Math.ceil(filteredJobs.length / pageSize), 1);
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const pageStart =
+    filteredJobs.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+
+  const pageEnd = Math.min(safeCurrentPage * pageSize, filteredJobs.length);
+
+  const paginatedJobs = filteredJobs.slice(
+    (safeCurrentPage - 1) * pageSize,
+    safeCurrentPage * pageSize
+  );
+
+  const updateFilter = (setter, value) => {
+    setter(value);
+    setMessage("");
+    setMessageType("");
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("All");
+    setQuickFilter("All");
+    setSortBy("due_date");
+    setSortDirection("asc");
+    setCurrentPage(1);
+  };
+
+  const showSuccess = (text) => {
+    setMessage(text);
+    setMessageType("success");
+  };
+
+  const exportFilteredMaintenance = () => {
+    const rows = filteredJobs.map((job) => {
+      const latestPromise = getLatestPromise(job);
+
+      return {
+        Invoice_No: job.invoice_no || "",
+        Customer: job.customer_name || "",
+        Company_Name: getCompanyName(job),
+        Phone: job.phone || "",
+        Email: job.email || "",
+        Address: job.address || "",
+        Customer_Type: job.customer_type || "",
+        Work_Status: job.work_status || "",
+        Balance_Status: job.totals.balanceStatus || "",
+        Job_Title: job.job_title || "",
+        Technician: job.technician || "",
+        Truck: `${job.year || ""} ${job.truck || ""}`.trim(),
+        VIN: job.vin || "",
+        Start_Date: job.start_date || "",
+        Due_Date: job.due_date || "",
+        Completed_Date: job.completed_date || "",
+        Labor: Number(job.labor_amount || 0),
+        Parts: Number(job.parts_amount || 0),
+        Tax: Number(job.tax_amount || 0),
+        Discount: Number(job.discount_amount || 0),
+        Total_Amount: Number(job.totals.totalAmount || 0),
+        Total_Paid: Number(job.totals.totalPaid || 0),
+        Balance: Number(job.totals.balance || 0),
+        Latest_Promise_Date: latestPromise?.promised_date || "",
+        Latest_Promise_Amount: latestPromise?.promised_amount || "",
+        Latest_Promise_Status: latestPromise?.promise_status || "",
+        Notes: job.notes || "",
+      };
+    });
+
+    exportToCsv(`rk-paytrack-maintenance-records-${todayString}.csv`, rows);
   };
 
   const handlePrintMaintenanceInvoice = (job) => {
@@ -85,7 +305,8 @@ function Maintenance() {
       module: "Maintenance",
       entity_type: "maintenance_invoice",
       entity_id: job?.id,
-      entity_label: job?.invoice_no || job?.customer_name || "Maintenance Invoice",
+      entity_label:
+        job?.invoice_no || job?.customer_name || "Maintenance Invoice",
       description: `Maintenance invoice ${
         job?.invoice_no || "—"
       } printed for ${job?.customer_name || "customer"}.`,
@@ -94,6 +315,7 @@ function Maintenance() {
         invoice_no: job?.invoice_no || "",
         customer_id: job?.customer_id || null,
         customer_name: job?.customer_name || "",
+        company_name: getCompanyName(job),
         phone: job?.phone || "",
         job_title: job?.job_title || "",
         truck: job?.truck || "",
@@ -107,79 +329,6 @@ function Maintenance() {
     });
   };
 
-  const enrichedJobs = useMemo(() => {
-    return jobs.map((job) => ({
-      ...job,
-      totals: calculateMaintenanceTotals(job),
-    }));
-  }, [jobs]);
-
-  const filteredJobs = useMemo(() => {
-    const text = search.trim().toLowerCase();
-
-    return enrichedJobs.filter((job) => {
-      const matchesSearch =
-        !text ||
-        String(job.invoice_no || "").toLowerCase().includes(text) ||
-        String(job.customer_name || "").toLowerCase().includes(text) ||
-        String(job.phone || "").toLowerCase().includes(text) ||
-        String(job.truck || "").toLowerCase().includes(text) ||
-        String(job.year || "").toLowerCase().includes(text) ||
-        String(job.vin || "").toLowerCase().includes(text) ||
-        String(job.technician || "").toLowerCase().includes(text) ||
-        String(job.job_title || "").toLowerCase().includes(text) ||
-        String(job.work_status || "").toLowerCase().includes(text) ||
-        String(job.totals.balanceStatus || "").toLowerCase().includes(text);
-
-      const matchesStatus =
-        statusFilter === "All" || job.work_status === statusFilter;
-
-      const matchesQuickFilter = applyQuickFilter(job, quickFilter);
-
-      return matchesSearch && matchesStatus && matchesQuickFilter;
-    });
-  }, [enrichedJobs, search, statusFilter, quickFilter]);
-
-  const totalBalance = enrichedJobs.reduce(
-    (sum, job) => sum + Number(job.totals.balance || 0),
-    0
-  );
-
-  const totalAmount = enrichedJobs.reduce(
-    (sum, job) => sum + Number(job.totals.totalAmount || 0),
-    0
-  );
-
-  const totalPaid = enrichedJobs.reduce(
-    (sum, job) => sum + Number(job.totals.totalPaid || 0),
-    0
-  );
-
-  const openJobs = enrichedJobs.filter(
-    (job) => job.work_status !== "Closed" && job.work_status !== "Cancelled"
-  );
-
-  const brokenPromises = enrichedJobs.flatMap((job) =>
-    (job.maintenance_promises || []).filter(
-      (promise) => promise.promise_status === "Broken"
-    )
-  );
-
-  const dueToday = enrichedJobs.filter(
-    (job) => Number(job.totals.balance || 0) > 0 && job.due_date === todayString
-  );
-
-  const pendingPromises = enrichedJobs.flatMap((job) =>
-    (job.maintenance_promises || []).filter(
-      (promise) => promise.promise_status === "Pending"
-    )
-  );
-
-  const completedNotPaid = enrichedJobs.filter(
-    (job) =>
-      job.work_status === "Completed" && Number(job.totals.balance || 0) > 0
-  );
-
   return (
     <div style={pageWrapper}>
       <div style={heroCard}>
@@ -187,9 +336,17 @@ function Maintenance() {
           <div style={eyebrow}>Service & Repair Ledger</div>
           <h1 style={pageTitle}>Maintenance</h1>
           <p style={pageDescription}>
-            Track maintenance invoices, technician work, customer balances,
-            scheduled payments, receipts, and open repair balances.
+            Track repair invoices, customer balances, technician work, payments,
+            scheduled promises, receipts, and open service balances.
           </p>
+
+          <div style={heroPills}>
+            <span style={heroPill}>Invoices</span>
+            <span style={heroPill}>Payments</span>
+            <span style={heroPill}>Promises</span>
+            <span style={heroPill}>Receipts</span>
+            <span style={heroPill}>Reports</span>
+          </div>
         </div>
 
         <div style={heroActions}>
@@ -198,63 +355,91 @@ function Maintenance() {
             onClick={() => setShowAddModal(true)}
             style={primaryButton}
           >
-            + Add Maintenance Record
+            + Add Record
           </button>
 
-          <button type="button" onClick={loadMaintenance} style={secondaryButton}>
+          <button
+            type="button"
+            onClick={loadMaintenance}
+            style={secondaryButton}
+          >
             ↻ Refresh
+          </button>
+
+          <button
+            type="button"
+            onClick={exportFilteredMaintenance}
+            style={secondaryButton}
+          >
+            Export CSV
           </button>
         </div>
       </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {message && (
+        <div
+          style={{
+            ...messageBox,
+            ...(messageType === "success" ? successMessage : errorMessage),
+          }}
+        >
+          {message}
+        </div>
+      )}
 
       <div style={metricGrid}>
-        <MetricCard label="Total Maintenance" value={formatMoney(totalAmount)} />
+        <MetricCard
+          label="Total Maintenance"
+          value={formatMoney(stats.totalAmount)}
+        />
         <MetricCard
           label="Total Paid"
-          value={formatMoney(totalPaid)}
+          value={formatMoney(stats.totalPaid)}
           tone="success"
         />
         <MetricCard
           label="Open Balance"
-          value={formatMoney(totalBalance)}
+          value={formatMoney(stats.totalBalance)}
           tone="danger"
         />
-        <MetricCard label="Open Jobs" value={openJobs.length} tone="info" />
-        <MetricCard label="Due Today" value={dueToday.length} tone="warning" />
         <MetricCard
-          label="Scheduled Payments"
-          value={pendingPromises.length}
+          label="Active Jobs"
+          value={stats.activeJobs.length}
+          tone="info"
+        />
+        <MetricCard
+          label="Due Today"
+          value={stats.dueToday.length}
+          tone="warning"
+        />
+        <MetricCard
+          label="Past Due"
+          value={stats.pastDue.length}
+          tone="danger"
+        />
+        <MetricCard
+          label="Scheduled Promises"
+          value={stats.pendingPromises.length}
           tone="warning"
         />
         <MetricCard
           label="Broken Promises"
-          value={brokenPromises.length}
+          value={stats.brokenPromises.length}
           tone="danger"
         />
         <MetricCard
           label="Completed Not Paid"
-          value={completedNotPaid.length}
+          value={stats.completedNotPaid.length}
           tone="danger"
         />
       </div>
 
       <div style={quickFilterBar}>
-        {[
-          "All",
-          "Open Balance",
-          "Due Today",
-          "Past Due",
-          "Promises",
-          "Broken Promises",
-          "Completed Not Paid",
-          "Closed/Paid",
-        ].map((filter) => (
+        {quickFilters.map((filter) => (
           <button
             key={filter}
             type="button"
-            onClick={() => setQuickFilter(filter)}
+            onClick={() => updateFilter(setQuickFilter, filter)}
             style={{
               ...quickFilterButton,
               ...(quickFilter === filter ? quickFilterButtonActive : {}),
@@ -268,35 +453,65 @@ function Maintenance() {
       <div style={filterBar}>
         <input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search invoice, customer, phone, truck, VIN, technician, work title..."
+          onChange={(e) => updateFilter(setSearch, e.target.value)}
+          placeholder="Search invoice, customer, company, phone, truck, VIN, technician, work title..."
           style={searchInput}
         />
 
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => updateFilter(setStatusFilter, e.target.value)}
           style={selectStyle}
         >
           <option value="All">All Work Statuses</option>
-          <option value="Open">Open</option>
-          <option value="In Progress">In Progress</option>
-          <option value="Completed">Completed</option>
-          <option value="Closed">Closed</option>
-          <option value="Cancelled">Cancelled</option>
+          {workStatuses.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
         </select>
 
-        <button
-          type="button"
-          onClick={() => {
-            setSearch("");
-            setStatusFilter("All");
-            setQuickFilter("All");
-          }}
-          style={clearButton}
+        <select
+          value={sortBy}
+          onChange={(e) => updateFilter(setSortBy, e.target.value)}
+          style={selectStyle}
         >
+          <option value="due_date">Sort by Due Date</option>
+          <option value="invoice_no">Sort by Invoice</option>
+          <option value="customer_name">Sort by Customer</option>
+          <option value="balance">Sort by Balance</option>
+          <option value="total">Sort by Total</option>
+          <option value="created_at">Sort by Created Date</option>
+          <option value="work_status">Sort by Work Status</option>
+        </select>
+
+        <select
+          value={sortDirection}
+          onChange={(e) => updateFilter(setSortDirection, e.target.value)}
+          style={selectStyle}
+        >
+          <option value="asc">Ascending</option>
+          <option value="desc">Descending</option>
+        </select>
+
+        <button type="button" onClick={clearFilters} style={clearButton}>
           Clear
         </button>
+      </div>
+
+      <div style={filteredSummaryBar}>
+        <span>
+          Filtered Total: <strong>{formatMoney(filteredStats.totalAmount)}</strong>
+        </span>
+        <span>
+          Filtered Paid: <strong>{formatMoney(filteredStats.totalPaid)}</strong>
+        </span>
+        <span>
+          Filtered Balance:{" "}
+          <strong style={filteredStats.totalBalance > 0 ? dangerText : successText}>
+            {formatMoney(filteredStats.totalBalance)}
+          </strong>
+        </span>
       </div>
 
       {loading ? (
@@ -307,12 +522,18 @@ function Maintenance() {
             <div>
               <h2 style={sectionTitle}>Maintenance Records</h2>
               <p style={sectionDescription}>
-                Showing {filteredJobs.length} of {jobs.length} maintenance
-                records.
+                Showing {pageStart}-{pageEnd} of {filteredJobs.length} filtered
+                records. Total records: {jobs.length}.
               </p>
             </div>
 
-            {loading && <span style={loadingBadge}>Loading...</span>}
+            <PaginationControls
+              currentPage={safeCurrentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageSizeChange={(value) => setPageSize(Number(value))}
+              onPageChange={(page) => setCurrentPage(page)}
+            />
           </div>
 
           <div style={tableWrapper}>
@@ -335,14 +556,14 @@ function Maintenance() {
               </thead>
 
               <tbody>
-                {filteredJobs.length === 0 ? (
+                {paginatedJobs.length === 0 ? (
                   <tr>
                     <td style={emptyCell} colSpan="12">
                       No maintenance records found.
                     </td>
                   </tr>
                 ) : (
-                  filteredJobs.map((job, index) => {
+                  paginatedJobs.map((job, index) => {
                     const latestPromise = getLatestPromise(job);
                     const balance = Number(job.totals.balance || 0);
                     const rowBackground =
@@ -351,10 +572,7 @@ function Maintenance() {
                     return (
                       <tr
                         key={job.id}
-                        style={{
-                          background: rowBackground,
-                          transition: "background 0.15s ease",
-                        }}
+                        style={{ background: rowBackground }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background = "#eef2ff";
                         }}
@@ -363,7 +581,15 @@ function Maintenance() {
                         }}
                       >
                         <td style={tdStyle}>
-                          <strong>{job.invoice_no || "—"}</strong>
+                          <button
+                            type="button"
+                            onClick={() => setViewJob(job)}
+                            style={invoiceLinkButton}
+                            title="Open maintenance details"
+                          >
+                            {job.invoice_no || "View Invoice"}
+                          </button>
+
                           <div style={smallText}>
                             {job.customer_type || "Maintenance Only"}
                           </div>
@@ -381,19 +607,24 @@ function Maintenance() {
                             <strong>{job.customer_name || "—"}</strong>
                           )}
 
+                          {getCompanyName(job) && (
+                            <div style={companyPill}>
+                              🏢 {getCompanyName(job)}
+                            </div>
+                          )}
+
                           <div style={smallText}>{job.phone || "No phone"}</div>
                         </td>
 
                         <td style={tdStyle}>
-                          {`${job.year || ""} ${job.truck || ""}`.trim() ||
-                            "—"}
+                          {`${job.year || ""} ${job.truck || ""}`.trim() || "—"}
                           <div style={smallText}>{job.vin || ""}</div>
                         </td>
 
                         <td style={tdStyle}>
                           <strong>{job.job_title || "—"}</strong>
                           <div style={smallText}>
-                            {job.job_description || ""}
+                            {truncateText(job.job_description || "", 82)}
                           </div>
                         </td>
 
@@ -431,6 +662,14 @@ function Maintenance() {
 
                         <td style={tdStyle}>
                           <strong>{formatDate(job.due_date)}</strong>
+
+                          {isPastDue(job) && (
+                            <div style={pastDueText}>
+                              Past due {daysBetween(job.due_date, todayString)}{" "}
+                              days
+                            </div>
+                          )}
+
                           {latestPromise && (
                             <div style={smallText}>
                               Promise: {formatDate(latestPromise.promised_date)} ·{" "}
@@ -453,7 +692,11 @@ function Maintenance() {
                             <button
                               type="button"
                               onClick={() => setPaymentJob(job)}
-                              style={paymentButton}
+                              style={{
+                                ...paymentButton,
+                                ...(balance <= 0 ? disabledButton : {}),
+                              }}
+                              disabled={balance <= 0}
                             >
                               Payment
                             </button>
@@ -461,14 +704,17 @@ function Maintenance() {
                             <button
                               type="button"
                               onClick={() => setPromiseJob(job)}
-                              style={scheduleButton}
+                              style={{
+                                ...scheduleButton,
+                                ...(balance <= 0 ? disabledButton : {}),
+                              }}
+                              disabled={balance <= 0}
                             >
                               Schedule
                             </button>
 
                             <button
                               type="button"
-                              // onClick={() => printMaintenanceInvoice(job)}
                               onClick={() => handlePrintMaintenanceInvoice(job)}
                               style={printButton}
                             >
@@ -491,6 +737,16 @@ function Maintenance() {
               </tbody>
             </table>
           </div>
+
+          <div style={tableFooter}>
+            <PaginationControls
+              currentPage={safeCurrentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageSizeChange={(value) => setPageSize(Number(value))}
+              onPageChange={(page) => setCurrentPage(page)}
+            />
+          </div>
         </div>
       )}
 
@@ -500,44 +756,49 @@ function Maintenance() {
           initialData={emptyForm}
           onClose={() => setShowAddModal(false)}
           onSubmit={async (form) => {
-            const savedJob = await createMaintenanceJob(form);
-          
+            const cleanedForm = cleanMaintenanceForm(form);
+            const savedJob = await createMaintenanceJob(cleanedForm);
+
             await logActivity({
               action: "CREATE",
               module: "Maintenance",
               entity_type: "maintenance_job",
-              entity_id: savedJob?.id || form.invoice_no || "",
+              entity_id: savedJob?.id || cleanedForm.invoice_no || "",
               entity_label:
                 savedJob?.invoice_no ||
-                form.invoice_no ||
-                form.customer_name ||
+                cleanedForm.invoice_no ||
+                cleanedForm.customer_name ||
                 "Maintenance Record",
               description: `Maintenance record created for ${
-                form.customer_name || "customer"
-              }${form.invoice_no ? `, invoice ${form.invoice_no}` : ""}.`,
+                cleanedForm.customer_name || "customer"
+              }${
+                cleanedForm.invoice_no ? `, invoice ${cleanedForm.invoice_no}` : ""
+              }.`,
               metadata: {
                 maintenance_job_id: savedJob?.id || null,
-                invoice_no: savedJob?.invoice_no || form.invoice_no || "",
-                customer_id: savedJob?.customer_id || form.customer_id || null,
-                customer_name: form.customer_name || "",
-                phone: form.phone || "",
-                truck: form.truck || "",
-                year: form.year || "",
-                vin: form.vin || "",
-                technician: form.technician || "",
-                job_title: form.job_title || "",
-                work_status: form.work_status || "",
-                labor_amount: Number(form.labor_amount || 0),
-                parts_amount: Number(form.parts_amount || 0),
-                tax_amount: Number(form.tax_amount || 0),
-                discount_amount: Number(form.discount_amount || 0),
-                start_date: form.start_date || "",
-                due_date: form.due_date || "",
+                invoice_no: savedJob?.invoice_no || cleanedForm.invoice_no || "",
+                customer_id:
+                  savedJob?.customer_id || cleanedForm.customer_id || null,
+                customer_name: cleanedForm.customer_name || "",
+                phone: cleanedForm.phone || "",
+                truck: cleanedForm.truck || "",
+                year: cleanedForm.year || "",
+                vin: cleanedForm.vin || "",
+                technician: cleanedForm.technician || "",
+                job_title: cleanedForm.job_title || "",
+                work_status: cleanedForm.work_status || "",
+                labor_amount: Number(cleanedForm.labor_amount || 0),
+                parts_amount: Number(cleanedForm.parts_amount || 0),
+                tax_amount: Number(cleanedForm.tax_amount || 0),
+                discount_amount: Number(cleanedForm.discount_amount || 0),
+                start_date: cleanedForm.start_date || "",
+                due_date: cleanedForm.due_date || "",
               },
             });
-          
+
             setShowAddModal(false);
             await loadMaintenance();
+            showSuccess("Maintenance record created.");
           }}
         />
       )}
@@ -548,48 +809,53 @@ function Maintenance() {
           initialData={editingJob}
           onClose={() => setEditingJob(null)}
           onSubmit={async (form) => {
+            const cleanedForm = cleanMaintenanceForm(form);
             const previousJob = editingJob;
             const previousTotals = calculateMaintenanceTotals(previousJob);
-          
-            const updatedJob = await updateMaintenanceJob(editingJob.id, form);
-          
-            const newTotal =
-              Number(form.labor_amount || 0) +
-              Number(form.parts_amount || 0) +
-              Number(form.tax_amount || 0) -
-              Number(form.discount_amount || 0);
-          
+
+            const updatedJob = await updateMaintenanceJob(
+              editingJob.id,
+              cleanedForm
+            );
+
+            const nextTotals = calculateMaintenanceTotals({
+              ...previousJob,
+              ...cleanedForm,
+              maintenance_payments: previousJob.maintenance_payments || [],
+            });
+
             await logActivity({
               action: "UPDATE",
               module: "Maintenance",
               entity_type: "maintenance_job",
               entity_id: previousJob?.id,
               entity_label:
-                form.invoice_no ||
+                cleanedForm.invoice_no ||
                 previousJob?.invoice_no ||
-                form.customer_name ||
+                cleanedForm.customer_name ||
                 "Maintenance Record",
               description: `Maintenance record ${
-                form.invoice_no || previousJob?.invoice_no || "—"
-              } updated for ${form.customer_name || "customer"}.`,
+                cleanedForm.invoice_no || previousJob?.invoice_no || "—"
+              } updated for ${cleanedForm.customer_name || "customer"}.`,
               metadata: {
                 maintenance_job_id: previousJob?.id || null,
                 invoice_no_before: previousJob?.invoice_no || "",
-                invoice_no_after: form.invoice_no || "",
+                invoice_no_after: cleanedForm.invoice_no || "",
                 customer_name_before: previousJob?.customer_name || "",
-                customer_name_after: form.customer_name || "",
+                customer_name_after: cleanedForm.customer_name || "",
                 work_status_before: previousJob?.work_status || "",
-                work_status_after: form.work_status || "",
+                work_status_after: cleanedForm.work_status || "",
                 job_title_before: previousJob?.job_title || "",
-                job_title_after: form.job_title || "",
+                job_title_after: cleanedForm.job_title || "",
                 total_before: previousTotals.totalAmount,
-                total_after: Math.max(newTotal, 0),
+                total_after: nextTotals.totalAmount,
                 updated_job_id: updatedJob?.id || previousJob?.id || null,
               },
             });
-          
+
             setEditingJob(null);
             await loadMaintenance();
+            showSuccess("Maintenance record updated.");
           }}
         />
       )}
@@ -602,9 +868,12 @@ function Maintenance() {
             const previousBalance = calculateMaintenanceTotals(paymentJob).balance;
             const paidAmount = Number(payment.amount_paid || 0);
             const remainingBalance = Math.max(previousBalance - paidAmount, 0);
-          
-            const savedPayment = await addMaintenancePayment(payment);
-          
+
+            const savedPayment = await addMaintenancePayment({
+              ...payment,
+              payment_status: remainingBalance > 0 ? "Partial" : "Paid",
+            });
+
             await logActivity({
               action: "PAYMENT",
               module: "Maintenance",
@@ -614,14 +883,17 @@ function Maintenance() {
                 paymentJob?.invoice_no ||
                 paymentJob?.customer_name ||
                 "Maintenance Payment",
-              description: `Maintenance payment of ${formatMoney(paidAmount)} recorded for ${
-                paymentJob?.customer_name || "customer"
-              } on invoice ${paymentJob?.invoice_no || "—"}.`,
+              description: `Maintenance payment of ${formatMoney(
+                paidAmount
+              )} recorded for ${paymentJob?.customer_name || "customer"} on invoice ${
+                paymentJob?.invoice_no || "—"
+              }.`,
               metadata: {
                 payment_id: savedPayment?.id || null,
                 maintenance_job_id: payment.maintenance_job_id,
                 customer_id: payment.customer_id || paymentJob?.customer_id || null,
                 customer_name: paymentJob?.customer_name || "",
+                company_name: getCompanyName(paymentJob),
                 phone: paymentJob?.phone || "",
                 invoice_no: paymentJob?.invoice_no || "",
                 job_title: paymentJob?.job_title || "",
@@ -636,15 +908,16 @@ function Maintenance() {
                 payment_status: remainingBalance > 0 ? "Partial" : "Paid",
               },
             });
-          
+
             setReceiptData({
               job: paymentJob,
               payment: savedPayment,
               previousBalance,
             });
-          
+
             setPaymentJob(null);
             await loadMaintenance();
+            showSuccess("Maintenance payment recorded.");
           }}
         />
       )}
@@ -655,7 +928,7 @@ function Maintenance() {
           onClose={() => setPromiseJob(null)}
           onSubmit={async (promise) => {
             const savedPromise = await addMaintenancePromise(promise);
-          
+
             await logActivity({
               action: "CREATE",
               module: "Maintenance",
@@ -675,6 +948,7 @@ function Maintenance() {
                 maintenance_job_id: promise.maintenance_job_id,
                 customer_id: promise.customer_id || promiseJob?.customer_id || null,
                 customer_name: promiseJob?.customer_name || "",
+                company_name: getCompanyName(promiseJob),
                 phone: promiseJob?.phone || "",
                 invoice_no: promiseJob?.invoice_no || "",
                 job_title: promiseJob?.job_title || "",
@@ -684,9 +958,10 @@ function Maintenance() {
                 notes: promise.notes || "",
               },
             });
-          
+
             setPromiseJob(null);
             await loadMaintenance();
+            showSuccess("Maintenance promise scheduled.");
           }}
         />
       )}
@@ -703,7 +978,6 @@ function Maintenance() {
             setPromiseJob(viewJob);
             setViewJob(null);
           }}
-          // onPrintInvoice={() => printMaintenanceInvoice(viewJob)}
           onPrintInvoice={() => handlePrintMaintenanceInvoice(viewJob)}
         />
       )}
@@ -722,8 +996,8 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
   const [form, setForm] = useState({
     ...emptyForm,
     ...initialData,
-    start_date:
-      initialData.start_date || new Date().toISOString().split("T")[0],
+    customer_id: initialData.customer_id || null,
+    start_date: initialData.start_date || todayString,
     completed_date: initialData.completed_date || "",
     due_date: initialData.due_date || "",
   });
@@ -736,14 +1010,33 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
   const [customerLoading, setCustomerLoading] = useState(false);
 
   const updateField = (field, value) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setError("");
+
+    setForm((prev) => {
+      const next = {
+        ...prev,
+        [field]: value,
+      };
+
+      if (
+        field === "work_status" &&
+        (value === "Completed" || value === "Closed") &&
+        !prev.completed_date
+      ) {
+        next.completed_date = todayString;
+      }
+
+      return next;
+    });
   };
 
   const searchCustomers = async (value) => {
     updateField("customer_name", value);
+
+    setForm((prev) => ({
+      ...prev,
+      customer_id: null,
+    }));
 
     if (!value || value.trim().length < 2) {
       setCustomerSuggestions([]);
@@ -756,7 +1049,7 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
 
       const results = await getCustomerSuggestions(value);
 
-      setCustomerSuggestions(results);
+      setCustomerSuggestions(results || []);
       setShowCustomerSuggestions(true);
     } catch (error) {
       console.error("Customer search error:", error.message);
@@ -789,13 +1082,10 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!form.customer_name.trim()) {
-      setError("Customer name is required.");
-      return;
-    }
+    const validationError = validateMaintenanceForm(form);
 
-    if (!form.job_title.trim()) {
-      setError("Work title is required.");
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -853,15 +1143,16 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
                     >
                       <strong>{customer.customer_name}</strong>
                       <span>
-                        {customer.phone || "No phone"}{" "}
-                        {customer.email ? `· ${customer.email}` : ""}
+                        {customer.company_name ? `${customer.company_name} · ` : ""}
+                        {customer.phone || "No phone"}
+                        {customer.email ? ` · ${customer.email}` : ""}
                       </span>
                     </button>
                   ))
                 ) : (
                   <div style={suggestionItem}>
                     No existing customer found. This will be saved as a new
-                    customer.
+                    maintenance customer.
                   </div>
                 )}
               </div>
@@ -873,11 +1164,13 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
             value={form.phone}
             onChange={(v) => updateField("phone", v)}
           />
+
           <Input
             label="Email"
             value={form.email}
             onChange={(v) => updateField("email", v)}
           />
+
           <Input
             label="Address"
             value={form.address}
@@ -889,16 +1182,19 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
             value={form.year}
             onChange={(v) => updateField("year", v)}
           />
+
           <Input
             label="Truck"
             value={form.truck}
             onChange={(v) => updateField("truck", v)}
           />
+
           <Input
             label="VIN"
             value={form.vin}
             onChange={(v) => updateField("vin", v)}
           />
+
           <Input
             label="Technician"
             value={form.technician}
@@ -916,7 +1212,7 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
             label="Work Status"
             value={form.work_status}
             onChange={(v) => updateField("work_status", v)}
-            options={["Open", "In Progress", "Completed", "Closed", "Cancelled"]}
+            options={workStatuses}
           />
 
           <Input
@@ -925,12 +1221,14 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
             value={form.start_date}
             onChange={(v) => updateField("start_date", v)}
           />
+
           <Input
             label="Due Date"
             type="date"
             value={form.due_date}
             onChange={(v) => updateField("due_date", v)}
           />
+
           <Input
             label="Completed Date"
             type="date"
@@ -944,18 +1242,21 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
             value={form.labor_amount}
             onChange={(v) => updateField("labor_amount", v)}
           />
+
           <Input
             label="Parts Amount"
             type="number"
             value={form.parts_amount}
             onChange={(v) => updateField("parts_amount", v)}
           />
+
           <Input
             label="Tax Amount"
             type="number"
             value={form.tax_amount}
             onChange={(v) => updateField("tax_amount", v)}
           />
+
           <Input
             label="Discount Amount"
             type="number"
@@ -1011,15 +1312,21 @@ function PaymentModal({ job, onClose, onSubmit }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const amountPaid = Number(form.amount_paid || 0);
+  const remainingAfterPayment = Math.max(
+    Number(totals.balance || 0) - amountPaid,
+    0
+  );
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (Number(form.amount_paid || 0) <= 0) {
+    if (amountPaid <= 0) {
       setError("Payment amount must be greater than 0.");
       return;
     }
 
-    if (Number(form.amount_paid || 0) > Number(totals.balance || 0)) {
+    if (amountPaid > Number(totals.balance || 0)) {
       setError("Payment amount cannot be more than the current balance.");
       return;
     }
@@ -1044,8 +1351,14 @@ function PaymentModal({ job, onClose, onSubmit }) {
           <strong>
             {job.invoice_no || "—"} · {job.customer_name}
           </strong>
+          {getCompanyName(job) && <span>{getCompanyName(job)}</span>}
           <span>{job.job_title}</span>
           <span>Current Balance: {formatMoney(totals.balance)}</span>
+          {amountPaid > 0 && (
+            <span>
+              Balance After Payment: {formatMoney(remainingAfterPayment)}
+            </span>
+          )}
         </div>
 
         <div style={formGridTwo}>
@@ -1074,11 +1387,9 @@ function PaymentModal({ job, onClose, onSubmit }) {
 
           <Select
             label="Payment Status"
-            value={form.payment_status}
-            onChange={(v) =>
-              setForm((prev) => ({ ...prev, payment_status: v }))
-            }
-            options={["Paid", "Partial", "Voided"]}
+            value={remainingAfterPayment > 0 ? "Partial" : "Paid"}
+            onChange={() => {}}
+            options={[remainingAfterPayment > 0 ? "Partial" : "Paid"]}
           />
         </div>
 
@@ -1130,6 +1441,11 @@ function PromiseModal({ job, onClose, onSubmit }) {
       return;
     }
 
+    if (Number(form.promised_amount || 0) > Number(totals.balance || 0)) {
+      setError("Promised amount cannot be more than the current balance.");
+      return;
+    }
+
     try {
       setSaving(true);
       setError("");
@@ -1150,6 +1466,7 @@ function PromiseModal({ job, onClose, onSubmit }) {
           <strong>
             {job.invoice_no || "—"} · {job.customer_name}
           </strong>
+          {getCompanyName(job) && <span>{getCompanyName(job)}</span>}
           <span>{job.job_title}</span>
           <span>Balance: {formatMoney(totals.balance)}</span>
         </div>
@@ -1212,6 +1529,7 @@ function PromiseModal({ job, onClose, onSubmit }) {
 
 function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
   const totals = calculateMaintenanceTotals(job);
+  const balance = Number(totals.balance || 0);
 
   return (
     <Modal title="Maintenance Detail" onClose={onClose} width="940px">
@@ -1223,11 +1541,16 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
           <p style={{ margin: "6px 0 0", color: "#667085" }}>
             {job.phone || "No phone"} · {job.job_title}
           </p>
+          {getCompanyName(job) && (
+            <div style={companyPill}>{getCompanyName(job)}</div>
+          )}
         </div>
 
         <div style={detailBalanceBox}>
           <span>Balance</span>
-          <strong>{formatMoney(totals.balance)}</strong>
+          <strong style={balance > 0 ? dangerText : successText}>
+            {formatMoney(balance)}
+          </strong>
           <span style={getBalanceStatusBadge(totals.balanceStatus)}>
             {totals.balanceStatus}
           </span>
@@ -1235,12 +1558,30 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
       </div>
 
       <div style={detailActionRow}>
-        <button type="button" onClick={onPayment} style={paymentButton}>
+        <button
+          type="button"
+          onClick={onPayment}
+          style={{
+            ...paymentButton,
+            ...(balance <= 0 ? disabledButton : {}),
+          }}
+          disabled={balance <= 0}
+        >
           Take Payment
         </button>
-        <button type="button" onClick={onSchedule} style={scheduleButton}>
+
+        <button
+          type="button"
+          onClick={onSchedule}
+          style={{
+            ...scheduleButton,
+            ...(balance <= 0 ? disabledButton : {}),
+          }}
+          disabled={balance <= 0}
+        >
           Schedule Payment
         </button>
+
         <button type="button" onClick={onPrintInvoice} style={printButton}>
           Print Invoice
         </button>
@@ -1255,7 +1596,12 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
         <DetailItem label="VIN" value={job.vin} />
         <DetailItem label="Technician" value={job.technician} />
         <DetailItem label="Work Status" value={job.work_status} />
+        <DetailItem label="Start Date" value={formatDate(job.start_date)} />
         <DetailItem label="Due Date" value={formatDate(job.due_date)} />
+        <DetailItem
+          label="Completed Date"
+          value={formatDate(job.completed_date)}
+        />
         <DetailItem label="Labor" value={formatMoney(job.labor_amount)} />
         <DetailItem label="Parts" value={formatMoney(job.parts_amount)} />
         <DetailItem label="Tax" value={formatMoney(job.tax_amount)} />
@@ -1270,16 +1616,28 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
       </div>
 
       <div style={detailSection}>
+        <h3 style={detailTitle}>Notes</h3>
+        <p style={detailText}>{job.notes || "No notes added."}</p>
+      </div>
+
+      <div style={detailSection}>
         <h3 style={detailTitle}>Payment History</h3>
         <MiniTable
           columns={["Date", "Amount", "Method", "Status", "Notes"]}
-          rows={(job.maintenance_payments || []).map((payment) => [
-            formatDate(payment.payment_date),
-            formatMoney(payment.amount_paid),
-            payment.payment_method || "—",
-            payment.payment_status || "Paid",
-            payment.notes || "—",
-          ])}
+          rows={(job.maintenance_payments || [])
+            .slice()
+            .sort((a, b) =>
+              String(b.payment_date || "").localeCompare(
+                String(a.payment_date || "")
+              )
+            )
+            .map((payment) => [
+              formatDate(payment.payment_date),
+              formatMoney(payment.amount_paid),
+              payment.payment_method || "—",
+              payment.payment_status || "Paid",
+              payment.notes || "—",
+            ])}
           empty="No maintenance payments recorded."
         />
       </div>
@@ -1288,12 +1646,19 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
         <h3 style={detailTitle}>Scheduled Payments / Promises</h3>
         <MiniTable
           columns={["Promised Date", "Amount", "Status", "Notes"]}
-          rows={(job.maintenance_promises || []).map((promise) => [
-            formatDate(promise.promised_date),
-            formatMoney(promise.promised_amount),
-            promise.promise_status || "Pending",
-            promise.notes || "—",
-          ])}
+          rows={(job.maintenance_promises || [])
+            .slice()
+            .sort((a, b) =>
+              String(b.promised_date || "").localeCompare(
+                String(a.promised_date || "")
+              )
+            )
+            .map((promise) => [
+              formatDate(promise.promised_date),
+              formatMoney(promise.promised_amount),
+              promise.promise_status || "Pending",
+              promise.notes || "—",
+            ])}
           empty="No scheduled payments recorded."
         />
       </div>
@@ -1343,6 +1708,7 @@ function MaintenanceReceiptModal({ receiptData, onClose }) {
         invoice_no: job?.invoice_no || "",
         customer_id: job?.customer_id || null,
         customer_name: job?.customer_name || "",
+        company_name: getCompanyName(job),
         phone: job?.phone || "",
         amount_paid: Number(payment?.amount_paid || 0),
         payment_date: payment?.payment_date || "",
@@ -1368,6 +1734,7 @@ function MaintenanceReceiptModal({ receiptData, onClose }) {
 
         <div style={detailGrid}>
           <DetailItem label="Customer" value={job.customer_name} />
+          <DetailItem label="Company" value={getCompanyName(job)} />
           <DetailItem label="Invoice No" value={job.invoice_no} />
           <DetailItem
             label="Payment Date"
@@ -1415,6 +1782,60 @@ function Modal({ title, onClose, children, width = "760px" }) {
   );
 }
 
+function PaginationControls({
+  currentPage,
+  totalPages,
+  pageSize,
+  onPageSizeChange,
+  onPageChange,
+}) {
+  const isFirstPage = currentPage <= 1;
+  const isLastPage = currentPage >= totalPages;
+
+  return (
+    <div style={paginationWrapper}>
+      <select
+        value={pageSize}
+        onChange={(event) => onPageSizeChange(event.target.value)}
+        style={pageSizeSelect}
+      >
+        <option value={10}>10 / page</option>
+        <option value={25}>25 / page</option>
+        <option value={50}>50 / page</option>
+        <option value={100}>100 / page</option>
+      </select>
+
+      <button
+        type="button"
+        onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
+        disabled={isFirstPage}
+        style={{
+          ...pageButton,
+          ...(isFirstPage ? disabledButton : {}),
+        }}
+      >
+        Prev
+      </button>
+
+      <span style={pageBadge}>
+        {currentPage} / {totalPages}
+      </span>
+
+      <button
+        type="button"
+        onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
+        disabled={isLastPage}
+        style={{
+          ...pageButton,
+          ...(isLastPage ? disabledButton : {}),
+        }}
+      >
+        Next
+      </button>
+    </div>
+  );
+}
+
 function MetricCard({ label, value, tone = "default" }) {
   return (
     <div style={{ ...metricCard, ...getMetricTone(tone) }}>
@@ -1434,12 +1855,16 @@ function Input({
 }) {
   return (
     <label style={fieldWrapper}>
-      <span style={labelStyle}>{label}</span>
+      <span style={labelStyle}>
+        {label} {required && <span style={requiredMark}>*</span>}
+      </span>
       <input
         type={type}
         value={value || ""}
         required={required}
         placeholder={placeholder}
+        min={type === "number" ? "0" : undefined}
+        step={type === "number" ? "0.01" : undefined}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle}
       />
@@ -1474,7 +1899,7 @@ function TextArea({ label, value, onChange }) {
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         rows="3"
-        style={{ ...inputStyle, resize: "vertical" }}
+        style={{ ...inputStyle, resize: "vertical", lineHeight: "1.45" }}
       />
     </label>
   );
@@ -1527,10 +1952,83 @@ function MiniTable({ columns, rows, empty }) {
   );
 }
 
+function cleanMaintenanceForm(form) {
+  return {
+    ...form,
+    invoice_no: String(form.invoice_no || "").trim(),
+    customer_id: form.customer_id || null,
+    customer_type: String(form.customer_type || "Maintenance Only").trim(),
+    customer_name: String(form.customer_name || "").trim(),
+    phone: String(form.phone || "").trim(),
+    email: String(form.email || "").trim(),
+    address: String(form.address || "").trim(),
+    truck: String(form.truck || "").trim(),
+    year: String(form.year || "").trim(),
+    vin: String(form.vin || "").trim(),
+    technician: String(form.technician || "").trim(),
+    job_title: String(form.job_title || "").trim(),
+    job_description: String(form.job_description || "").trim(),
+    work_status: String(form.work_status || "Open").trim(),
+    labor_amount: Number(form.labor_amount || 0),
+    parts_amount: Number(form.parts_amount || 0),
+    tax_amount: Number(form.tax_amount || 0),
+    discount_amount: Number(form.discount_amount || 0),
+    start_date: form.start_date || todayString,
+    completed_date: form.completed_date || null,
+    due_date: form.due_date || null,
+    notes: String(form.notes || "").trim(),
+  };
+}
+
+function validateMaintenanceForm(form) {
+  if (!String(form.customer_name || "").trim()) {
+    return "Customer name is required.";
+  }
+
+  if (!String(form.job_title || "").trim()) {
+    return "Work title is required.";
+  }
+
+  const moneyFields = [
+    "labor_amount",
+    "parts_amount",
+    "tax_amount",
+    "discount_amount",
+  ];
+
+  const hasNegativeAmount = moneyFields.some(
+    (field) => Number(form[field] || 0) < 0
+  );
+
+  if (hasNegativeAmount) {
+    return "Amounts cannot be negative.";
+  }
+
+  const total =
+    Number(form.labor_amount || 0) +
+    Number(form.parts_amount || 0) +
+    Number(form.tax_amount || 0) -
+    Number(form.discount_amount || 0);
+
+  if (total < 0) {
+    return "Discount cannot be greater than labor, parts, and tax combined.";
+  }
+
+  if (
+    form.completed_date &&
+    form.start_date &&
+    String(form.completed_date) < String(form.start_date)
+  ) {
+    return "Completed date cannot be before start date.";
+  }
+
+  return "";
+}
+
 function applyQuickFilter(job, filter) {
   const balance = Number(job.totals.balance || 0);
 
-  const hasPendingPromise = (job.maintenance_promises || []).some(
+  const hasPendingPromise = getActiveMaintenancePromises(job).some(
     (promise) => promise.promise_status === "Pending"
   );
 
@@ -1548,9 +2046,55 @@ function applyQuickFilter(job, filter) {
   if (filter === "Completed Not Paid") {
     return job.work_status === "Completed" && balance > 0;
   }
-  if (filter === "Closed/Paid") return job.work_status === "Closed" || balance <= 0;
+  if (filter === "Closed/Paid") {
+    return job.work_status === "Closed" || balance <= 0;
+  }
 
   return true;
+}
+
+function sortMaintenanceJobs(list, sortBy, direction) {
+  const multiplier = direction === "desc" ? -1 : 1;
+
+  return [...list].sort((a, b) => {
+    let aValue = "";
+    let bValue = "";
+
+    if (sortBy === "balance") {
+      aValue = Number(a.totals.balance || 0);
+      bValue = Number(b.totals.balance || 0);
+    } else if (sortBy === "total") {
+      aValue = Number(a.totals.totalAmount || 0);
+      bValue = Number(b.totals.totalAmount || 0);
+    } else {
+      aValue = String(a[sortBy] || "");
+      bValue = String(b[sortBy] || "");
+    }
+
+    if (typeof aValue === "number" && typeof bValue === "number") {
+      return (aValue - bValue) * multiplier;
+    }
+
+    return String(aValue).localeCompare(String(bValue)) * multiplier;
+  });
+}
+
+function getCompanyName(job) {
+  return (
+    job?.company_name ||
+    job?.customers?.company_name ||
+    job?.customer?.company_name ||
+    ""
+  );
+}
+
+function getActiveMaintenancePromises(job) {
+  return (job.maintenance_promises || []).filter(
+    (promise) =>
+      promise.promise_status !== "Paid" &&
+      promise.promise_status !== "Cancelled" &&
+      promise.promise_status !== "Rescheduled"
+  );
 }
 
 function getLatestPromise(job) {
@@ -1561,6 +2105,34 @@ function getLatestPromise(job) {
   return [...promises].sort(
     (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
   )[0];
+}
+
+function isPastDue(job) {
+  return (
+    Number(job.totals.balance || 0) > 0 &&
+    job.due_date &&
+    String(job.due_date) < todayString
+  );
+}
+
+function daysBetween(startDate, endDate) {
+  if (!startDate || !endDate) return 0;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+
+  const difference = end.getTime() - start.getTime();
+  return Math.max(Math.floor(difference / (1000 * 60 * 60 * 24)), 0);
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || "");
+
+  if (text.length <= maxLength) return text;
+
+  return `${text.slice(0, maxLength)}...`;
 }
 
 function formatDate(dateString) {
@@ -1598,7 +2170,7 @@ function printHtmlWithIframe(html, title) {
   iframeDocument.write(`
     <html>
       <head>
-        <title>${title}</title>
+        <title>${escapeHtml(title)}</title>
         <style>
           * { box-sizing: border-box; }
           body {
@@ -1768,48 +2340,60 @@ function buildMaintenanceInvoiceHtml(job, totals) {
           <h1>RK Truck & Trailer Sales</h1>
           <p>2727 Willowbrook Rd, Dallas, TX 75220</p>
           <p>Phone: 469-880-2222</p>
-          <span class="badge">${job.customer_type || "Maintenance Only"}</span>
+          <span class="badge">${escapeHtml(
+            job.customer_type || "Maintenance Only"
+          )}</span>
         </div>
 
         <div class="meta">
           <h2>MAINTENANCE INVOICE</h2>
-          <p><strong>Invoice:</strong> ${job.invoice_no || "—"}</p>
-          <p><strong>Date:</strong> ${formatDate(job.start_date)}</p>
-          <p><strong>Due:</strong> ${formatDate(job.due_date)}</p>
+          <p><strong>Invoice:</strong> ${escapeHtml(job.invoice_no || "—")}</p>
+          <p><strong>Date:</strong> ${escapeHtml(formatDate(job.start_date))}</p>
+          <p><strong>Due:</strong> ${escapeHtml(formatDate(job.due_date))}</p>
         </div>
       </div>
 
       <div class="grid">
         <div class="box">
           <div class="label">Customer</div>
-          <div class="value">${job.customer_name || "—"}</div>
+          <div class="value">${escapeHtml(job.customer_name || "—")}</div>
+        </div>
+        <div class="box">
+          <div class="label">Company</div>
+          <div class="value">${escapeHtml(getCompanyName(job) || "—")}</div>
         </div>
         <div class="box">
           <div class="label">Phone</div>
-          <div class="value">${job.phone || "—"}</div>
+          <div class="value">${escapeHtml(job.phone || "—")}</div>
         </div>
         <div class="box">
           <div class="label">Truck</div>
-          <div class="value">${`${job.year || ""} ${job.truck || ""}`.trim() || "—"}</div>
+          <div class="value">${escapeHtml(
+            `${job.year || ""} ${job.truck || ""}`.trim() || "—"
+          )}</div>
         </div>
         <div class="box">
           <div class="label">VIN</div>
-          <div class="value">${job.vin || "—"}</div>
+          <div class="value">${escapeHtml(job.vin || "—")}</div>
         </div>
         <div class="box">
           <div class="label">Technician</div>
-          <div class="value">${job.technician || "—"}</div>
+          <div class="value">${escapeHtml(job.technician || "—")}</div>
         </div>
         <div class="box">
           <div class="label">Work Status</div>
-          <div class="value">${job.work_status || "Open"}</div>
+          <div class="value">${escapeHtml(job.work_status || "Open")}</div>
+        </div>
+        <div class="box">
+          <div class="label">Completed Date</div>
+          <div class="value">${escapeHtml(formatDate(job.completed_date))}</div>
         </div>
       </div>
 
       <div class="box">
         <div class="label">Work Performed</div>
-        <div class="value">${job.job_title || "—"}</div>
-        <p>${job.job_description || ""}</p>
+        <div class="value">${escapeHtml(job.job_title || "—")}</div>
+        <p>${escapeHtml(job.job_description || "")}</p>
       </div>
 
       <table>
@@ -1824,9 +2408,13 @@ function buildMaintenanceInvoiceHtml(job, totals) {
           <tr><td>Parts</td><td>${formatMoney(job.parts_amount)}</td></tr>
           <tr><td>Tax</td><td>${formatMoney(job.tax_amount)}</td></tr>
           <tr><td>Discount</td><td>-${formatMoney(job.discount_amount)}</td></tr>
-          <tr class="total"><td>Total</td><td>${formatMoney(totals.totalAmount)}</td></tr>
+          <tr class="total"><td>Total</td><td>${formatMoney(
+            totals.totalAmount
+          )}</td></tr>
           <tr><td>Paid</td><td>${formatMoney(totals.totalPaid)}</td></tr>
-          <tr class="total"><td>Balance</td><td>${formatMoney(totals.balance)}</td></tr>
+          <tr class="total"><td>Balance</td><td>${formatMoney(
+            totals.balance
+          )}</td></tr>
         </tbody>
       </table>
 
@@ -1837,7 +2425,7 @@ function buildMaintenanceInvoiceHtml(job, totals) {
 
       <div class="notes">
         <strong>Notes:</strong><br />
-        ${job.notes || "No notes added."}
+        ${escapeHtml(job.notes || "No notes added.")}
       </div>
 
       <div class="signature-row">
@@ -1870,27 +2458,37 @@ function buildMaintenanceReceiptHtml({
 
         <div class="meta">
           <h2>PAYMENT RECEIPT</h2>
-          <p><strong>Invoice:</strong> ${job.invoice_no || "—"}</p>
-          <p><strong>Payment Date:</strong> ${formatDate(payment.payment_date)}</p>
+          <p><strong>Invoice:</strong> ${escapeHtml(job.invoice_no || "—")}</p>
+          <p><strong>Payment Date:</strong> ${escapeHtml(
+            formatDate(payment.payment_date)
+          )}</p>
         </div>
       </div>
 
       <div class="grid">
         <div class="box">
           <div class="label">Customer</div>
-          <div class="value">${job.customer_name || "—"}</div>
+          <div class="value">${escapeHtml(job.customer_name || "—")}</div>
+        </div>
+        <div class="box">
+          <div class="label">Company</div>
+          <div class="value">${escapeHtml(getCompanyName(job) || "—")}</div>
         </div>
         <div class="box">
           <div class="label">Phone</div>
-          <div class="value">${job.phone || "—"}</div>
+          <div class="value">${escapeHtml(job.phone || "—")}</div>
         </div>
         <div class="box">
           <div class="label">Work</div>
-          <div class="value">${job.job_title || "—"}</div>
+          <div class="value">${escapeHtml(job.job_title || "—")}</div>
         </div>
         <div class="box">
           <div class="label">Payment Method</div>
-          <div class="value">${payment.payment_method || "—"}</div>
+          <div class="value">${escapeHtml(payment.payment_method || "—")}</div>
+        </div>
+        <div class="box">
+          <div class="label">Receipt Status</div>
+          <div class="value">Payment Recorded</div>
         </div>
       </div>
 
@@ -1903,13 +2501,15 @@ function buildMaintenanceReceiptHtml({
         <tbody>
           <tr><td>Previous Balance</td><td>${formatMoney(previousBalance)}</td></tr>
           <tr><td>Amount Paid</td><td>${formatMoney(payment.amount_paid)}</td></tr>
-          <tr class="total"><td>Remaining Balance</td><td>${formatMoney(remainingBalance)}</td></tr>
+          <tr class="total"><td>Remaining Balance</td><td>${formatMoney(
+            remainingBalance
+          )}</td></tr>
         </tbody>
       </table>
 
       <div class="notes">
         <strong>Payment Notes:</strong><br />
-        ${payment.notes || "No notes added."}
+        ${escapeHtml(payment.notes || "No notes added.")}
       </div>
 
       <div class="signature-row">
@@ -1923,6 +2523,15 @@ function buildMaintenanceReceiptHtml({
       </div>
     </div>
   `;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function getStatusBadge(status) {
@@ -2079,7 +2688,6 @@ const heroCard = {
   gap: "18px",
   flexWrap: "wrap",
   boxShadow: "0 16px 38px rgba(15, 23, 42, 0.24)",
-  marginBottom: "0",
 };
 
 const eyebrow = {
@@ -2102,6 +2710,23 @@ const pageDescription = {
   color: "#dbeafe",
   maxWidth: "720px",
   lineHeight: "1.5",
+};
+
+const heroPills = {
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap",
+  marginTop: "14px",
+};
+
+const heroPill = {
+  background: "rgba(255,255,255,0.12)",
+  border: "1px solid rgba(255,255,255,0.25)",
+  color: "#e0f2fe",
+  borderRadius: "999px",
+  padding: "6px 10px",
+  fontSize: "12px",
+  fontWeight: "900",
 };
 
 const heroActions = {
@@ -2131,6 +2756,24 @@ const secondaryButton = {
   fontWeight: "900",
 };
 
+const messageBox = {
+  borderRadius: "14px",
+  padding: "12px",
+  fontWeight: "900",
+};
+
+const successMessage = {
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #bbf7d0",
+};
+
+const errorMessage = {
+  background: "#fee2e2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+};
+
 const metricGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
@@ -2144,7 +2787,6 @@ const metricCard = {
   display: "grid",
   gap: "7px",
   boxShadow: "0 10px 24px rgba(15, 23, 42, 0.07)",
-  transition: "transform 0.15s ease, box-shadow 0.15s ease",
 };
 
 const metricLabel = {
@@ -2199,6 +2841,18 @@ const filterBar = {
   boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
 };
 
+const filteredSummaryBar = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "14px",
+  padding: "11px 13px",
+  display: "flex",
+  gap: "16px",
+  flexWrap: "wrap",
+  color: "#475569",
+  fontSize: "13px",
+};
+
 const searchInput = {
   flex: "1 1 360px",
   border: "1px solid #d1d5db",
@@ -2245,6 +2899,14 @@ const tableHeader = {
   background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
 };
 
+const tableFooter = {
+  padding: "12px 16px",
+  borderTop: "1px solid #e5e7eb",
+  background: "#f8fafc",
+  display: "flex",
+  justifyContent: "flex-end",
+};
+
 const sectionTitle = {
   margin: 0,
   color: "#111827",
@@ -2255,16 +2917,6 @@ const sectionDescription = {
   margin: "6px 0 0",
   color: "#667085",
   fontSize: "14px",
-};
-
-const loadingBadge = {
-  background: "#eff6ff",
-  color: "#1d4ed8",
-  border: "1px solid #bfdbfe",
-  borderRadius: "999px",
-  padding: "7px 11px",
-  fontSize: "12px",
-  fontWeight: "900",
 };
 
 const tableWrapper = {
@@ -2278,7 +2930,7 @@ const tableStyle = {
   width: "100%",
   borderCollapse: "separate",
   borderSpacing: 0,
-  minWidth: "1450px",
+  minWidth: "1500px",
 };
 
 const thStyle = {
@@ -2315,6 +2967,28 @@ const smallText = {
   marginTop: "4px",
   color: "#667085",
   fontSize: "12px",
+  lineHeight: "1.35",
+};
+
+const companyPill = {
+  marginTop: "5px",
+  color: "#1d4ed8",
+  fontSize: "12px",
+  fontWeight: "900",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  padding: "4px 8px",
+  display: "inline-flex",
+  maxWidth: "100%",
+  overflowWrap: "anywhere",
+};
+
+const pastDueText = {
+  marginTop: "4px",
+  color: "#991b1b",
+  fontSize: "12px",
+  fontWeight: "900",
 };
 
 const dangerText = {
@@ -2377,6 +3051,48 @@ const printButtonLarge = {
   borderRadius: "10px",
   padding: "10px 14px",
   cursor: "pointer",
+  fontWeight: "900",
+};
+
+const disabledButton = {
+  opacity: 0.45,
+  cursor: "not-allowed",
+};
+
+const paginationWrapper = {
+  display: "flex",
+  alignItems: "center",
+  gap: "7px",
+  flexWrap: "wrap",
+};
+
+const pageSizeSelect = {
+  border: "1px solid #d1d5db",
+  borderRadius: "8px",
+  padding: "7px 9px",
+  background: "white",
+  color: "#334155",
+  fontSize: "12px",
+  fontWeight: "800",
+};
+
+const pageButton = {
+  background: "white",
+  color: "#0A1A2F",
+  border: "1px solid #d1d5db",
+  borderRadius: "8px",
+  padding: "7px 10px",
+  cursor: "pointer",
+  fontWeight: "900",
+  fontSize: "12px",
+};
+
+const pageBadge = {
+  background: "#0A1A2F",
+  color: "white",
+  borderRadius: "8px",
+  padding: "7px 10px",
+  fontSize: "12px",
   fontWeight: "900",
 };
 
@@ -2455,6 +3171,10 @@ const labelStyle = {
   fontWeight: "900",
 };
 
+const requiredMark = {
+  color: "#dc2626",
+};
+
 const inputStyle = {
   border: "1px solid #d1d5db",
   borderRadius: "10px",
@@ -2463,6 +3183,7 @@ const inputStyle = {
   outline: "none",
   width: "100%",
   boxSizing: "border-box",
+  background: "white",
 };
 
 const totalPreview = {
@@ -2675,6 +3396,20 @@ const customerLinkStyle = {
   textDecoration: "underline",
   textUnderlineOffset: "3px",
   cursor: "pointer",
+};
+
+const invoiceLinkButton = {
+  background: "transparent",
+  border: "none",
+  padding: 0,
+  margin: 0,
+  color: "#0A1A2F",
+  fontWeight: "900",
+  fontSize: "13px",
+  cursor: "pointer",
+  textDecoration: "underline",
+  textUnderlineOffset: "3px",
+  textAlign: "left",
 };
 
 export default Maintenance;

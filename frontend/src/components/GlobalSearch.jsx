@@ -62,27 +62,39 @@ function GlobalSearch() {
           String(deal.customers?.customer_name || "")
             .toLowerCase()
             .includes(text) ||
+          String(deal.customers?.company_name || "")
+            .toLowerCase()
+            .includes(text) ||
           String(deal.customers?.phone || "").toLowerCase().includes(text) ||
+          String(deal.customers?.email || "").toLowerCase().includes(text) ||
+          String(deal.customers?.address || "").toLowerCase().includes(text) ||
           String(deal.truck || "").toLowerCase().includes(text) ||
           String(deal.year || "").toLowerCase().includes(text) ||
           String(deal.vin || "").toLowerCase().includes(text) ||
           String(deal.deal_type || "").toLowerCase().includes(text) ||
-          String(deal.status || "").toLowerCase().includes(text)
+          String(deal.deal_subtype || "").toLowerCase().includes(text) ||
+          String(deal.status || "").toLowerCase().includes(text) ||
+          String(deal.notes || "").toLowerCase().includes(text)
         );
       })
-      .map((deal) => ({
-        id: `deal-${deal.id}`,
-        type: "Deal",
-        dealId: deal.id,
-        title: `${deal.deal_tag || "—"} - ${
-          deal.customers?.customer_name || "Customer"
-        }`,
-        subtitle: `${deal.year || ""} ${deal.truck || ""} • ${
-          deal.deal_type || "No Type"
-        } • ${deal.status || "Active"}`,
-        meta: deal.customers?.phone || "No phone",
-        amount: deal.total_amount,
-      }));
+      .map((deal) => {
+        const customerName = deal.customers?.customer_name || "Customer";
+        const companyName = deal.customers?.company_name || "";
+
+        return {
+          id: `deal-${deal.id}`,
+          type: "Deal",
+          dealId: deal.id,
+          title: companyName
+            ? `${deal.deal_tag || "—"} - ${customerName} (${companyName})`
+            : `${deal.deal_tag || "—"} - ${customerName}`,
+          subtitle: `${deal.year || ""} ${deal.truck || ""} • ${
+            deal.deal_type || "No Type"
+          } • ${deal.status || "Active"}`,
+          meta: companyName || deal.customers?.phone || "No phone",
+          amount: deal.total_amount,
+        };
+      });
 
     const paymentResults = payments
       .filter((payment) => {
@@ -91,7 +103,13 @@ function GlobalSearch() {
           String(payment.deals?.customers?.customer_name || "")
             .toLowerCase()
             .includes(text) ||
+          String(payment.deals?.customers?.company_name || "")
+            .toLowerCase()
+            .includes(text) ||
           String(payment.deals?.customers?.phone || "")
+            .toLowerCase()
+            .includes(text) ||
+          String(payment.deals?.customers?.email || "")
             .toLowerCase()
             .includes(text) ||
           String(payment.payment_method || "").toLowerCase().includes(text) ||
@@ -100,19 +118,25 @@ function GlobalSearch() {
           String(payment.notes || "").toLowerCase().includes(text)
         );
       })
-      .map((payment) => ({
-        id: `payment-${payment.id}`,
-        type: "Payment",
-        dealId: payment.deal_id || payment.deals?.id,
-        title: `${payment.deals?.deal_tag || "—"} - ${
-          payment.deals?.customers?.customer_name || "Customer"
-        }`,
-        subtitle: `Payment ${formatMoney(payment.amount_paid)} • ${
-          payment.payment_date || "No date"
-        } • ${payment.payment_status || "Active"}`,
-        meta: payment.payment_method || "Payment",
-        amount: payment.amount_paid,
-      }))
+      .map((payment) => {
+        const customerName =
+          payment.deals?.customers?.customer_name || "Customer";
+        const companyName = payment.deals?.customers?.company_name || "";
+
+        return {
+          id: `payment-${payment.id}`,
+          type: "Payment",
+          dealId: payment.deal_id || payment.deals?.id,
+          title: companyName
+            ? `${payment.deals?.deal_tag || "—"} - ${customerName} (${companyName})`
+            : `${payment.deals?.deal_tag || "—"} - ${customerName}`,
+          subtitle: `Payment ${formatMoney(payment.amount_paid)} • ${
+            payment.payment_date || "No date"
+          } • ${payment.payment_status || "Active"}`,
+          meta: companyName || payment.payment_method || "Payment",
+          amount: payment.amount_paid,
+        };
+      })
       .filter((item) => item.dealId);
 
     const promiseResults = promises
@@ -122,26 +146,38 @@ function GlobalSearch() {
           String(promise.deals?.customers?.customer_name || "")
             .toLowerCase()
             .includes(text) ||
+          String(promise.deals?.customers?.company_name || "")
+            .toLowerCase()
+            .includes(text) ||
           String(promise.deals?.customers?.phone || "")
+            .toLowerCase()
+            .includes(text) ||
+          String(promise.deals?.customers?.email || "")
             .toLowerCase()
             .includes(text) ||
           String(promise.promise_status || "").toLowerCase().includes(text) ||
           String(promise.notes || "").toLowerCase().includes(text)
         );
       })
-      .map((promise) => ({
-        id: `promise-${promise.id}`,
-        type: "Promise",
-        dealId: promise.deal_id || promise.deals?.id,
-        title: `${promise.deals?.deal_tag || "—"} - ${
-          promise.deals?.customers?.customer_name || "Customer"
-        }`,
-        subtitle: `Promise ${formatMoney(promise.remaining_amount)} • ${
-          promise.promised_date || "No date"
-        } • ${promise.promise_status || "Pending"}`,
-        meta: promise.deals?.customers?.phone || "No phone",
-        amount: promise.remaining_amount,
-      }))
+      .map((promise) => {
+        const customerName =
+          promise.deals?.customers?.customer_name || "Customer";
+        const companyName = promise.deals?.customers?.company_name || "";
+
+        return {
+          id: `promise-${promise.id}`,
+          type: "Promise",
+          dealId: promise.deal_id || promise.deals?.id,
+          title: companyName
+            ? `${promise.deals?.deal_tag || "—"} - ${customerName} (${companyName})`
+            : `${promise.deals?.deal_tag || "—"} - ${customerName}`,
+          subtitle: `Promise ${formatMoney(promise.remaining_amount)} • ${
+            promise.promised_date || "No date"
+          } • ${promise.promise_status || "Pending"}`,
+          meta: companyName || promise.deals?.customers?.phone || "No phone",
+          amount: promise.remaining_amount,
+        };
+      })
       .filter((item) => item.dealId);
 
     return [...dealResults, ...paymentResults, ...promiseResults].slice(0, 12);
@@ -168,7 +204,7 @@ function GlobalSearch() {
           onFocus={() => {
             if (search.trim()) setOpen(true);
           }}
-          placeholder="Search deal tag, customer, phone, VIN, payment, promise..."
+          placeholder="Search deal tag, customer, company, phone, VIN, payment, promise..."
           style={inputStyle}
         />
 
@@ -188,8 +224,8 @@ function GlobalSearch() {
 
           {results.length === 0 ? (
             <div style={emptyState}>
-              No matching records found. Try deal tag, customer name, phone, or
-              VIN.
+              No matching records found. Try deal tag, customer name, company
+              name, phone, or VIN.
             </div>
           ) : (
             <div style={resultList}>

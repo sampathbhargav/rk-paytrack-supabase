@@ -67,14 +67,16 @@ function HelpCenter() {
           <h1 style={isMobile ? mobilePageTitle : pageTitle}>Help Center</h1>
 
           <p style={isMobile ? mobilePageDescription : pageDescription}>
-            Quick employee training articles for deals, payments, maintenance,
-            receipts, promises, reports, and daily workflow.
+            Quick employee training articles for deals, payments, customers,
+            follow-ups, referrals, maintenance, receipts, reports, and daily
+            workflow.
           </p>
 
           <div style={isMobile ? mobileHeroPills : heroPills}>
+            <span style={heroPill}>Customers</span>
             <span style={heroPill}>Payments</span>
+            <span style={heroPill}>Follow-Ups</span>
             <span style={heroPill}>Maintenance</span>
-            <span style={heroPill}>Receipts</span>
             <span style={heroPill}>Reports</span>
             <span style={heroPill}>Best Practices</span>
           </div>
@@ -97,25 +99,25 @@ function HelpCenter() {
         <QuickStartCard
           icon="🚀"
           title="New Employee Path"
-          text="Start with Getting Started, then read Add Payment, Due Schedule, Promises, and Receipts."
+          text="Start with Getting Started, then review Customers, Add Payment, Follow-Up Notes, Due Schedule, Promises, Receipts, and Reports."
+        />
+
+        <QuickStartCard
+          icon="👤"
+          title="Customer Work"
+          text="Use customer profiles to view balances, edit customer info, add follow-up notes, and review deals or maintenance."
         />
 
         <QuickStartCard
           icon="💵"
           title="Taking Payments"
-          text="Use Payment Center for deal payments and maintenance invoice payments."
-        />
-
-        <QuickStartCard
-          icon="🧾"
-          title="Receipts"
-          text="Print receipts immediately when a customer asks for proof of payment."
+          text="Use Payment Center for deal payments and maintenance invoice payments. Extra deal payments can apply toward the next installment."
         />
 
         <QuickStartCard
           icon="⚠️"
           title="Important Rule"
-          text="Always verify customer, deal/invoice, amount, date, and method before saving."
+          text="Always verify customer, company, deal/invoice, amount, date, method, and notes before saving."
         />
       </div>
 
@@ -128,8 +130,8 @@ function HelpCenter() {
         >
           Getting Started
         </button>{" "}
-        and then review payments, maintenance, receipts, promises, due schedule,
-        and reports.
+        and then review payments, customer profiles, follow-up notes, promises,
+        due schedule, receipts, reports, and common mistakes.
       </div>
 
       <div style={isMobile ? mobileToolbar : toolbar}>
@@ -235,9 +237,9 @@ function HelpCenter() {
           </div>
 
           <div style={articleFooter}>
-            <strong>Best practice:</strong> Verify customer details, payment
-            amount, payment method, date, notes, and balance before saving any
-            financial record.
+            <strong>Best practice:</strong> Verify customer details, company
+            name, payment amount, payment method, date, notes, deal tag or
+            invoice number, and balance before saving any financial record.
           </div>
         </main>
       </div>
@@ -269,16 +271,19 @@ const articles = [
       {
         heading: "What is RK PayTrack?",
         text:
-          "RK PayTrack is used to manage dealership deals, customer balances, payments, due schedules, promises, receipts, maintenance invoices, and reports.",
+          "RK PayTrack is used to manage dealership deals, customer balances, payments, due schedules, promises, receipts, maintenance invoices, follow-up notes, referral information, and reports.",
       },
       {
         heading: "Main Things You Can Do",
         text: "Employees can use the system to track customer payment activity.",
         items: [
-          "View customer and deal details.",
+          "View customer, company, deal, and maintenance details.",
           "Check balances and monthly payment amounts.",
           "Add deal payments and maintenance payments.",
           "Create promises for partial or delayed payments.",
+          "Add customer follow-up notes for calls, texts, disputes, and manager notes.",
+          "Edit basic customer information from the customer profile.",
+          "Track referral information on deals.",
           "Print receipts, invoices, and account summaries.",
           "Review due payments and past-due accounts.",
           "Export reports for management or accounting.",
@@ -287,7 +292,214 @@ const articles = [
       {
         heading: "Best Practice",
         text:
-          "Always review the customer name, deal tag or invoice number, payment amount, payment method, and due date before saving any payment or promise.",
+          "Always review the customer name, company name, deal tag or invoice number, payment amount, payment method, and due date before saving any payment or promise.",
+      },
+    ],
+  },
+  {
+    id: "globalSearch",
+    title: "Global Search",
+    icon: "🔎",
+    category: "Basics",
+    summary:
+      "Explains how to quickly find customers, companies, deals, payments, and promises.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Global Search helps employees quickly find records without opening multiple pages.",
+      },
+      {
+        heading: "What You Can Search",
+        text: "Use the search bar to find information across the system.",
+        items: [
+          "Customer name.",
+          "Company name.",
+          "Phone number.",
+          "Deal tag.",
+          "VIN.",
+          "Truck year or truck name.",
+          "Payment method or payment status.",
+          "Promise status or notes.",
+        ],
+      },
+      {
+        heading: "Best Practice",
+        text:
+          "If a customer has a company name, search by either the customer name or company name to locate the correct deal faster.",
+      },
+    ],
+  },
+  {
+    id: "customers",
+    title: "Customers",
+    icon: "👤",
+    category: "Customers",
+    summary:
+      "Explains customer records, company names, and customer profile information.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Customer records store basic customer information used across deals, maintenance, payments, follow-ups, and reports.",
+      },
+      {
+        heading: "Customer Information",
+        text: "A customer record may include the following details.",
+        items: [
+          "Customer name.",
+          "Company name.",
+          "Phone number.",
+          "Email address.",
+          "Address.",
+          "Connected deals.",
+          "Connected maintenance records.",
+          "Follow-up notes.",
+        ],
+      },
+      {
+        heading: "Best Practice",
+        text:
+          "Keep customer name, company name, and phone number accurate because they appear in searches, reports, receipts, and profile pages.",
+      },
+    ],
+  },
+  {
+    id: "editCustomerInfo",
+    title: "Editing Customer Info",
+    icon: "✏️",
+    category: "Customers",
+    summary:
+      "Explains how to update customer name, company name, phone, email, and address from the customer profile.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "The Edit Customer Info button is used to update only the customer's contact details without changing deals, payments, promises, or maintenance records.",
+      },
+      {
+        heading: "What Can Be Edited",
+        text: "Employees can update basic customer information.",
+        items: [
+          "Customer name.",
+          "Company name.",
+          "Phone number.",
+          "Email address.",
+          "Address.",
+        ],
+      },
+      {
+        heading: "Important",
+        text:
+          "Editing customer information does not change payment history, deal balances, maintenance invoices, or promise records. It only updates the customer contact information.",
+      },
+    ],
+  },
+  {
+    id: "customerProfile",
+    title: "Customer Profile Page",
+    icon: "📁",
+    category: "Customers",
+    summary:
+      "Explains the customer profile page and what information employees can find there.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "The customer profile page gives a full view of one customer across deals, maintenance, balances, follow-up notes, and account history.",
+      },
+      {
+        heading: "Important Sections",
+        text: "Employees should review these sections carefully.",
+        items: [
+          "Customer and company information.",
+          "Total customer balance.",
+          "Deal balance.",
+          "Maintenance balance.",
+          "All connected deals.",
+          "All connected maintenance records.",
+          "Customer follow-up notes.",
+        ],
+      },
+      {
+        heading: "When to Use This Page",
+        text:
+          "Use this page when a customer calls, makes a payment, requests a promise date, asks for account details, or when management needs a full customer view.",
+      },
+    ],
+  },
+  {
+    id: "followupNotes",
+    title: "Customer Follow-Up Notes",
+    icon: "📝",
+    category: "Customers",
+    summary:
+      "Explains how to record calls, texts, promises, disputes, and manager notes for a customer.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Follow-up notes help employees track communication history with a customer. This helps avoid forgetting calls, promises, disputes, and manager instructions.",
+      },
+      {
+        heading: "Common Follow-Up Types",
+        text: "Employees can create follow-up notes for different situations.",
+        items: [
+          "Called customer.",
+          "Texted customer.",
+          "Customer promised payment.",
+          "Customer did not answer.",
+          "Customer disputed amount.",
+          "Manager note.",
+          "Other.",
+        ],
+      },
+      {
+        heading: "Actions Available",
+        text: "Follow-up notes support simple actions.",
+        items: [
+          "Add a new note.",
+          "Edit an existing note.",
+          "Delete an incorrect note.",
+          "Mark a note as completed.",
+          "Use next follow-up date when another contact is needed.",
+          "Use pagination to keep the notes list compact.",
+        ],
+      },
+      {
+        heading: "Best Practice",
+        text:
+          "Write short and clear notes. Include what happened, what the customer said, and what needs to happen next.",
+      },
+    ],
+  },
+  {
+    id: "referralInfo",
+    title: "Referral Information",
+    icon: "🤝",
+    category: "Deals",
+    summary:
+      "Explains how referral information is tracked on deals.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Referral information helps the dealership track who referred a customer and whether referral money was paid.",
+      },
+      {
+        heading: "Referral Fields",
+        text: "A deal can include referral tracking details.",
+        items: [
+          "Referred by name.",
+          "Referred by phone.",
+          "Referral money paid status.",
+          "Referral amount paid.",
+        ],
+      },
+      {
+        heading: "When to Use",
+        text:
+          "Use referral information only when a customer or deal came from a referral. If there is no referral, leave the fields blank.",
       },
     ],
   },
@@ -318,38 +530,6 @@ const articles = [
         heading: "Important",
         text:
           "Do not record a maintenance payment under a deal payment, and do not record a deal payment under maintenance. The balance will update in the wrong place.",
-      },
-    ],
-  },
-  {
-    id: "customerDeal",
-    title: "Customer Detail Page",
-    icon: "👤",
-    category: "Customers",
-    summary:
-      "Explains the customer detail page and what information employees can find there.",
-    sections: [
-      {
-        heading: "Purpose",
-        text:
-          "The customer detail page gives a complete view of one customer deal, including balance, payments, promises, due schedule, notes, and receipts.",
-      },
-      {
-        heading: "Important Sections",
-        text: "Employees should review these sections carefully.",
-        items: [
-          "Customer and truck information.",
-          "Total amount, total paid, and balance.",
-          "Internal deal notes.",
-          "Due schedule.",
-          "Payment history.",
-          "Promise history.",
-        ],
-      },
-      {
-        heading: "When to Use This Page",
-        text:
-          "Use this page when a customer calls, makes a payment, requests a promise date, asks for a receipt, or when management needs account details.",
       },
     ],
   },
@@ -387,9 +567,45 @@ const articles = [
           "If the customer pays less than the installment amount, enter the partial amount and provide a promised date for the remaining balance.",
       },
       {
+        heading: "Extra Payments",
+        text:
+          "If a customer pays more than the selected installment balance, the extra amount should be applied toward the next unpaid installment automatically.",
+      },
+      {
         heading: "Important",
         text:
           "Do not enter fake or estimated payments. Only record payments that were actually received and verified.",
+      },
+    ],
+  },
+  {
+    id: "extraPaymentAllocation",
+    title: "Extra Payment Allocation",
+    icon: "➕",
+    category: "Payments",
+    summary:
+      "Explains what happens when a customer pays more than the current installment.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Extra payment allocation helps keep the due schedule accurate when a customer pays more than one installment or pays extra toward the next installment.",
+      },
+      {
+        heading: "How It Works",
+        text:
+          "The system applies the payment to the selected due installment first. Any extra amount is applied to the next unpaid installments in order.",
+        items: [
+          "Selected installment is paid first.",
+          "Extra money goes to the next unpaid installment.",
+          "If the next installment is only partially covered, it remains partially paid.",
+          "The customer balance is reduced by the full payment amount.",
+        ],
+      },
+      {
+        heading: "Best Practice",
+        text:
+          "Always select the correct starting due installment before entering an extra payment.",
       },
     ],
   },
@@ -421,11 +637,6 @@ const articles = [
           "Save the payment.",
           "Print or view the maintenance receipt if required.",
         ],
-      },
-      {
-        heading: "Partial Maintenance Payment",
-        text:
-          "If the customer pays only part of the maintenance invoice, the remaining balance stays open on that maintenance record.",
       },
       {
         heading: "Important",
@@ -491,9 +702,9 @@ const articles = [
         ],
       },
       {
-        heading: "Calendar Reminders",
+        heading: "Best Practice",
         text:
-          "Use the reminder buttons to create Google Calendar or ICS reminders for unpaid installments.",
+          "Review the due schedule before taking payment so the payment is applied to the correct installment.",
       },
     ],
   },
@@ -566,13 +777,15 @@ const articles = [
       {
         heading: "Purpose",
         text:
-          "Reports help management review collections, balances, due payments, paid-off deals, defaulted deals, maintenance balances, and payment activity.",
+          "Reports help management review collections, balances, due payments, paid-off deals, defaulted deals, maintenance balances, payment activity, company information, and referral information.",
       },
       {
         heading: "Common Reports",
-        text: "The Reports page may include several useful exports.",
+        text: "The Reports page includes several useful exports.",
         items: [
           "Full Deals Report.",
+          "Customer Balance Report.",
+          "Collection Priority.",
           "Past Due Scheduled Payments.",
           "Due Today.",
           "Past Due Promises.",
@@ -620,6 +833,37 @@ const articles = [
     ],
   },
   {
+    id: "activityLogs",
+    title: "Activity Logs",
+    icon: "📋",
+    category: "Tools",
+    summary:
+      "Explains how activity logs help track important system actions.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Activity Logs help management review important actions performed in the system, such as payments, updates, receipts, reports, and other business activity.",
+      },
+      {
+        heading: "How to Use",
+        text: "Employees and managers can use filters to find specific activity.",
+        items: [
+          "Search by user, action, customer, invoice, or deal tag.",
+          "Filter by module.",
+          "Filter by action.",
+          "Filter by date range.",
+          "Use pagination to review logs in smaller pages.",
+        ],
+      },
+      {
+        heading: "Best Practice",
+        text:
+          "Use Activity Logs when you need to understand who changed something, when an action happened, or what record was affected.",
+      },
+    ],
+  },
+  {
     id: "voidPayment",
     title: "Voiding a Payment",
     icon: "🚫",
@@ -661,6 +905,7 @@ const articles = [
           "Do not enter payment under the wrong due date.",
           "Do not forget to mark incorrect payments as voided.",
           "Do not create promises without a promised date.",
+          "Do not forget to add follow-up notes after important customer conversations.",
           "Do not export reports and share them without approval.",
           "Do not ignore broken promises or past-due installments.",
         ],
@@ -668,7 +913,7 @@ const articles = [
       {
         heading: "Best Practice",
         text:
-          "Before saving anything, verify customer name, deal tag or invoice number, payment amount, due date, payment method, and notes.",
+          "Before saving anything, verify customer name, company name, deal tag or invoice number, payment amount, due date, payment method, and notes.",
       },
     ],
   },

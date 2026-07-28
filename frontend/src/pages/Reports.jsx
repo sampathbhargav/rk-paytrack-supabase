@@ -106,17 +106,29 @@ function Reports() {
     };
   };
 
-  const totalReceivable = deals.reduce(
-    (sum, deal) => sum + Number(deal.total_amount || 0),
-    0
+  const dealBalanceSummary = deals.reduce(
+    (summary, deal) => {
+      const { totalAmount, totalPaid, balance } = getDealBalanceInfo(
+        deal,
+        activePayments
+      );
+
+      return {
+        totalReceivable: summary.totalReceivable + totalAmount,
+        totalCollected: summary.totalCollected + totalPaid,
+        totalBalance: summary.totalBalance + balance,
+      };
+    },
+    {
+      totalReceivable: 0,
+      totalCollected: 0,
+      totalBalance: 0,
+    }
   );
 
-  const totalCollected = activePayments.reduce(
-    (sum, payment) => sum + Number(payment.amount_paid || 0),
-    0
-  );
-
-  const totalBalance = Math.max(totalReceivable - totalCollected, 0);
+  const totalReceivable = dealBalanceSummary.totalReceivable;
+  const totalCollected = dealBalanceSummary.totalCollected;
+  const totalBalance = dealBalanceSummary.totalBalance;
 
   const maintenanceTotalAmount = enrichedMaintenanceJobs.reduce(
     (sum, job) => sum + Number(job.totals.totalAmount || 0),
@@ -154,6 +166,15 @@ function Reports() {
     (promise) => promise.promise_status === "Broken"
   );
 
+  const pastDueDealPromises = promises.filter(
+    (promise) =>
+      promise.promise_status !== "Paid" &&
+      promise.promise_status !== "Cancelled" &&
+      promise.promise_status !== "Rescheduled" &&
+      promise.promised_date &&
+      promise.promised_date < today
+  );
+
   const maintenanceDueToday = enrichedMaintenanceJobs.filter(
     (job) => Number(job.totals.balance || 0) > 0 && job.due_date === today
   );
@@ -168,6 +189,22 @@ function Reports() {
   const maintenanceBrokenPromises = enrichedMaintenanceJobs.flatMap((job) =>
     (job.maintenance_promises || [])
       .filter((promise) => promise.promise_status === "Broken")
+      .map((promise) => ({
+        ...promise,
+        job,
+      }))
+  );
+
+  const pastDueMaintenancePromises = enrichedMaintenanceJobs.flatMap((job) =>
+    (job.maintenance_promises || [])
+      .filter(
+        (promise) =>
+          promise.promise_status !== "Paid" &&
+          promise.promise_status !== "Cancelled" &&
+          promise.promise_status !== "Rescheduled" &&
+          promise.promised_date &&
+          promise.promised_date < today
+      )
       .map((promise) => ({
         ...promise,
         job,
@@ -299,6 +336,7 @@ function Reports() {
         return {
           Deal_Tag: deal.deal_tag || "",
           Customer: deal.customers?.customer_name || "",
+          Company: deal.customers?.company_name || "",
           Phone: deal.customers?.phone || "",
           Email: deal.customers?.email || "",
           Address: deal.customers?.address || "",
@@ -313,6 +351,10 @@ function Reports() {
           Monthly_Payment: deal.monthly_payment || 0,
           Term: deal.term || "",
           Maturity_Date: deal.maturity_date || "",
+          Referred_By_Name: deal.referred_by_name || "",
+          Referred_By_Phone: deal.referred_by_phone || "",
+          Referral_Money_Paid: deal.referral_money_paid ? "Yes" : "No",
+          Referral_Amount_Paid: deal.referral_amount_paid || 0,
           Total_Amount: totalAmount,
           Total_Paid: totalPaid,
           Balance: balance,
@@ -345,6 +387,7 @@ function Reports() {
         Source: "Deal Scheduled Payment",
         Deal_Tag: item.deal?.deal_tag || "",
         Customer: item.deal?.customers?.customer_name || "",
+        Company: item.deal?.customers?.company_name || "",
         Phone: item.deal?.customers?.phone || "",
         Deal_Type: item.deal?.deal_type || "",
         Truck: `${item.deal?.year || ""} ${item.deal?.truck || ""}`,
@@ -374,6 +417,7 @@ function Reports() {
         Source: "Deal Payment",
         Reference: item.deal?.deal_tag || "",
         Customer: item.deal?.customers?.customer_name || "",
+        Company: item.deal?.customers?.company_name || "",
         Phone: item.deal?.customers?.phone || "",
         Type: item.deal?.deal_type || "",
         Truck: `${item.deal?.year || ""} ${item.deal?.truck || ""}`,
@@ -388,6 +432,7 @@ function Reports() {
         Source: "Maintenance Invoice",
         Reference: job.invoice_no || "",
         Customer: job.customer_name || "",
+        Company: getMaintenanceCompanyName(job),
         Phone: job.phone || "",
         Type: job.job_title || "",
         Truck: `${job.year || ""} ${job.truck || ""}`,
@@ -414,50 +459,36 @@ function Reports() {
       setLoadingReport("Past Due Promises");
       setError("");
 
-      const dealPromiseRows = promises
-        .filter(
-          (promise) =>
-            promise.promise_status !== "Paid" &&
-            promise.promise_status !== "Cancelled" &&
-            promise.promise_status !== "Rescheduled" &&
-            promise.promised_date < today
-        )
-        .map((promise) => ({
-          Source: "Deal Promise",
-          Reference: promise.deals?.deal_tag || "",
-          Customer: promise.deals?.customers?.customer_name || "",
-          Phone: promise.deals?.customers?.phone || "",
-          Original_Due_Date: promise.original_due_date || "",
+      const dealPromiseRows = pastDueDealPromises.map((promise) => ({
+        Source: "Deal Promise",
+        Reference: promise.deals?.deal_tag || "",
+        Customer: promise.deals?.customers?.customer_name || "",
+        Company: promise.deals?.customers?.company_name || "",
+        Phone: promise.deals?.customers?.phone || "",
+        Original_Due_Date: promise.original_due_date || "",
+        Promised_Date: promise.promised_date || "",
+        Amount_Due: promise.amount_due || 0,
+        Paid_Now: promise.amount_paid_now || 0,
+        Remaining: promise.remaining_amount || 0,
+        Status: promise.promise_status || "",
+        Notes: promise.notes || "",
+      }));
+
+      const maintenancePromiseRows = pastDueMaintenancePromises.map(
+        (promise) => ({
+          Source: "Maintenance Promise",
+          Reference: promise.job?.invoice_no || "",
+          Customer: promise.job?.customer_name || "",
+          Company: getMaintenanceCompanyName(promise.job),
+          Phone: promise.job?.phone || "",
+          Original_Due_Date: promise.job?.due_date || "",
           Promised_Date: promise.promised_date || "",
-          Amount_Due: promise.amount_due || 0,
-          Paid_Now: promise.amount_paid_now || 0,
-          Remaining: promise.remaining_amount || 0,
+          Amount_Due: promise.promised_amount || 0,
+          Paid_Now: "",
+          Remaining: promise.promised_amount || 0,
           Status: promise.promise_status || "",
           Notes: promise.notes || "",
-        }));
-
-      const maintenancePromiseRows = enrichedMaintenanceJobs.flatMap((job) =>
-        (job.maintenance_promises || [])
-          .filter(
-            (promise) =>
-              promise.promise_status !== "Paid" &&
-              promise.promise_status !== "Cancelled" &&
-              promise.promise_status !== "Rescheduled" &&
-              promise.promised_date < today
-          )
-          .map((promise) => ({
-            Source: "Maintenance Promise",
-            Reference: job.invoice_no || "",
-            Customer: job.customer_name || "",
-            Phone: job.phone || "",
-            Original_Due_Date: job.due_date || "",
-            Promised_Date: promise.promised_date || "",
-            Amount_Due: promise.promised_amount || 0,
-            Paid_Now: "",
-            Remaining: promise.promised_amount || 0,
-            Status: promise.promise_status || "",
-            Notes: promise.notes || "",
-          }))
+        })
       );
 
       exportToCsv(`rk-paytrack-past-due-promises-${today}.csv`, [
@@ -493,6 +524,7 @@ function Reports() {
           return {
             Deal_Tag: deal.deal_tag || "",
             Customer: deal.customers?.customer_name || "",
+            Company: deal.customers?.company_name || "",
             Phone: deal.customers?.phone || "",
             Deal_Type: deal.deal_type || "",
             Truck: `${deal.year || ""} ${deal.truck || ""}`,
@@ -503,6 +535,10 @@ function Reports() {
             Last_Payment_Date: lastPayment?.payment_date || "",
             Last_Payment_Amount: lastPayment?.amount_paid || "",
             Maturity_Date: deal.maturity_date || "",
+            Referred_By_Name: deal.referred_by_name || "",
+            Referred_By_Phone: deal.referred_by_phone || "",
+            Referral_Money_Paid: deal.referral_money_paid ? "Yes" : "No",
+            Referral_Amount_Paid: deal.referral_amount_paid || 0,
             Notes: deal.notes || "",
           };
         });
@@ -528,6 +564,7 @@ function Reports() {
           return {
             Deal_Tag: deal.deal_tag || "",
             Customer: deal.customers?.customer_name || "",
+            Company: deal.customers?.company_name || "",
             Phone: deal.customers?.phone || "",
             Deal_Type: deal.deal_type || "",
             Truck: `${deal.year || ""} ${deal.truck || ""}`,
@@ -540,6 +577,10 @@ function Reports() {
             Due_Day: deal.due_day || "",
             Term: deal.term || "",
             Maturity_Date: deal.maturity_date || "",
+            Referred_By_Name: deal.referred_by_name || "",
+            Referred_By_Phone: deal.referred_by_phone || "",
+            Referral_Money_Paid: deal.referral_money_paid ? "Yes" : "No",
+            Referral_Amount_Paid: deal.referral_amount_paid || 0,
             Notes: deal.notes || "",
           };
         });
@@ -565,6 +606,7 @@ function Reports() {
           return {
             Deal_Tag: deal.deal_tag || "",
             Customer: deal.customers?.customer_name || "",
+            Company: deal.customers?.company_name || "",
             Phone: deal.customers?.phone || "",
             Status: deal.status || "",
             Truck: `${deal.year || ""} ${deal.truck || ""}`,
@@ -599,6 +641,7 @@ function Reports() {
           Payment_Date: payment.payment_date || "",
           Reference: payment.deals?.deal_tag || "",
           Customer: payment.deals?.customers?.customer_name || "",
+          Company: payment.deals?.customers?.company_name || "",
           Phone: payment.deals?.customers?.phone || "",
           Truck: `${payment.deals?.year || ""} ${payment.deals?.truck || ""}`,
           Amount_Due: payment.amount_due || 0,
@@ -619,6 +662,7 @@ function Reports() {
           Payment_Date: payment.payment_date || "",
           Reference: payment.job?.invoice_no || "",
           Customer: payment.job?.customer_name || "",
+          Company: getMaintenanceCompanyName(payment.job),
           Phone: payment.job?.phone || "",
           Truck: `${payment.job?.year || ""} ${payment.job?.truck || ""}`,
           Amount_Due: payment.job?.totals?.totalAmount || 0,
@@ -649,6 +693,7 @@ function Reports() {
       const rows = enrichedMaintenanceJobs.map((job) => ({
         Invoice_No: job.invoice_no || "",
         Customer: job.customer_name || "",
+        Company: getMaintenanceCompanyName(job),
         Phone: job.phone || "",
         Email: job.email || "",
         Customer_Type: job.customer_type || "",
@@ -702,9 +747,9 @@ function Reports() {
 
       const rows = buildCollectionPriorityRows({
         pastDueScheduled,
-        brokenPromises,
+        pastDueDealPromises,
         maintenancePastDue,
-        maintenanceBrokenPromises,
+        pastDueMaintenancePromises,
         today,
       });
 
@@ -759,9 +804,9 @@ function Reports() {
       onClick: exportCollectionPriorityReport,
       count:
         pastDueScheduled.length +
-        brokenPromises.length +
+        pastDueDealPromises.length +
         maintenancePastDue.length +
-        maintenanceBrokenPromises.length,
+        pastDueMaintenancePromises.length,
     },
     {
       category: "Customers",
@@ -801,7 +846,7 @@ function Reports() {
       buttonText: "Export Past Due Promises",
       loadingKey: "Past Due Promises",
       onClick: exportPastDuePromisesReport,
-      count: brokenPromises.length + maintenanceBrokenPromises.length,
+      count: pastDueDealPromises.length + pastDueMaintenancePromises.length,
     },
     {
       category: "Maintenance",
@@ -987,9 +1032,9 @@ function Reports() {
           title="Collection Priority"
           value={
             pastDueScheduled.length +
-            brokenPromises.length +
+            pastDueDealPromises.length +
             maintenancePastDue.length +
-            maintenanceBrokenPromises.length
+            pastDueMaintenancePromises.length
           }
           description="Accounts that need follow-up because they are past due, broken promise, or unpaid maintenance."
           tone="danger"
@@ -1517,6 +1562,10 @@ function getPaymentMethodData(dealPayments, maintenancePayments, reportMonth) {
     .sort((a, b) => b.amount - a.amount);
 }
 
+function getMaintenanceCompanyName(job) {
+  return job?.company_name || job?.customers?.company_name || "";
+}
+
 function buildCustomerBalanceRows(
   deals,
   activePayments,
@@ -1529,12 +1578,13 @@ function buildCustomerBalanceRows(
     return id || `${String(name || "").toLowerCase()}-${phone || ""}`;
   };
 
-  const ensureCustomer = ({ id, name, phone, email, address }) => {
+  const ensureCustomer = ({ id, name, company, phone, email, address }) => {
     const key = getKey({ id, name, phone });
 
     if (!customerMap.has(key)) {
       customerMap.set(key, {
         Customer: name || "",
+        Company: company || "",
         Phone: phone || "",
         Email: email || "",
         Address: address || "",
@@ -1562,6 +1612,7 @@ function buildCustomerBalanceRows(
     const customer = ensureCustomer({
       id: deal.customer_id || deal.customers?.id,
       name: deal.customers?.customer_name,
+      company: deal.customers?.company_name,
       phone: deal.customers?.phone,
       email: deal.customers?.email,
       address: deal.customers?.address,
@@ -1578,6 +1629,7 @@ function buildCustomerBalanceRows(
     const customer = ensureCustomer({
       id: job.customer_id,
       name: job.customer_name,
+      company: getMaintenanceCompanyName(job),
       phone: job.phone,
       email: job.email,
       address: job.address,
@@ -1597,9 +1649,9 @@ function buildCustomerBalanceRows(
 
 function buildCollectionPriorityRows({
   pastDueScheduled,
-  brokenPromises,
+  pastDueDealPromises,
   maintenancePastDue,
-  maintenanceBrokenPromises,
+  pastDueMaintenancePromises,
   today,
 }) {
   const rows = [];
@@ -1608,6 +1660,7 @@ function buildCollectionPriorityRows({
     rows.push({
       Priority_Type: "Past Due Deal Installment",
       Customer: item.deal?.customers?.customer_name || "",
+      Company: item.deal?.customers?.company_name || "",
       Phone: item.deal?.customers?.phone || "",
       Reference: item.deal?.deal_tag || "",
       Date: item.dueDate || "",
@@ -1618,10 +1671,11 @@ function buildCollectionPriorityRows({
     });
   });
 
-  brokenPromises.forEach((promise) => {
+  pastDueDealPromises.forEach((promise) => {
     rows.push({
-      Priority_Type: "Broken Deal Promise",
+      Priority_Type: "Past Due Deal Promise",
       Customer: promise.deals?.customers?.customer_name || "",
+      Company: promise.deals?.customers?.company_name || "",
       Phone: promise.deals?.customers?.phone || "",
       Reference: promise.deals?.deal_tag || "",
       Date: promise.promised_date || "",
@@ -1636,6 +1690,7 @@ function buildCollectionPriorityRows({
     rows.push({
       Priority_Type: "Past Due Maintenance Invoice",
       Customer: job.customer_name || "",
+      Company: getMaintenanceCompanyName(job),
       Phone: job.phone || "",
       Reference: job.invoice_no || "",
       Date: job.due_date || "",
@@ -1646,10 +1701,11 @@ function buildCollectionPriorityRows({
     });
   });
 
-  maintenanceBrokenPromises.forEach((promise) => {
+  pastDueMaintenancePromises.forEach((promise) => {
     rows.push({
-      Priority_Type: "Broken Maintenance Promise",
+      Priority_Type: "Past Due Maintenance Promise",
       Customer: promise.job?.customer_name || "",
+      Company: getMaintenanceCompanyName(promise.job),
       Phone: promise.job?.phone || "",
       Reference: promise.job?.invoice_no || "",
       Date: promise.promised_date || "",

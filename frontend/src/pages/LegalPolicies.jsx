@@ -372,6 +372,7 @@ const policies = [
           "Verify customer name, phone number, deal tag, invoice number, payment amount, payment date, and payment method before saving.",
           "Review balances and reports before relying on them for collection, accounting, or management decisions.",
           "Use notes honestly and professionally.",
+          "Use customer follow-up notes professionally and do not enter false, misleading, disrespectful, or unnecessary notes.",
           "Report incorrect records, suspected unauthorized access, system issues, or suspicious activity immediately.",
         ],
       },
@@ -441,12 +442,14 @@ const policies = [
         text:
           "RK PayTrack may store personal, vehicle, financial, payment, maintenance, and business information needed to operate dealership payment tracking.",
         items: [
-          "Customer name, phone number, email, address, and contact notes.",
+          "Customer name, company name, phone number, email, address, and contact notes.",
+          "Edited customer contact information, including customer name, company name, phone, email, and address changes.",
           "Deal tag, truck details, year, VIN, deal type, sale amount, due dates, maturity date, and balance.",
+          "Referral information such as referred by name, referred by phone, referral paid status, and referral amount paid.",
           "Payment date, payment method, amount paid, amount due, remaining amount, notes, and receipt details.",
           "Maintenance invoice information, labor amount, parts amount, tax, discounts, technician, work status, payment status, and balance.",
-          "Promises, follow-up notes, collection notes, broken promises, disputes, and next follow-up dates.",
-          "User account information such as email address, login/session data, and activity logs.",
+          "Promises, follow-up notes, collection notes, broken promises, disputes, next follow-up dates, and customer communication history.",
+          "User account information such as email address, login/session data, activity logs, report exports, and record-change history.",
         ],
       },
       {
@@ -799,7 +802,8 @@ const policies = [
           "Select the correct due installment.",
           "Enter only the actual amount received.",
           "Use the correct payment method.",
-          "Add clear notes for special situations or partial payments.",
+          "If a customer pays more than the selected installment, verify that the extra payment is correctly applied toward the next unpaid installment.",
+          "Add clear notes for special situations, partial payments, extra payments, or customer promises.",
         ],
       },
       {
@@ -870,7 +874,7 @@ const policies = [
       {
         heading: "Business Records",
         text:
-          "Deal records, maintenance records, payment history, customer notes, promises, invoices, receipts, follow-up notes, activity logs, and reports should be retained according to company recordkeeping needs and applicable business requirements.",
+          "Deal records, maintenance records, payment history, customer notes, company names, referral information, promises, invoices, receipts, customer follow-up notes, edited customer records, activity logs, exported reports, and report history should be retained according to company recordkeeping needs and applicable business requirements.",
       },
       {
         heading: "Voided and Corrected Records",
@@ -1040,7 +1044,7 @@ const policies = [
       {
         heading: "Exported Data",
         text:
-          "Reports may include customer names, phone numbers, deal balances, payment history, promises, maintenance balances, notes, and other sensitive business information.",
+          "Reports may include customer names, company names, phone numbers, referral information, follow-up notes, deal balances, payment history, promises, maintenance balances, activity details, notes, and other sensitive business information.",
       },
       {
         heading: "Approved Use",

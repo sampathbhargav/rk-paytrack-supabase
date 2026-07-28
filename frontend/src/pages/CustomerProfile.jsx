@@ -8,6 +8,7 @@ import {
   getPaymentsByDealIds,
   getPromisesByDealIds,
 } from "../api/customerProfileApi";
+import { updateCustomer } from "../api/customersApi";
 import { calculateMaintenanceTotals } from "../api/maintenanceApi";
 import { formatMoney } from "../utils/moneyUtils";
 import CustomerFollowUps from "../components/CustomerFollowUps";
@@ -23,6 +24,17 @@ function CustomerProfile() {
   const [maintenanceJobs, setMaintenanceJobs] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editCustomerData, setEditCustomerData] = useState({
+    customerName: "",
+    companyName: "",
+    phone: "",
+    email: "",
+    address: "",
+  });
+  const [editError, setEditError] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     loadCustomerProfile();
@@ -52,6 +64,95 @@ function CustomerProfile() {
       setError(error.message || "Unable to load customer profile.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openEditCustomerModal = () => {
+    setEditCustomerData({
+      customerName: customer?.customer_name || "",
+      companyName: customer?.company_name || "",
+      phone: customer?.phone || "",
+      email: customer?.email || "",
+      address: customer?.address || "",
+    });
+
+    setEditError("");
+    setEditModalOpen(true);
+  };
+
+  const closeEditCustomerModal = () => {
+    if (editSaving) return;
+
+    setEditModalOpen(false);
+    setEditError("");
+  };
+
+  const handleEditCustomerChange = (event) => {
+    const { name, value } = event.target;
+
+    setEditError("");
+
+    setEditCustomerData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const validateEditCustomer = () => {
+    const data = cleanEditCustomerData(editCustomerData);
+
+    if (!data.customerName) {
+      return "Customer name is required.";
+    }
+
+    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      return "Please enter a valid email address.";
+    }
+
+    return "";
+  };
+
+  const handleSaveCustomerInfo = async (event) => {
+    event.preventDefault();
+
+    const validationError = validateEditCustomer();
+
+    if (validationError) {
+      setEditError(validationError);
+      return;
+    }
+
+    const data = cleanEditCustomerData(editCustomerData);
+
+    try {
+      setEditSaving(true);
+      setEditError("");
+
+      const updatedCustomer = await updateCustomer(customer.id, {
+        customerName: data.customerName,
+        companyName: data.companyName,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+      });
+
+      setCustomer((prev) => ({
+        ...prev,
+        customer_name: updatedCustomer?.customer_name ?? data.customerName,
+        company_name: updatedCustomer?.company_name ?? data.companyName,
+        phone: updatedCustomer?.phone ?? data.phone,
+        email: updatedCustomer?.email ?? data.email,
+        address: updatedCustomer?.address ?? data.address,
+      }));
+
+      setEditModalOpen(false);
+      setEditError("");
+
+      await loadCustomerProfile();
+    } catch (error) {
+      setEditError(error.message || "Failed to update customer information.");
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -142,6 +243,14 @@ function CustomerProfile() {
       <div style={topNav}>
         <button type="button" onClick={() => navigate(-1)} style={backButton}>
           ← Back
+        </button>
+
+        <button
+          type="button"
+          onClick={openEditCustomerModal}
+          style={editCustomerButton}
+        >
+          ✏️ Edit Customer Info
         </button>
       </div>
 
@@ -396,8 +505,146 @@ function CustomerProfile() {
         customerId={customer?.id}
         customerName={customer?.customer_name || ""}
       />
+
+      {editModalOpen && (
+        <EditCustomerModal
+          data={editCustomerData}
+          error={editError}
+          saving={editSaving}
+          onChange={handleEditCustomerChange}
+          onSave={handleSaveCustomerInfo}
+          onClose={closeEditCustomerModal}
+        />
+      )}
     </div>
   );
+}
+
+function EditCustomerModal({
+  data,
+  error,
+  saving,
+  onChange,
+  onSave,
+  onClose,
+}) {
+  return (
+    <div style={modalOverlay}>
+      <form onSubmit={onSave} style={modalBox}>
+        <div style={modalHeader}>
+          <div>
+            <h2 style={modalTitle}>Edit Customer Info</h2>
+            <p style={modalDescription}>
+              Update only the customer contact details. Deals, payments,
+              promises, and maintenance records will not be changed.
+            </p>
+          </div>
+
+          <button type="button" onClick={onClose} style={modalCloseButton}>
+            ×
+          </button>
+        </div>
+
+        {error && <div style={modalErrorBox}>{error}</div>}
+
+        <div style={modalGrid}>
+          <ModalInput
+            label="Customer Name"
+            name="customerName"
+            value={data.customerName}
+            onChange={onChange}
+            required
+          />
+
+          <ModalInput
+            label="Company Name"
+            name="companyName"
+            value={data.companyName}
+            onChange={onChange}
+            helperText="Optional"
+          />
+
+          <ModalInput
+            label="Phone"
+            name="phone"
+            value={data.phone}
+            onChange={onChange}
+          />
+
+          <ModalInput
+            label="Email"
+            name="email"
+            type="email"
+            value={data.email}
+            onChange={onChange}
+          />
+
+          <div style={modalWideField}>
+            <ModalInput
+              label="Address"
+              name="address"
+              value={data.address}
+              onChange={onChange}
+            />
+          </div>
+        </div>
+
+        <div style={modalActions}>
+          <button type="submit" style={modalSaveButton} disabled={saving}>
+            {saving ? "Saving..." : "Save Customer Info"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            style={modalCancelButton}
+            disabled={saving}
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function ModalInput({
+  label,
+  name,
+  value,
+  onChange,
+  type = "text",
+  required,
+  helperText,
+}) {
+  return (
+    <div>
+      <label style={modalLabel}>
+        {label} {required && <span style={requiredMark}>*</span>}
+      </label>
+
+      <input
+        name={name}
+        type={type}
+        value={value}
+        onChange={onChange}
+        required={required}
+        style={modalInput}
+      />
+
+      {helperText && <small style={modalHelperText}>{helperText}</small>}
+    </div>
+  );
+}
+
+function cleanEditCustomerData(data) {
+  return {
+    customerName: String(data.customerName || "").trim(),
+    companyName: String(data.companyName || "").trim(),
+    phone: String(data.phone || "").trim(),
+    email: String(data.email || "").trim(),
+    address: String(data.address || "").trim(),
+  };
 }
 
 function SectionCard({ title, description, children }) {
@@ -572,6 +819,11 @@ const pageWrapper = {
 
 const topNav = {
   marginBottom: "18px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap",
 };
 
 const profileHero = {
@@ -864,6 +1116,155 @@ const backButton = {
   padding: "9px 13px",
   boxShadow: "0 4px 12px rgba(15, 23, 42, 0.06)",
   cursor: "pointer",
+};
+
+const editCustomerButton = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "7px",
+  background: "#0A1A2F",
+  color: "white",
+  border: "none",
+  borderRadius: "999px",
+  padding: "10px 14px",
+  fontWeight: "900",
+  cursor: "pointer",
+  boxShadow: "0 6px 16px rgba(15, 23, 42, 0.18)",
+};
+
+const modalOverlay = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15, 23, 42, 0.58)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "18px",
+  zIndex: 9999,
+};
+
+const modalBox = {
+  background: "white",
+  borderRadius: "20px",
+  width: "720px",
+  maxWidth: "96vw",
+  maxHeight: "92vh",
+  overflowY: "auto",
+  padding: "18px",
+  boxShadow: "0 24px 60px rgba(15, 23, 42, 0.3)",
+};
+
+const modalHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "12px",
+  paddingBottom: "14px",
+  marginBottom: "16px",
+  borderBottom: "1px solid #e5e7eb",
+};
+
+const modalTitle = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "21px",
+};
+
+const modalDescription = {
+  margin: "6px 0 0",
+  color: "#667085",
+  fontSize: "14px",
+  lineHeight: "1.45",
+};
+
+const modalCloseButton = {
+  width: "34px",
+  height: "34px",
+  borderRadius: "999px",
+  border: "none",
+  background: "#e5e7eb",
+  color: "#111827",
+  cursor: "pointer",
+  fontSize: "20px",
+  fontWeight: "900",
+  flexShrink: 0,
+};
+
+const modalGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+  gap: "14px",
+};
+
+const modalWideField = {
+  gridColumn: "1 / -1",
+};
+
+const modalLabel = {
+  display: "block",
+  color: "#374151",
+  fontWeight: "900",
+  marginBottom: "6px",
+  fontSize: "13px",
+};
+
+const requiredMark = {
+  color: "#dc2626",
+};
+
+const modalInput = {
+  width: "100%",
+  padding: "11px",
+  border: "1px solid #d1d5db",
+  borderRadius: "10px",
+  boxSizing: "border-box",
+  fontSize: "14px",
+};
+
+const modalHelperText = {
+  display: "block",
+  color: "#667085",
+  fontSize: "12px",
+  marginTop: "5px",
+};
+
+const modalActions = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "10px",
+  marginTop: "18px",
+  flexWrap: "wrap",
+};
+
+const modalSaveButton = {
+  background: "#0A1A2F",
+  color: "white",
+  border: "none",
+  borderRadius: "10px",
+  padding: "11px 14px",
+  fontWeight: "900",
+  cursor: "pointer",
+};
+
+const modalCancelButton = {
+  background: "#e5e7eb",
+  color: "#111827",
+  border: "none",
+  borderRadius: "10px",
+  padding: "11px 14px",
+  fontWeight: "900",
+  cursor: "pointer",
+};
+
+const modalErrorBox = {
+  background: "#fee2e2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+  borderRadius: "12px",
+  padding: "11px",
+  marginBottom: "14px",
+  fontWeight: "900",
 };
 
 export default CustomerProfile;

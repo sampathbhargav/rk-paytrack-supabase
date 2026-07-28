@@ -119,3 +119,35 @@ export async function getDueCustomerFollowUps() {
 
   return data || [];
 }
+
+export async function updateCustomerFollowUp(id, updates) {
+  const { data, error } = await supabase
+    .from("customer_followups")
+    .update({
+      followup_type: updates.followup_type,
+      contact_method: updates.contact_method,
+      note: updates.note,
+      followup_date: updates.followup_date,
+      next_followup_date: updates.next_followup_date,
+      priority: updates.priority,
+      status: updates.status,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data;
+}
+
+export async function deleteCustomerFollowUp(id) {
+  const { error } = await supabase
+    .from("customer_followups")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+
+  return true;
+}

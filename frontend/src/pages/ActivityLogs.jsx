@@ -17,6 +17,10 @@ function ActivityLogs() {
   const [selectedLog, setSelectedLog] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= 820 : false
   );
@@ -47,6 +51,7 @@ function ActivityLogs() {
       const data = await getActivityLogs(filters);
 
       setLogs(data || []);
+      setCurrentPage(1);
     } catch (error) {
       setMessage(error.message || "Unable to load activity logs.");
     } finally {
@@ -69,6 +74,8 @@ function ActivityLogs() {
       startDate: "",
       endDate: todayString,
     });
+
+    setCurrentPage(1);
   };
 
   const stats = useMemo(() => {
@@ -86,6 +93,29 @@ function ActivityLogs() {
       ).length,
     };
   }, [logs]);
+
+  const totalPages = Math.max(Math.ceil(logs.length / pageSize), 1);
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const pageStart =
+    logs.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+
+  const pageEnd = Math.min(safeCurrentPage * pageSize, logs.length);
+
+  const paginatedLogs = logs.slice(
+    (safeCurrentPage - 1) * pageSize,
+    safeCurrentPage * pageSize
+  );
+
+  const handlePageSizeChange = (value) => {
+    setPageSize(Number(value));
+    setCurrentPage(1);
+  };
+
+  const goToPage = (page) => {
+    const nextPage = Math.min(Math.max(page, 1), totalPages);
+    setCurrentPage(nextPage);
+  };
 
   return (
     <div style={isMobile ? mobilePageWrapper : pageWrapper}>
@@ -214,6 +244,20 @@ function ActivityLogs() {
               Showing latest user activity based on your selected filters.
             </p>
           </div>
+
+          {!loading && logs.length > 0 && (
+            <PaginationControls
+              isMobile={isMobile}
+              currentPage={safeCurrentPage}
+              totalPages={totalPages}
+              totalItems={logs.length}
+              pageStart={pageStart}
+              pageEnd={pageEnd}
+              pageSize={pageSize}
+              onPageSizeChange={handlePageSizeChange}
+              onPageChange={goToPage}
+            />
+          )}
         </div>
 
         {loading ? (
@@ -223,62 +267,94 @@ function ActivityLogs() {
             No activity logs found for the selected filters.
           </div>
         ) : isMobile ? (
-          <div style={mobileLogList}>
-            {logs.map((log) => (
-              <MobileLogCard
-                key={log.id}
-                log={log}
-                onView={() => setSelectedLog(log)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div style={tableWrapper}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Date / Time</th>
-                  <th style={thStyle}>User</th>
-                  <th style={thStyle}>Action</th>
-                  <th style={thStyle}>Module</th>
-                  <th style={thStyle}>Record</th>
-                  <th style={thStyle}>Description</th>
-                  <th style={thStyle}>Details</th>
-                </tr>
-              </thead>
+          <>
+            <div style={mobileLogList}>
+              {paginatedLogs.map((log) => (
+                <MobileLogCard
+                  key={log.id}
+                  log={log}
+                  onView={() => setSelectedLog(log)}
+                />
+              ))}
+            </div>
 
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id}>
-                    <td style={tdStyle}>{formatActivityDate(log.created_at)}</td>
-                    <td style={tdStyle}>{log.user_email || "—"}</td>
-                    <td style={tdStyle}>
-                      <span style={actionBadge(log.action)}>{log.action}</span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={moduleBadge}>{log.module || "—"}</span>
-                    </td>
-                    <td style={tdStyle}>
-                      <strong>{log.entity_label || log.entity_id || "—"}</strong>
-                      {log.entity_type && (
-                        <span style={subText}>{log.entity_type}</span>
-                      )}
-                    </td>
-                    <td style={tdStyle}>{log.description || "—"}</td>
-                    <td style={tdStyle}>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedLog(log)}
-                        style={viewButton}
-                      >
-                        View
-                      </button>
-                    </td>
+            <PaginationControls
+              isMobile={isMobile}
+              currentPage={safeCurrentPage}
+              totalPages={totalPages}
+              totalItems={logs.length}
+              pageStart={pageStart}
+              pageEnd={pageEnd}
+              pageSize={pageSize}
+              onPageSizeChange={handlePageSizeChange}
+              onPageChange={goToPage}
+            />
+          </>
+        ) : (
+          <>
+            <div style={tableWrapper}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Date / Time</th>
+                    <th style={thStyle}>User</th>
+                    <th style={thStyle}>Action</th>
+                    <th style={thStyle}>Module</th>
+                    <th style={thStyle}>Record</th>
+                    <th style={thStyle}>Description</th>
+                    <th style={thStyle}>Details</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+
+                <tbody>
+                  {paginatedLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td style={tdStyle}>
+                        {formatActivityDate(log.created_at)}
+                      </td>
+                      <td style={tdStyle}>{log.user_email || "—"}</td>
+                      <td style={tdStyle}>
+                        <span style={actionBadge(log.action)}>{log.action}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={moduleBadge}>{log.module || "—"}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <strong>
+                          {log.entity_label || log.entity_id || "—"}
+                        </strong>
+                        {log.entity_type && (
+                          <span style={subText}>{log.entity_type}</span>
+                        )}
+                      </td>
+                      <td style={tdStyle}>{log.description || "—"}</td>
+                      <td style={tdStyle}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedLog(log)}
+                          style={viewButton}
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <PaginationControls
+              isMobile={isMobile}
+              currentPage={safeCurrentPage}
+              totalPages={totalPages}
+              totalItems={logs.length}
+              pageStart={pageStart}
+              pageEnd={pageEnd}
+              pageSize={pageSize}
+              onPageSizeChange={handlePageSizeChange}
+              onPageChange={goToPage}
+            />
+          </>
         )}
       </div>
 
@@ -289,6 +365,102 @@ function ActivityLogs() {
           onClose={() => setSelectedLog(null)}
         />
       )}
+    </div>
+  );
+}
+
+function PaginationControls({
+  isMobile,
+  currentPage,
+  totalPages,
+  totalItems,
+  pageStart,
+  pageEnd,
+  pageSize,
+  onPageSizeChange,
+  onPageChange,
+}) {
+  const isFirstPage = currentPage <= 1;
+  const isLastPage = currentPage >= totalPages;
+
+  return (
+    <div style={isMobile ? mobilePaginationWrapper : paginationWrapper}>
+      <div style={paginationInfo}>
+        <strong>
+          Showing {pageStart}-{pageEnd}
+        </strong>{" "}
+        of {totalItems} logs
+      </div>
+
+      <div style={paginationControlsRow}>
+        <label style={pageSizeLabel}>
+          Rows
+          <select
+            value={pageSize}
+            onChange={(event) => onPageSizeChange(event.target.value)}
+            style={pageSizeSelect}
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </label>
+
+        <div style={paginationButtons}>
+          <button
+            type="button"
+            onClick={() => onPageChange(1)}
+            disabled={isFirstPage}
+            style={{
+              ...pageButton,
+              ...(isFirstPage ? disabledPageButton : {}),
+            }}
+          >
+            First
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={isFirstPage}
+            style={{
+              ...pageButton,
+              ...(isFirstPage ? disabledPageButton : {}),
+            }}
+          >
+            Prev
+          </button>
+
+          <span style={pageNumberBadge}>
+            Page {currentPage} of {totalPages}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={isLastPage}
+            style={{
+              ...pageButton,
+              ...(isLastPage ? disabledPageButton : {}),
+            }}
+          >
+            Next
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onPageChange(totalPages)}
+            disabled={isLastPage}
+            style={{
+              ...pageButton,
+              ...(isLastPage ? disabledPageButton : {}),
+            }}
+          >
+            Last
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -667,6 +839,7 @@ const tableHeader = {
   alignItems: "flex-start",
   gap: "12px",
   marginBottom: "14px",
+  flexWrap: "wrap",
 };
 
 const sectionTitle = {
@@ -748,6 +921,89 @@ const emptyState = {
   textAlign: "center",
   color: "#667085",
   fontWeight: "800",
+};
+
+const paginationWrapper = {
+  marginTop: "14px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "14px",
+  padding: "12px",
+};
+
+const mobilePaginationWrapper = {
+  ...paginationWrapper,
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  marginTop: "12px",
+};
+
+const paginationInfo = {
+  color: "#374151",
+  fontSize: "13px",
+  fontWeight: "800",
+};
+
+const paginationControlsRow = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+
+const pageSizeLabel = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "7px",
+  color: "#475569",
+  fontSize: "13px",
+  fontWeight: "900",
+};
+
+const pageSizeSelect = {
+  border: "1px solid #d1d5db",
+  borderRadius: "999px",
+  padding: "8px 10px",
+  background: "white",
+  fontWeight: "900",
+};
+
+const paginationButtons = {
+  display: "flex",
+  alignItems: "center",
+  gap: "7px",
+  flexWrap: "wrap",
+};
+
+const pageButton = {
+  background: "white",
+  color: "#0A1A2F",
+  border: "1px solid #d1d5db",
+  borderRadius: "999px",
+  padding: "8px 11px",
+  cursor: "pointer",
+  fontWeight: "900",
+  fontSize: "12px",
+};
+
+const disabledPageButton = {
+  opacity: 0.45,
+  cursor: "not-allowed",
+};
+
+const pageNumberBadge = {
+  background: "#0A1A2F",
+  color: "white",
+  borderRadius: "999px",
+  padding: "8px 11px",
+  fontSize: "12px",
+  fontWeight: "900",
+  whiteSpace: "nowrap",
 };
 
 const mobileLogList = {

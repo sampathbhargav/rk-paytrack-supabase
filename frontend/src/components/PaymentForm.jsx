@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { getDeals } from "../api/dealsApi";
 import { getPayments, addPayment } from "../api/paymentsApi";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
@@ -22,6 +23,7 @@ function PaymentForm() {
   const [payments, setPayments] = useState([]);
   const [receipt, setReceipt] = useState(null);
   const [receiptPrompt, setReceiptPrompt] = useState(null);
+  const [successDealLink, setSuccessDealLink] = useState(null);
 
   const [formData, setFormData] = useState(initialFormData);
   const [message, setMessage] = useState("");
@@ -29,6 +31,14 @@ function PaymentForm() {
   const [isSaving, setIsSaving] = useState(false);
 
   const messageAreaRef = useRef(null);
+
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  const preselectedDealId =
+    searchParams.get("dealId") || location.state?.preselectedDealId || "";
+
+  const [preselectApplied, setPreselectApplied] = useState(false);
 
   const scrollToMessageArea = () => {
     setTimeout(() => {
@@ -43,11 +53,35 @@ function PaymentForm() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (preselectApplied || !preselectedDealId || deals.length === 0) return;
+
+    const matchingDeal = deals.find(
+      (deal) => String(deal.id) === String(preselectedDealId)
+    );
+
+    if (!matchingDeal) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      dealId: matchingDeal.id,
+      dueDate: "",
+      amountDue: "",
+      amountPaid: "",
+      promisedDate: "",
+      notes: "",
+    }));
+
+    setPreselectApplied(true);
+  }, [preselectApplied, preselectedDealId, deals]);
+
   const loadData = async ({ clearMessages = true } = {}) => {
     try {
       if (clearMessages) {
         setMessage("");
         setMessageType("");
+        setReceiptPrompt(null);
+        setSuccessDealLink(null);
       }
 
       const dealsData = await getDeals();
@@ -58,11 +92,14 @@ function PaymentForm() {
     } catch (error) {
       setMessage(`Failed to load payment form data: ${error.message}`);
       setMessageType("error");
+      setSuccessDealLink(null);
       scrollToMessageArea();
     }
   };
 
-  const selectedDeal = deals.find((deal) => deal.id === formData.dealId);
+  const selectedDeal = deals.find(
+    (deal) => String(deal.id) === String(formData.dealId)
+  );
 
   const activePayments = payments.filter(
     (payment) => payment.payment_status !== "Voided"
@@ -105,6 +142,7 @@ function PaymentForm() {
     setMessage("");
     setMessageType("");
     setReceiptPrompt(null);
+    setSuccessDealLink(null);
   };
 
   const handleDealChange = (e) => {
@@ -202,6 +240,7 @@ function PaymentForm() {
     setMessage("");
     setMessageType("");
     setReceiptPrompt(null);
+    setSuccessDealLink(null);
     setReceipt(null);
 
     const validationError = validatePaymentForm();
@@ -231,7 +270,9 @@ function PaymentForm() {
     try {
       setIsSaving(true);
 
-      const selectedDealData = deals.find((deal) => deal.id === formData.dealId);
+      const selectedDealData = deals.find(
+        (deal) => String(deal.id) === String(formData.dealId)
+      );
 
       const savedPaymentRecords = [];
 
@@ -269,7 +310,7 @@ function PaymentForm() {
       const firstSavedPayment = savedPaymentRecords[0] || null;
 
       const totalPaidForDealBeforeThisPayment = activePayments
-        .filter((payment) => payment.deal_id === formData.dealId)
+        .filter((payment) => String(payment.deal_id) === String(formData.dealId))
         .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
 
       const newTotalPaid =
@@ -370,6 +411,11 @@ function PaymentForm() {
 
       setReceiptPrompt(receiptData);
 
+      setSuccessDealLink({
+        id: selectedDealData?.id || formData.dealId,
+        dealTag: selectedDealData?.deal_tag || "",
+      });
+
       setMessage(
         `Payment saved successfully. ${formatMoney(
           Number(formData.amountPaid || 0)
@@ -391,6 +437,7 @@ function PaymentForm() {
     } catch (error) {
       setMessage(`Failed to save payment: ${error.message}`);
       setMessageType("error");
+      setSuccessDealLink(null);
       scrollToMessageArea();
     } finally {
       setIsSaving(false);
@@ -426,7 +473,14 @@ function PaymentForm() {
             ...(messageType === "success" ? successMessage : errorMessage),
           }}
         >
-          {message}
+          <div>{message}</div>
+
+          {messageType === "success" && successDealLink?.id && (
+            <Link to={`/deals/${successDealLink.id}`} style={goToDealButton}>
+              Open Deal{" "}
+              {successDealLink.dealTag ? `#${successDealLink.dealTag}` : ""}
+            </Link>
+          )}
         </div>
       )}
 
@@ -780,6 +834,7 @@ function PaymentForm() {
             setMessage("");
             setMessageType("");
             setReceiptPrompt(null);
+            setSuccessDealLink(null);
             setReceipt(null);
           }}
         >
@@ -800,7 +855,7 @@ function getInstallmentOptions(deal, payments) {
       const paidForDueDate = payments
         .filter(
           (payment) =>
-            payment.deal_id === deal.id &&
+            String(payment.deal_id) === String(deal.id) &&
             payment.due_date === installment.dueDate &&
             payment.payment_status !== "Voided"
         )
@@ -1237,6 +1292,8 @@ const messageBox = {
   borderRadius: "10px",
   marginBottom: "18px",
   fontWeight: "bold",
+  display: "grid",
+  gap: "8px",
 };
 
 const successMessage = {
@@ -1249,6 +1306,22 @@ const errorMessage = {
   background: "#fee2e2",
   color: "#991b1b",
   border: "1px solid #fecaca",
+};
+
+const goToDealButton = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "fit-content",
+  background: "#0A1A2F",
+  color: "white",
+  border: "none",
+  borderRadius: "999px",
+  padding: "9px 13px",
+  textDecoration: "none",
+  fontWeight: "900",
+  fontSize: "13px",
+  marginTop: "2px",
 };
 
 const receiptPromptBox = {

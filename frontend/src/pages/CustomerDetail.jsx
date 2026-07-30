@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { getDealById } from "../api/dealsApi";
 import {
   getPaymentsByDealId,
@@ -21,6 +21,28 @@ import CustomerFollowUps from "../components/CustomerFollowUps";
 
 function CustomerDetail() {
   const { dealId } = useParams();
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/deals");
+    }
+  };
+
+  const handleTakePayment = () => {
+    if (!deal?.id) return;
+
+    navigate(`/add-payment?dealId=${deal.id}`, {
+      state: {
+        paymentMode: "deal",
+        preselectedDealId: deal.id,
+        preselectedDealTag: deal.deal_tag || "",
+        preselectedCustomerName: deal.customers?.customer_name || "",
+      },
+    });
+  };
 
   const [deal, setDeal] = useState(null);
   const [payments, setPayments] = useState([]);
@@ -57,9 +79,9 @@ function CustomerDetail() {
   if (error) {
     return (
       <div style={pageWrapper}>
-        <Link to="/deals" style={backLink}>
-          ← Back to Deals
-        </Link>
+        <button type="button" onClick={handleBack} style={backLink}>
+          ← Back
+        </button>
 
         <div style={errorBox}>{error}</div>
       </div>
@@ -213,11 +235,23 @@ function CustomerDetail() {
   return (
     <div style={pageWrapper}>
       <div style={topNav}>
-        <Link to="/deals" style={backLink}>
-          ← Back to Deals
-        </Link>
+        <button type="button" onClick={handleBack} style={backLink}>
+          ← Back
+        </button>
 
         <div style={topActions}>
+          <button
+            type="button"
+            onClick={handleTakePayment}
+            disabled={balance <= 0}
+            style={{
+              ...takePaymentButtonStyle,
+              ...(balance <= 0 ? disabledTopActionButton : {}),
+            }}
+          >
+            💵 Take Payment
+          </button>
+
           <Link to={`/deals/${dealId}/edit`} style={editButtonStyle}>
             ✏️ Edit Deal
           </Link>
@@ -808,6 +842,9 @@ const backLink = {
   borderRadius: "999px",
   padding: "9px 13px",
   boxShadow: "0 4px 12px rgba(15, 23, 42, 0.06)",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  fontSize: "14px",
 };
 
 const topActions = {
@@ -815,6 +852,28 @@ const topActions = {
   alignItems: "center",
   gap: "10px",
   flexWrap: "wrap",
+};
+
+const takePaymentButtonStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#16a34a",
+  color: "white",
+  padding: "10px 14px",
+  borderRadius: "999px",
+  border: "none",
+  textDecoration: "none",
+  fontWeight: "900",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  fontSize: "14px",
+  boxShadow: "0 6px 16px rgba(22, 163, 74, 0.22)",
+};
+
+const disabledTopActionButton = {
+  opacity: 0.55,
+  cursor: "not-allowed",
 };
 
 const editButtonStyle = {

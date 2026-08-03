@@ -111,6 +111,14 @@ function CustomerDetail() {
   const hasReferralInfo =
     referredByName || referredByPhone || referralAmountPaid > 0;
 
+  const paymentFrequency = getPaymentFrequency(deal);
+  const paymentAmountLabel = getPaymentAmountLabel(deal);
+  const scheduleStartLabel = getScheduleStartLabel(deal);
+  const scheduleStartDate = getScheduleStartDate(deal);
+  const isCashSchedule = paymentFrequency === "Cash";
+  const isBiweeklySchedule = paymentFrequency === "Biweekly";
+  const isMonthlySchedule = paymentFrequency === "Monthly";
+
   const activePayments = payments.filter(
     (payment) => payment.payment_status !== "Voided"
   );
@@ -187,7 +195,7 @@ function CustomerDetail() {
       .map((installment) => {
         const paymentsForDueDate = activePayments.filter(
           (payment) =>
-            payment.deal_id === deal.id &&
+            String(payment.deal_id) === String(deal.id) &&
             payment.due_date === installment.dueDate &&
             payment.payment_status !== "Voided"
         );
@@ -212,7 +220,8 @@ function CustomerDetail() {
           amountDue: installment.amountDue,
           paidAmount: paidForDueDate,
           remainingAmount: remaining,
-          notes: `Collection reminder for installment ${installment.installmentNumber}`,
+          paymentFrequency,
+          notes: `${paymentFrequency} collection reminder for installment ${installment.installmentNumber}`,
         };
       })
       .filter((item) => Number(item.remainingAmount || 0) > 0);
@@ -357,6 +366,41 @@ function CustomerDetail() {
           </div>
 
           <InfoLine label="Sub Type" value={deal.deal_subtype || "—"} />
+
+          <div style={sidebarDivider} />
+
+          <div style={infoLine}>
+            <span style={infoLabel}>Payment Frequency</span>
+            <PaymentFrequencyBadge paymentFrequency={paymentFrequency} />
+          </div>
+
+          {!isCashSchedule && (
+            <>
+              <InfoLine
+                label={paymentAmountLabel}
+                value={formatMoney(deal.monthly_payment)}
+              />
+
+              <InfoLine
+                label={isBiweeklySchedule ? "Number of Payments" : "Term"}
+                value={deal.term || "—"}
+              />
+
+              <InfoLine
+                label={scheduleStartLabel}
+                value={formatDisplayDate(scheduleStartDate)}
+              />
+
+              {isMonthlySchedule && (
+                <InfoLine label="Due Day" value={deal.due_day || "—"} />
+              )}
+
+              <InfoLine
+                label="Maturity Date"
+                value={formatDisplayDate(deal.maturity_date)}
+              />
+            </>
+          )}
         </aside>
 
         <main style={accountPanel}>
@@ -375,6 +419,8 @@ function CustomerDetail() {
                 {deal.deal_subtype && (
                   <span style={subTypeBadge}>{deal.deal_subtype}</span>
                 )}
+
+                <PaymentFrequencyBadge paymentFrequency={paymentFrequency} />
 
                 {customerCompanyName && (
                   <span style={companySmallBadge}>🏢 {customerCompanyName}</span>
@@ -432,8 +478,14 @@ function CustomerDetail() {
             />
 
             <MetricCard
-              label="Monthly Payment"
-              value={formatMoney(deal.monthly_payment)}
+              label={paymentAmountLabel}
+              value={isCashSchedule ? "—" : formatMoney(deal.monthly_payment)}
+              tone="info"
+            />
+
+            <MetricCard
+              label="Payment Frequency"
+              value={paymentFrequency}
               tone="info"
             />
 
@@ -506,29 +558,26 @@ function CustomerDetail() {
                   </strong>
                 </div>
               </div>
-            ) : (
-              <div style={referralEmptyState}>
-                No referral information added for this deal.
-              </div>
-            )}
-          </div>
-        </main>
-      </div>
-
-      <div style={notesPanel}>
-        <div style={notesHeader}>
-          <div>
-            <h2 style={sectionTitle}>Internal Deal Notes</h2>
-            <p style={sectionDescription}>
-              Internal comments, special terms, title notes, customer agreements,
-              or dealership notes.
-            </p>
-          </div>
-        </div>
-
-        <div style={notesContent}>
-          {deal.notes || "No internal notes added for this deal."}
-        </div>
+                        ) : (
+                          <div style={referralEmptyState}>
+                            No referral information added for this deal.
+                          </div>
+                        )}
+                      </div>
+            
+                      <div style={accountNotesCard}>
+                        <div style={accountNotesHeader}>
+                          <div>
+                            <div style={referralLabel}>Internal Notes</div>
+                            <h3 style={referralTitle}>Deal Notes</h3>
+                          </div>
+                        </div>
+            
+                        <div style={accountNotesContent}>
+                          {deal.notes || "No internal notes added for this deal."}
+                        </div>
+                      </div>
+                    </main>
       </div>
 
       <div style={sectionStack}>
@@ -575,6 +624,14 @@ function CustomerDetail() {
   );
 }
 
+function PaymentFrequencyBadge({ paymentFrequency }) {
+  return (
+    <span style={getPaymentFrequencyBadgeStyle(paymentFrequency)}>
+      {paymentFrequency || "Monthly"}
+    </span>
+  );
+}
+
 function DealTypeBadge({ dealType }) {
   return (
     <span style={getDealTypeBadgeStyle(dealType)}>
@@ -615,6 +672,58 @@ function SectionShell({ label, title, description, children }) {
       <div style={sectionContent}>{children}</div>
     </section>
   );
+}
+
+function getPaymentFrequency(deal) {
+  if (deal?.deal_type === "Cash") return "Cash";
+
+  if (deal?.deal_type === "Registration Money") {
+    return "One-Time";
+  }
+
+  return deal?.payment_frequency || deal?.paymentFrequency || "Monthly";
+}
+
+function getPaymentAmountLabel(deal) {
+  const paymentFrequency = getPaymentFrequency(deal);
+
+  if (paymentFrequency === "Biweekly") return "Biweekly Payment";
+  if (paymentFrequency === "One-Time") return "One-Time Amount";
+  if (paymentFrequency === "Cash") return "Payment Amount";
+
+  return "Monthly Payment";
+}
+
+function getScheduleStartLabel(deal) {
+  const paymentFrequency = getPaymentFrequency(deal);
+
+  if (paymentFrequency === "Biweekly") return "First Payment Date";
+  if (paymentFrequency === "One-Time") return "Tentative Due Date";
+
+  return "Start Date";
+}
+
+function getScheduleStartDate(deal) {
+  const paymentFrequency = getPaymentFrequency(deal);
+
+  if (paymentFrequency === "Biweekly") {
+    return deal?.first_payment_date || deal?.firstPaymentDate || deal?.start_date || "";
+  }
+
+  if (paymentFrequency === "One-Time") {
+    return deal?.start_date || deal?.first_payment_date || "";
+  }
+
+  return deal?.start_date || "";
+}
+
+function formatDisplayDate(dateString) {
+  if (!dateString) return "—";
+
+  const [year, month, day] = String(dateString).split("-");
+  if (!year || !month || !day) return dateString;
+
+  return `${month}/${day}/${year}`;
 }
 
 function getInitials(name) {
@@ -660,6 +769,58 @@ function getMetricToneStyle(tone) {
   return {
     borderColor: "#e5e7eb",
     background: "#ffffff",
+  };
+}
+
+function getPaymentFrequencyBadgeStyle(paymentFrequency) {
+  const normalized = String(paymentFrequency || "Monthly").toLowerCase();
+
+  const base = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "fit-content",
+    padding: "8px 13px",
+    borderRadius: "999px",
+    fontWeight: "900",
+    fontSize: "13px",
+    border: "1px solid transparent",
+    letterSpacing: "0.02em",
+    whiteSpace: "nowrap",
+  };
+
+  if (normalized === "biweekly") {
+    return {
+      ...base,
+      background: "#fef3c7",
+      color: "#92400e",
+      borderColor: "#fde68a",
+    };
+  }
+
+  if (normalized === "one-time") {
+    return {
+      ...base,
+      background: "#ccfbf1",
+      color: "#0f766e",
+      borderColor: "#99f6e4",
+    };
+  }
+
+  if (normalized === "cash") {
+    return {
+      ...base,
+      background: "#f3f4f6",
+      color: "#374151",
+      borderColor: "#d1d5db",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    borderColor: "#bfdbfe",
   };
 }
 
@@ -1325,29 +1486,54 @@ const referralEmptyState = {
   fontWeight: "800",
 };
 
-const notesPanel = {
-  background: "linear-gradient(180deg, #fffbeb 0%, #ffffff 100%)",
+const accountNotesCard = {
+  marginTop: "16px",
+  background: "rgba(255,255,255,0.96)",
   border: "1px solid #fde68a",
-  borderRadius: "22px",
-  padding: "18px",
-  marginTop: "0",
-  boxShadow: "0 10px 26px rgba(15, 23, 42, 0.07)",
+  borderRadius: "18px",
+  padding: "16px",
+  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.12)",
 };
 
-const notesHeader = {
+const accountNotesHeader = {
   marginBottom: "12px",
 };
 
-const notesContent = {
-  background: "#ffffff",
-  padding: "15px",
-  borderRadius: "14px",
-  border: "1px solid #fed7aa",
-  whiteSpace: "pre-wrap",
+const accountNotesContent = {
+  background: "#fffbeb",
+  border: "1px solid #fde68a",
   color: "#78350f",
+  borderRadius: "14px",
+  padding: "14px",
+  whiteSpace: "pre-wrap",
   lineHeight: "1.5",
   wordBreak: "break-word",
+  minHeight: "70px",
 };
+
+// const notesPanel = {
+//   background: "linear-gradient(180deg, #fffbeb 0%, #ffffff 100%)",
+//   border: "1px solid #fde68a",
+//   borderRadius: "22px",
+//   padding: "18px",
+//   marginTop: "0",
+//   boxShadow: "0 10px 26px rgba(15, 23, 42, 0.07)",
+// };
+
+// const notesHeader = {
+//   marginBottom: "12px",
+// };
+
+// const notesContent = {
+//   background: "#ffffff",
+//   padding: "15px",
+//   borderRadius: "14px",
+//   border: "1px solid #fed7aa",
+//   whiteSpace: "pre-wrap",
+//   color: "#78350f",
+//   lineHeight: "1.5",
+//   wordBreak: "break-word",
+// };
 
 const sectionStack = {
   display: "grid",

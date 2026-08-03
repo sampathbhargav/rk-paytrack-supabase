@@ -7,11 +7,12 @@ import {
 
 function DueSchedule({ deal, payments, promises = [] }) {
   const schedule = getDealDueSchedule(deal);
+  const dealPaymentFrequency = getPaymentFrequency(deal);
 
   const scheduleWithStatus = schedule.map((installment) => {
     const paymentsForDueDate = payments.filter(
       (payment) =>
-        payment.deal_id === deal.id &&
+        String(payment.deal_id) === String(deal.id) &&
         payment.due_date === installment.dueDate &&
         payment.payment_status !== "Voided"
     );
@@ -28,7 +29,7 @@ function DueSchedule({ deal, payments, promises = [] }) {
 
     const relatedPromises = promises.filter(
       (promise) =>
-        promise.deal_id === deal.id &&
+        String(promise.deal_id) === String(deal.id) &&
         promise.original_due_date === installment.dueDate
     );
 
@@ -66,6 +67,7 @@ function DueSchedule({ deal, payments, promises = [] }) {
 
     return {
       ...installment,
+      paymentFrequency: installment.paymentFrequency || dealPaymentFrequency,
       paidForDueDate,
       remaining,
       status,
@@ -83,7 +85,9 @@ function DueSchedule({ deal, payments, promises = [] }) {
     amountDue: item.amountDue,
     paidAmount: item.paidForDueDate,
     remainingAmount: item.remaining,
-    notes: `Collection reminder for installment ${item.installmentNumber}`,
+    notes: `${getPaymentFrequencyLabel(
+      item.paymentFrequency
+    )} collection reminder for installment ${item.installmentNumber}`,
   });
 
   const handleGoogleReminder = (item) => {
@@ -97,19 +101,59 @@ function DueSchedule({ deal, payments, promises = [] }) {
   return (
     <div style={boxStyle}>
       <div style={sectionHeader}>
-        <h2 style={sectionTitle}>Due Schedule</h2>
-        <p style={sectionDescription}>
-          Monthly installment schedule with paid, partial, due, past-due,
-          promise status, and calendar reminders.
-        </p>
+        <div>
+          <h2 style={sectionTitle}>Due Schedule</h2>
+          <p style={sectionDescription}>
+            Monthly, biweekly, or one-time installment schedule with paid,
+            partial, due, past-due, promise status, and calendar reminders.
+          </p>
+        </div>
+
+        <span style={getFrequencyBadgeStyle(dealPaymentFrequency)}>
+          {getPaymentFrequencyLabel(dealPaymentFrequency)}
+        </span>
+      </div>
+
+      <div style={scheduleSummaryBox}>
+        <div>
+          <span style={summaryLabel}>Payment Frequency</span>
+          <strong>{getPaymentFrequencyLabel(dealPaymentFrequency)}</strong>
+        </div>
+
+        <div>
+          <span style={summaryLabel}>{getPaymentAmountLabel(deal)}</span>
+          <strong>{formatMoney(deal.monthly_payment)}</strong>
+        </div>
+
+        {dealPaymentFrequency === "Biweekly" ? (
+          <div>
+            <span style={summaryLabel}>First Payment Date</span>
+            <strong>{formatDisplayDate(deal.first_payment_date)}</strong>
+          </div>
+        ) : dealPaymentFrequency === "Monthly" ? (
+          <div>
+            <span style={summaryLabel}>Due Day</span>
+            <strong>{deal.due_day || "—"}</strong>
+          </div>
+        ) : (
+          <div>
+            <span style={summaryLabel}>Due Date</span>
+            <strong>{formatDisplayDate(deal.start_date)}</strong>
+          </div>
+        )}
+
+        <div>
+          <span style={summaryLabel}>Term / Payments</span>
+          <strong>{deal.term || scheduleWithStatus.length || "—"}</strong>
+        </div>
       </div>
 
       {scheduleWithStatus.length === 0 ? (
         <div style={emptyState}>
           <strong>No due schedule available.</strong>
           <p>
-            Check the deal start date, due day, term, and monthly payment to
-            generate the installment schedule.
+            Check the deal payment frequency, start date, due day or first
+            payment date, term, and payment amount to generate the schedule.
           </p>
         </div>
       ) : (
@@ -118,6 +162,7 @@ function DueSchedule({ deal, payments, promises = [] }) {
             <thead>
               <tr>
                 <th style={th}>Installment</th>
+                <th style={th}>Frequency</th>
                 <th style={th}>Due Date</th>
                 <th style={th}>Amount Due</th>
                 <th style={th}>Paid</th>
@@ -130,8 +175,15 @@ function DueSchedule({ deal, payments, promises = [] }) {
 
             <tbody>
               {scheduleWithStatus.map((item) => (
-                <tr key={item.installmentNumber}>
+                <tr key={`${item.installmentNumber}-${item.dueDate}`}>
                   <td style={td}>{item.installmentNumber}</td>
+
+                  <td style={td}>
+                    <span style={getFrequencyBadgeStyle(item.paymentFrequency)}>
+                      {getPaymentFrequencyLabel(item.paymentFrequency)}
+                    </span>
+                  </td>
+
                   <td style={td}>{formatDisplayDate(item.dueDate)}</td>
                   <td style={td}>{formatMoney(item.amountDue)}</td>
                   <td style={td}>{formatMoney(item.paidForDueDate)}</td>
@@ -188,11 +240,88 @@ function DueSchedule({ deal, payments, promises = [] }) {
   );
 }
 
+function getPaymentFrequency(deal) {
+  if (deal?.deal_type === "Cash") return "Cash";
+
+  if (deal?.deal_type === "Registration Money") {
+    return "One-Time";
+  }
+
+  return deal?.payment_frequency || deal?.paymentFrequency || "Monthly";
+}
+
+function getPaymentFrequencyLabel(frequency) {
+  if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "One-Time") return "One-Time";
+  if (frequency === "Cash") return "Cash";
+  return "Monthly";
+}
+
+function getPaymentAmountLabel(deal) {
+  const frequency = getPaymentFrequency(deal);
+
+  if (frequency === "Biweekly") return "Biweekly Payment";
+  if (frequency === "One-Time") return "One-Time Amount";
+  if (frequency === "Cash") return "Cash Amount";
+  return "Monthly Payment";
+}
+
 function formatDisplayDate(dateString) {
   if (!dateString) return "—";
 
-  const [year, month, day] = dateString.split("-");
+  const [year, month, day] = String(dateString).split("-");
+  if (!year || !month || !day) return dateString;
+
   return `${month}/${day}/${year}`;
+}
+
+function getFrequencyBadgeStyle(frequency) {
+  const base = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "fit-content",
+    padding: "5px 10px",
+    borderRadius: "999px",
+    fontSize: "12px",
+    fontWeight: "900",
+    whiteSpace: "nowrap",
+    border: "1px solid transparent",
+  };
+
+  if (frequency === "Biweekly") {
+    return {
+      ...base,
+      background: "#ede9fe",
+      color: "#6d28d9",
+      borderColor: "#ddd6fe",
+    };
+  }
+
+  if (frequency === "One-Time") {
+    return {
+      ...base,
+      background: "#ccfbf1",
+      color: "#0f766e",
+      borderColor: "#99f6e4",
+    };
+  }
+
+  if (frequency === "Cash") {
+    return {
+      ...base,
+      background: "#f3f4f6",
+      color: "#374151",
+      borderColor: "#d1d5db",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    borderColor: "#bfdbfe",
+  };
 }
 
 function getStatusStyle(status) {
@@ -201,6 +330,7 @@ function getStatusStyle(status) {
     borderRadius: "999px",
     fontSize: "13px",
     fontWeight: "bold",
+    whiteSpace: "nowrap",
   };
 
   if (status === "Paid") {
@@ -248,6 +378,7 @@ function getPromiseStyle(status) {
     borderRadius: "999px",
     fontSize: "13px",
     fontWeight: "bold",
+    whiteSpace: "nowrap",
   };
 
   if (status === "Promise Pending") {
@@ -290,7 +421,7 @@ const tableWrap = {
 
 const tableStyle = {
   width: "100%",
-  minWidth: "1040px",
+  minWidth: "1120px",
   borderCollapse: "collapse",
 };
 
@@ -309,7 +440,12 @@ const td = {
 };
 
 const sectionHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "12px",
   marginBottom: "14px",
+  flexWrap: "wrap",
 };
 
 const sectionTitle = {
@@ -322,6 +458,25 @@ const sectionDescription = {
   marginBottom: 0,
   color: "#667085",
   fontSize: "14px",
+};
+
+const scheduleSummaryBox = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: "12px",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  padding: "14px",
+  borderRadius: "12px",
+  marginBottom: "16px",
+};
+
+const summaryLabel = {
+  display: "block",
+  color: "#667085",
+  fontSize: "12px",
+  fontWeight: "800",
+  marginBottom: "5px",
 };
 
 const emptyState = {

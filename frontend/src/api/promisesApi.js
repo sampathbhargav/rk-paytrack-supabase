@@ -7,6 +7,13 @@ const promiseDealJoin = `
     deal_tag,
     deal_type,
     deal_subtype,
+    payment_frequency,
+    first_payment_date,
+    start_date,
+    due_day,
+    monthly_payment,
+    term,
+    maturity_date,
     customer_id,
     customers (
       id,
@@ -68,21 +75,30 @@ export async function markPromisePaidAndCreatePayment({
     throw new Error("Promise remaining amount must be greater than 0.");
   }
 
+  const originalDueDate = getPromiseOriginalDueDate(promise);
+
+  if (!originalDueDate) {
+    throw new Error(
+      "Original due date is required to record this promise payment."
+    );
+  }
+
   const { data: payment, error: paymentError } = await supabase
     .from("payments")
     .insert({
       deal_id: promise.deal_id,
       promise_id: promise.id,
       payment_date: paymentDate,
-      due_date: promise.original_due_date,
+      due_date: originalDueDate,
       amount_due: amountPaid,
       amount_paid: amountPaid,
       remaining_amount: 0,
       payment_method: paymentMethod,
       payment_type: "Promise Payment",
+      payment_status: "Paid",
       notes:
         notes ||
-        `Promise payment received for original due date ${promise.original_due_date}`,
+        `Promise payment received for original due date ${originalDueDate}`,
     })
     .select()
     .single();
@@ -106,28 +122,15 @@ export async function markPromisePaidAndCreatePayment({
   };
 }
 
-function markBrokenPromisesInUI(promises = []) {
-  const today = new Date().toISOString().split("T")[0];
-
-  return promises.map((promise) => {
-    if (
-      promise.promise_status === "Pending" &&
-      promise.promised_date &&
-      promise.promised_date < today
-    ) {
-      return {
-        ...promise,
-        promise_status: "Broken",
-      };
-    }
-
-    return promise;
-  });
-}
-
 export async function reschedulePromise({ promise, newPromisedDate, reason }) {
   if (!newPromisedDate) {
     throw new Error("New promised date is required.");
+  }
+
+  const originalDueDate = getPromiseOriginalDueDate(promise);
+
+  if (!originalDueDate) {
+    throw new Error("Original due date is required to reschedule this promise.");
   }
 
   const { error: oldPromiseError } = await supabase
@@ -144,7 +147,7 @@ export async function reschedulePromise({ promise, newPromisedDate, reason }) {
     .from("payment_promises")
     .insert({
       deal_id: promise.deal_id,
-      original_due_date: promise.original_due_date,
+      original_due_date: originalDueDate,
       amount_due: promise.amount_due,
       amount_paid_now: promise.amount_paid_now,
       remaining_amount: promise.remaining_amount,
@@ -188,6 +191,14 @@ export async function partialPayPromiseAndCreateNewPromise({
     throw new Error("New promised date is required for remaining balance.");
   }
 
+  const originalDueDate = getPromiseOriginalDueDate(promise);
+
+  if (!originalDueDate) {
+    throw new Error(
+      "Original due date is required to record this promise payment."
+    );
+  }
+
   const newRemaining = Math.max(oldRemaining - paidAmount, 0);
 
   const { data: payment, error: paymentError } = await supabase
@@ -196,12 +207,13 @@ export async function partialPayPromiseAndCreateNewPromise({
       deal_id: promise.deal_id,
       promise_id: promise.id,
       payment_date: paymentDate,
-      due_date: promise.original_due_date,
+      due_date: originalDueDate,
       amount_due: oldRemaining,
       amount_paid: paidAmount,
       remaining_amount: newRemaining,
       payment_method: paymentMethod,
       payment_type: "Partial Promise Payment",
+      payment_status: "Partial",
       notes:
         notes ||
         `Partial promise payment received. Paid ${paidAmount}, remaining ${newRemaining}.`,
@@ -227,7 +239,7 @@ export async function partialPayPromiseAndCreateNewPromise({
     .from("payment_promises")
     .insert({
       deal_id: promise.deal_id,
-      original_due_date: promise.original_due_date,
+      original_due_date: originalDueDate,
       amount_due: promise.amount_due,
       amount_paid_now: Number(promise.amount_paid_now || 0) + paidAmount,
       remaining_amount: newRemaining,
@@ -251,4 +263,27 @@ export async function partialPayPromiseAndCreateNewPromise({
     oldPromiseId: promise.id,
     newPromise,
   };
+}
+
+function markBrokenPromisesInUI(promises = []) {
+  const today = new Date().toISOString().split("T")[0];
+
+  return promises.map((promise) => {
+    if (
+      promise.promise_status === "Pending" &&
+      promise.promised_date &&
+      promise.promised_date < today
+    ) {
+      return {
+        ...promise,
+        promise_status: "Broken",
+      };
+    }
+
+    return promise;
+  });
+}
+
+function getPromiseOriginalDueDate(promise) {
+  return promise?.original_due_date || promise?.due_date || "";
 }

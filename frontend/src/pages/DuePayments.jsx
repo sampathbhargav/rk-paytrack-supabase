@@ -76,15 +76,7 @@ function DuePayments() {
     const isActivePaymentDeal =
       deal.status === "Active" && deal.deal_type !== "Cash";
 
-    const missingSchedule =
-      !deal.start_date ||
-      !deal.due_day ||
-      !deal.monthly_payment ||
-      Number(deal.monthly_payment || 0) <= 0 ||
-      !deal.term ||
-      Number(deal.term || 0) <= 0;
-
-    return isActivePaymentDeal && missingSchedule;
+    return isActivePaymentDeal && isScheduleMissing(deal);
   });
 
   const totalScheduledDue = scheduledUnpaidOrPartial.reduce(
@@ -153,8 +145,10 @@ function DuePayments() {
               setup.
             </strong>
             <p style={{ margin: "6px 0 0" }}>
-              These deals will not show in due payments until Start Date, Due
-              Day, Monthly Payment, and Term are completed.
+              These deals will not show in due payments until the required
+              schedule fields are completed. Monthly deals need Start Date, Due
+              Day, Payment Amount, and Term. Biweekly deals need First Payment
+              Date, Payment Amount, and Term.
             </p>
           </div>
         </div>
@@ -286,48 +280,67 @@ function DuePayments() {
                 <tr>
                   <th style={stickyTh}>Deal Tag</th>
                   <th style={{ ...th, width: "190px" }}>Customer</th>
+                  <th style={{ ...th, width: "120px" }}>Frequency</th>
                   <th style={{ ...th, width: "130px" }}>Deal Type</th>
                   <th style={{ ...th, width: "115px" }}>Start Date</th>
+                  <th style={{ ...th, width: "130px" }}>First Payment</th>
                   <th style={{ ...th, width: "90px" }}>Due Day</th>
-                  <th style={{ ...th, width: "120px" }}>Monthly</th>
+                  <th style={{ ...th, width: "130px" }}>Payment Amount</th>
                   <th style={{ ...th, width: "90px" }}>Term</th>
-                  <th style={{ ...th, width: "240px" }}>Missing Fields</th>
+                  <th style={{ ...th, width: "260px" }}>Missing Fields</th>
                 </tr>
               </thead>
 
               <tbody>
-                {missingScheduleDeals.map((deal, index) => (
-                  <tr
-                    key={deal.id}
-                    style={{
-                      background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
-                    }}
-                  >
-                    <td
+                {missingScheduleDeals.map((deal, index) => {
+                  const frequency = getPaymentFrequency(deal);
+
+                  return (
+                    <tr
+                      key={deal.id}
                       style={{
-                        ...stickyTd,
                         background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
                       }}
                     >
-                      <Link to={`/deals/${deal.id}/edit`} style={dealLink}>
-                        {deal.deal_tag}
-                      </Link>
-                    </td>
+                      <td
+                        style={{
+                          ...stickyTd,
+                          background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                        }}
+                      >
+                        <Link to={`/deals/${deal.id}/edit`} style={dealLink}>
+                          {deal.deal_tag}
+                        </Link>
+                      </td>
 
-                    <td style={customerCell}>
-                      {deal.customers?.customer_name || "—"}
-                    </td>
+                      <td style={customerCell}>
+                        {deal.customers?.customer_name || "—"}
+                      </td>
 
-                    <td style={td}>{deal.deal_type || "—"}</td>
-                    <td style={td}>{formatDisplayDate(deal.start_date)}</td>
-                    <td style={td}>{deal.due_day || "—"}</td>
-                    <td style={moneyCell}>
-                      {formatMoney(deal.monthly_payment)}
-                    </td>
-                    <td style={td}>{deal.term || "—"}</td>
-                    <td style={notesCell}>{getMissingScheduleText(deal)}</td>
-                  </tr>
-                ))}
+                      <td style={td}>
+                        <span style={getFrequencyBadgeStyle(frequency)}>
+                          {getPaymentFrequencyLabel(frequency)}
+                        </span>
+                      </td>
+
+                      <td style={td}>{deal.deal_type || "—"}</td>
+                      <td style={td}>{formatDisplayDate(deal.start_date)}</td>
+                      <td style={td}>
+                        {frequency === "Biweekly"
+                          ? formatDisplayDate(getFirstPaymentDate(deal))
+                          : "—"}
+                      </td>
+                      <td style={td}>
+                        {frequency === "Monthly" ? deal.due_day || "—" : "—"}
+                      </td>
+                      <td style={moneyCell}>
+                        {formatMoney(getPaymentAmount(deal))}
+                      </td>
+                      <td style={td}>{deal.term || "—"}</td>
+                      <td style={notesCell}>{getMissingScheduleText(deal)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -336,7 +349,7 @@ function DuePayments() {
 
       <DashboardSection
         title="Scheduled Payments Due"
-        description="Scheduled installments due on the selected date that are still unpaid or partially paid."
+        description="Monthly or biweekly scheduled installments due on the selected date that are still unpaid or partially paid."
         count={scheduledUnpaidOrPartial.length}
         tone="warning"
       >
@@ -355,6 +368,7 @@ function DuePayments() {
                   <th style={{ ...th, width: "180px" }}>Customer</th>
                   <th style={{ ...th, width: "125px" }}>Phone</th>
                   <th style={{ ...th, width: "105px" }}>Installment</th>
+                  <th style={{ ...th, width: "120px" }}>Frequency</th>
                   <th style={{ ...th, width: "130px" }}>Deal Type</th>
                   <th style={{ ...th, width: "160px" }}>Truck</th>
                   <th style={{ ...th, width: "115px" }}>Amount Due</th>
@@ -389,6 +403,18 @@ function DuePayments() {
 
                     <td style={td}>{item.deal.customers?.phone || "—"}</td>
                     <td style={td}>{item.installmentNumber}</td>
+
+                    <td style={td}>
+                      <span
+                        style={getFrequencyBadgeStyle(
+                          item.paymentFrequency || getPaymentFrequency(item.deal)
+                        )}
+                      >
+                        {getPaymentFrequencyLabel(
+                          item.paymentFrequency || getPaymentFrequency(item.deal)
+                        )}
+                      </span>
+                    </td>
 
                     <td style={wrapCell}>
                       <span style={dealTypeBadge}>
@@ -531,13 +557,86 @@ function DashboardSection({ title, description, count, tone, children }) {
   );
 }
 
+function getPaymentFrequency(deal) {
+  if (deal?.deal_type === "Cash") return "Cash";
+
+  if (deal?.deal_type === "Registration Money") {
+    return "One-Time";
+  }
+
+  return deal?.payment_frequency || deal?.paymentFrequency || "Monthly";
+}
+
+function getPaymentFrequencyLabel(frequency) {
+  if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "One-Time") return "One-Time";
+  if (frequency === "Cash") return "Cash";
+  return "Monthly";
+}
+
+function getPaymentAmount(deal) {
+  return Number(deal?.monthly_payment || deal?.monthlyPayment || 0);
+}
+
+function getFirstPaymentDate(deal) {
+  return deal?.first_payment_date || deal?.firstPaymentDate || deal?.start_date || "";
+}
+
+function isScheduleMissing(deal) {
+  const frequency = getPaymentFrequency(deal);
+  const paymentAmount = getPaymentAmount(deal);
+
+  if (frequency === "Cash") return false;
+
+  if (paymentAmount <= 0) return true;
+
+  if (frequency === "One-Time") {
+    return !deal.start_date && !deal.first_payment_date;
+  }
+
+  if (!deal.term || Number(deal.term || 0) <= 0) return true;
+
+  if (frequency === "Biweekly") {
+    return !getFirstPaymentDate(deal);
+  }
+
+  return !deal.start_date || !deal.due_day;
+}
+
 function getMissingScheduleText(deal) {
   const missing = [];
+  const frequency = getPaymentFrequency(deal);
+
+  if (frequency === "One-Time") {
+    if (!deal.start_date && !deal.first_payment_date) {
+      missing.push("Tentative Due Date");
+    }
+
+    if (getPaymentAmount(deal) <= 0) {
+      missing.push("One-Time Amount");
+    }
+
+    return missing.join(", ");
+  }
+
+  if (frequency === "Biweekly") {
+    if (!getFirstPaymentDate(deal)) missing.push("First Payment Date");
+
+    if (getPaymentAmount(deal) <= 0) {
+      missing.push("Biweekly Payment");
+    }
+
+    if (!deal.term || Number(deal.term || 0) <= 0) {
+      missing.push("Term");
+    }
+
+    return missing.join(", ");
+  }
 
   if (!deal.start_date) missing.push("Start Date");
   if (!deal.due_day) missing.push("Due Day");
 
-  if (!deal.monthly_payment || Number(deal.monthly_payment || 0) <= 0) {
+  if (getPaymentAmount(deal) <= 0) {
     missing.push("Monthly Payment");
   }
 
@@ -630,6 +729,43 @@ function getSectionBadgeStyle(tone) {
     ...base,
     background: "#e5e7eb",
     color: "#374151",
+  };
+}
+
+function getFrequencyBadgeStyle(frequency) {
+  const base = {
+    padding: "6px 10px",
+    borderRadius: "999px",
+    fontSize: "12px",
+    fontWeight: "800",
+    whiteSpace: "nowrap",
+    display: "inline-block",
+    border: "1px solid transparent",
+  };
+
+  if (frequency === "Biweekly") {
+    return {
+      ...base,
+      background: "#ede9fe",
+      color: "#6d28d9",
+      border: "1px solid #ddd6fe",
+    };
+  }
+
+  if (frequency === "One-Time") {
+    return {
+      ...base,
+      background: "#ccfbf1",
+      color: "#0f766e",
+      border: "1px solid #99f6e4",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    border: "1px solid #bfdbfe",
   };
 }
 
@@ -1045,7 +1181,7 @@ const tableScrollSmall = {
 
 const scheduledTableStyle = {
   width: "100%",
-  minWidth: "1230px",
+  minWidth: "1360px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -1061,7 +1197,7 @@ const promiseTableStyle = {
 
 const missingScheduleTableStyle = {
   width: "100%",
-  minWidth: "1130px",
+  minWidth: "1320px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,

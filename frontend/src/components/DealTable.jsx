@@ -53,10 +53,11 @@ function DealTable({ deals, loading = false }) {
               <col style={{ width: "135px" }} />
               <col style={{ width: "125px" }} />
               <col style={{ width: "145px" }} />
+              <col style={{ width: "130px" }} />
               <col style={{ width: "180px" }} />
               <col style={{ width: "125px" }} />
               <col style={{ width: "125px" }} />
-              <col style={{ width: "85px" }} />
+              <col style={{ width: "125px" }} />
               <col style={{ width: "85px" }} />
               <col style={{ width: "150px" }} />
             </colgroup>
@@ -68,10 +69,11 @@ function DealTable({ deals, loading = false }) {
                 <th style={th}>Phone</th>
                 <th style={th}>Status</th>
                 <th style={th}>Deal Type</th>
+                <th style={th}>Frequency</th>
                 <th style={th}>Truck</th>
                 <th style={rightTh}>Total</th>
-                <th style={rightTh}>Monthly</th>
-                <th style={centerTh}>Due</th>
+                <th style={rightTh}>Payment</th>
+                <th style={centerTh}>Due / First Pay</th>
                 <th style={centerTh}>Term</th>
                 <th style={centerTh}>Action</th>
               </tr>
@@ -82,6 +84,7 @@ function DealTable({ deals, loading = false }) {
                 const customerId = deal.customer_id || deal.customers?.id;
                 const customerName = deal.customers?.customer_name || "—";
                 const companyName = deal.customers?.company_name || "";
+                const paymentFrequency = getPaymentFrequency(deal);
 
                 return (
                   <tr
@@ -152,6 +155,12 @@ function DealTable({ deals, loading = false }) {
                     </td>
 
                     <td style={wrapCell}>
+                      <span style={getFrequencyBadgeStyle(paymentFrequency)}>
+                        {getPaymentFrequencyLabel(paymentFrequency)}
+                      </span>
+                    </td>
+
+                    <td style={wrapCell}>
                       <span style={truckText}>
                         {`${deal.year || ""} ${deal.truck || ""}`.trim() ||
                           "—"}
@@ -163,10 +172,13 @@ function DealTable({ deals, loading = false }) {
                     </td>
 
                     <td style={rightMoneyCell}>
-                      {formatMoney(deal.monthly_payment)}
+                      <div style={paymentAmountCell}>
+                        <strong>{formatMoney(deal.monthly_payment)}</strong>
+                        <span>{getPaymentAmountLabel(paymentFrequency)}</span>
+                      </div>
                     </td>
 
-                    <td style={centerCell}>{deal.due_day || "—"}</td>
+                    <td style={centerCell}>{getDueDisplayValue(deal)}</td>
 
                     <td style={centerCell}>{deal.term || "—"}</td>
 
@@ -190,6 +202,106 @@ function DealTable({ deals, loading = false }) {
       </div>
     </div>
   );
+}
+
+function getPaymentFrequency(deal) {
+  if (deal?.deal_type === "Cash") return "Cash";
+
+  if (deal?.deal_type === "Registration Money") {
+    return "One-Time";
+  }
+
+  return deal?.payment_frequency || deal?.paymentFrequency || "Monthly";
+}
+
+function getPaymentFrequencyLabel(frequency) {
+  if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "One-Time") return "One-Time";
+  if (frequency === "Cash") return "Cash";
+  return "Monthly";
+}
+
+function getPaymentAmountLabel(frequency) {
+  if (frequency === "Biweekly") return "biweekly";
+  if (frequency === "One-Time") return "one-time";
+  if (frequency === "Cash") return "cash";
+  return "monthly";
+}
+
+function getDueDisplayValue(deal) {
+  const frequency = getPaymentFrequency(deal);
+
+  if (frequency === "Biweekly") {
+    return formatDisplayDate(deal.first_payment_date || deal.firstPaymentDate);
+  }
+
+  if (frequency === "One-Time") {
+    return formatDisplayDate(deal.start_date || deal.first_payment_date);
+  }
+
+  if (frequency === "Cash") {
+    return "—";
+  }
+
+  return deal.due_day || "—";
+}
+
+function formatDisplayDate(dateString) {
+  if (!dateString) return "—";
+
+  const [year, month, day] = String(dateString).split("-");
+  if (!year || !month || !day) return dateString;
+
+  return `${month}/${day}/${year}`;
+}
+
+function getFrequencyBadgeStyle(frequency) {
+  const base = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "fit-content",
+    padding: "5px 9px",
+    borderRadius: "999px",
+    fontSize: "12px",
+    fontWeight: "800",
+    whiteSpace: "nowrap",
+    border: "1px solid transparent",
+  };
+
+  if (frequency === "Biweekly") {
+    return {
+      ...base,
+      background: "#ede9fe",
+      color: "#6d28d9",
+      borderColor: "#ddd6fe",
+    };
+  }
+
+  if (frequency === "One-Time") {
+    return {
+      ...base,
+      background: "#ccfbf1",
+      color: "#0f766e",
+      borderColor: "#99f6e4",
+    };
+  }
+
+  if (frequency === "Cash") {
+    return {
+      ...base,
+      background: "#f3f4f6",
+      color: "#374151",
+      borderColor: "#d1d5db",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    borderColor: "#bfdbfe",
+  };
 }
 
 function getStatusStyle(status) {
@@ -326,7 +438,7 @@ const tableScroll = {
 
 const tableStyle = {
   width: "100%",
-  minWidth: "1530px",
+  minWidth: "1700px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -418,6 +530,11 @@ const rightMoneyCell = {
   textAlign: "right",
   fontWeight: "800",
   color: "#111827",
+};
+
+const paymentAmountCell = {
+  display: "grid",
+  gap: "3px",
 };
 
 const dealLink = {

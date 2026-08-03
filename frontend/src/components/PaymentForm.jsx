@@ -26,11 +26,15 @@ function PaymentForm() {
   const [successDealLink, setSuccessDealLink] = useState(null);
 
   const [formData, setFormData] = useState(initialFormData);
+  const [dealSearchText, setDealSearchText] = useState("");
+  const [dealSearchOpen, setDealSearchOpen] = useState(false);
+
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   const messageAreaRef = useRef(null);
+  const dealSearchWrapperRef = useRef(null);
 
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -54,6 +58,23 @@ function PaymentForm() {
   }, []);
 
   useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        dealSearchWrapperRef.current &&
+        !dealSearchWrapperRef.current.contains(event.target)
+      ) {
+        setDealSearchOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
     if (preselectApplied || !preselectedDealId || deals.length === 0) return;
 
     const matchingDeal = deals.find(
@@ -72,6 +93,8 @@ function PaymentForm() {
       notes: "",
     }));
 
+    setDealSearchText(getDealSearchLabel(matchingDeal));
+    setDealSearchOpen(false);
     setPreselectApplied(true);
   }, [preselectApplied, preselectedDealId, deals]);
 
@@ -101,6 +124,8 @@ function PaymentForm() {
     (deal) => String(deal.id) === String(formData.dealId)
   );
 
+  const filteredDealOptions = getFilteredDealOptions(deals, dealSearchText);
+
   const activePayments = payments.filter(
     (payment) => payment.payment_status !== "Voided"
   );
@@ -109,12 +134,25 @@ function PaymentForm() {
     ? getInstallmentOptions(selectedDeal, activePayments)
     : [];
 
-  const selectedInstallment = installmentOptions.find(
-    (item) => item.dueDate === formData.dueDate
-  );
-
-  const amountDue = Number(formData.amountDue || 0);
-  const amountPaid = Number(formData.amountPaid || 0);
+    const selectedInstallment = installmentOptions.find(
+      (item) => item.dueDate === formData.dueDate
+    );
+  
+    const selectedDealTotalPaid = selectedDeal
+      ? activePayments
+          .filter((payment) => String(payment.deal_id) === String(selectedDeal.id))
+          .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0)
+      : 0;
+  
+    const selectedDealRemainingBalance = selectedDeal
+      ? Math.max(
+          Number(selectedDeal.total_amount || 0) - selectedDealTotalPaid,
+          0
+        )
+      : 0;
+  
+    const amountDue = Number(formData.amountDue || 0);
+    const amountPaid = Number(formData.amountPaid || 0);
 
   const totalOpenFromSelected = getTotalOpenFromSelectedInstallment(
     installmentOptions,
@@ -138,6 +176,19 @@ function PaymentForm() {
 
   const extraPaymentAmount = Math.max(amountPaid - amountDue, 0);
 
+  const overpaymentAmount = Math.max(amountPaid - totalOpenFromSelected, 0);
+
+  const isOverpayingDealBalance =
+    selectedDeal &&
+    formData.dueDate &&
+    amountPaid > totalOpenFromSelected;
+
+  const isExtraAppliedToFutureInstallments =
+    selectedDeal &&
+    formData.dueDate &&
+    amountPaid > amountDue &&
+    amountPaid <= totalOpenFromSelected;
+
   const clearStatusMessages = () => {
     setMessage("");
     setMessageType("");
@@ -145,20 +196,49 @@ function PaymentForm() {
     setSuccessDealLink(null);
   };
 
-  const handleDealChange = (e) => {
-    const dealId = e.target.value;
-
-    clearStatusMessages();
-
+  const resetDealPaymentFields = () => {
     setFormData((prev) => ({
       ...prev,
-      dealId,
+      dealId: "",
       dueDate: "",
       amountDue: "",
       amountPaid: "",
       promisedDate: "",
       notes: "",
     }));
+  };
+
+  const handleDealSearchChange = (e) => {
+    const value = e.target.value;
+
+    clearStatusMessages();
+    setDealSearchText(value);
+    setDealSearchOpen(true);
+    resetDealPaymentFields();
+  };
+
+  const handleSelectDeal = (deal) => {
+    clearStatusMessages();
+
+    setFormData((prev) => ({
+      ...prev,
+      dealId: deal.id,
+      dueDate: "",
+      amountDue: "",
+      amountPaid: "",
+      promisedDate: "",
+      notes: "",
+    }));
+
+    setDealSearchText(getDealSearchLabel(deal));
+    setDealSearchOpen(false);
+  };
+
+  const handleClearSelectedDeal = () => {
+    clearStatusMessages();
+    setDealSearchText("");
+    setDealSearchOpen(false);
+    resetDealPaymentFields();
   };
 
   const handleInstallmentChange = (e) => {
@@ -190,7 +270,7 @@ function PaymentForm() {
 
   const validatePaymentForm = () => {
     if (!formData.dealId) {
-      return "Please select a deal.";
+      return "Please search and select a deal.";
     }
 
     if (!formData.paymentDate) {
@@ -210,9 +290,15 @@ function PaymentForm() {
     }
 
     if (Number(formData.amountPaid) > Number(totalOpenFromSelected || 0)) {
-      return `Amount paid cannot be greater than the total open balance from this installment forward. Maximum allowed is ${formatMoney(
+      return `Overpayment not allowed. Customer is trying to pay ${formatMoney(
+        Number(formData.amountPaid || 0)
+      )}, but the remaining open balance from this installment forward is only ${formatMoney(
         totalOpenFromSelected
-      )}.`;
+      )}. Extra amount: ${formatMoney(
+        overpaymentAmount
+      )}. Record only ${formatMoney(
+        totalOpenFromSelected
+      )} or refund/handle the extra amount outside this payment.`;
     }
 
     if (!formData.paymentMethod) {
@@ -274,6 +360,8 @@ function PaymentForm() {
         (deal) => String(deal.id) === String(formData.dealId)
       );
 
+      const selectedDealPaymentFrequency = getPaymentFrequency(selectedDealData);
+
       const savedPaymentRecords = [];
 
       for (const allocation of paymentAllocations) {
@@ -281,8 +369,13 @@ function PaymentForm() {
         const isPartialSelectedInstallment =
           isSelectedInstallment && amountPaid < amountDue;
 
+        const allocationPaymentFrequency =
+          allocation.paymentFrequency || selectedDealPaymentFrequency;
+
         const paymentPayload = {
           ...formData,
+          paymentFrequency: allocationPaymentFrequency,
+          payment_frequency: allocationPaymentFrequency,
           dueDate: allocation.dueDate,
           amountDue: allocation.remainingForDueDate,
           amountPaid: allocation.amountApplied,
@@ -323,10 +416,12 @@ function PaymentForm() {
 
       const paymentType =
         paymentAllocations.length > 1
-          ? "Split Payment"
-          : Number(formData.amountPaid || 0) >= Number(formData.amountDue || 0)
-          ? "Full Payment"
-          : "Partial Payment";
+          ? `Split ${selectedDealPaymentFrequency} Payment`
+          : getReceiptPaymentType({
+              amountDue: formData.amountDue,
+              amountPaid: formData.amountPaid,
+              paymentFrequency: selectedDealPaymentFrequency,
+            });
 
       const receiptData = {
         paymentId: firstSavedPayment?.id || "",
@@ -334,6 +429,7 @@ function PaymentForm() {
         phone: selectedDealData?.customers?.phone || "",
         dealTag: selectedDealData?.deal_tag || "",
         dealType: selectedDealData?.deal_type || "",
+        paymentFrequency: selectedDealPaymentFrequency,
         truck: `${selectedDealData?.year || ""} ${
           selectedDealData?.truck || ""
         }`.trim(),
@@ -362,7 +458,7 @@ function PaymentForm() {
           selectedDealData?.deal_tag ||
           selectedDealData?.customers?.customer_name ||
           "Deal Payment",
-        description: `Deal payment of ${formatMoney(
+        description: `${selectedDealPaymentFrequency} deal payment of ${formatMoney(
           Number(formData.amountPaid || 0)
         )} recorded for ${
           selectedDealData?.customers?.customer_name || "customer"
@@ -381,6 +477,7 @@ function PaymentForm() {
           deal_tag: selectedDealData?.deal_tag || "",
           deal_type: selectedDealData?.deal_type || "",
           deal_subtype: selectedDealData?.deal_subtype || "",
+          payment_frequency: selectedDealPaymentFrequency,
           truck: selectedDealData?.truck || "",
           year: selectedDealData?.year || "",
           vin: selectedDealData?.vin || "",
@@ -401,6 +498,8 @@ function PaymentForm() {
           allocations: paymentAllocations.map((allocation) => ({
             due_date: allocation.dueDate,
             installment_number: allocation.installmentNumber,
+            payment_frequency:
+              allocation.paymentFrequency || selectedDealPaymentFrequency,
             installment_remaining_before_payment:
               allocation.remainingForDueDate,
             amount_applied: allocation.amountApplied,
@@ -432,6 +531,8 @@ function PaymentForm() {
       scrollToMessageArea();
 
       setFormData(initialFormData);
+      setDealSearchText("");
+      setDealSearchOpen(false);
 
       await loadData({ clearMessages: false });
     } catch (error) {
@@ -460,7 +561,7 @@ function PaymentForm() {
             {selectedDeal.status || "Active"}
           </span>
         ) : (
-          <span style={neutralBadge}>Select Deal</span>
+          <span style={neutralBadge}>Search Deal</span>
         )}
       </div>
 
@@ -517,34 +618,107 @@ function PaymentForm() {
 
       <Section
         title="Payment Selection"
-        description="Choose the customer deal and the installment where this payment starts."
+        description="Search by deal tag, customer name, company, phone, truck, VIN, type, or status."
       >
         <div style={grid}>
-          <div>
+          <div style={dealSearchWrapper} ref={dealSearchWrapperRef}>
             <label style={labelStyle}>
-              Deal / Customer <span style={requiredMark}>*</span>
+              Search Deal / Customer <span style={requiredMark}>*</span>
             </label>
 
-            <select
-              name="dealId"
-              value={formData.dealId}
-              onChange={handleDealChange}
-              style={inputStyle}
-              required
-            >
-              <option value="">Select Deal</option>
+            <input
+              type="text"
+              value={dealSearchText}
+              onChange={handleDealSearchChange}
+              onFocus={() => setDealSearchOpen(true)}
+              style={{
+                ...inputStyle,
+                ...(selectedDeal ? selectedDealInputStyle : {}),
+              }}
+              placeholder="Type deal #, customer, company, phone, VIN, or truck..."
+              autoComplete="off"
+            />
 
-              {deals.map((deal) => (
-                <option key={deal.id} value={deal.id}>
-                  {deal.deal_tag} - {deal.customers?.customer_name} -{" "}
-                  {deal.status || "Active"}
-                </option>
-              ))}
-            </select>
+            {selectedDeal && (
+              <div style={selectedSearchDealCard}>
+                <div>
+                  <strong>
+                    Deal #{selectedDeal.deal_tag || "—"} ·{" "}
+                    {selectedDeal.customers?.customer_name || "Customer"}
+                  </strong>
+                  <p>
+                    {selectedDeal.customers?.company_name
+                      ? `${selectedDeal.customers.company_name} · `
+                      : ""}
+                    {getPaymentFrequency(selectedDeal)} ·{" "}
+                    {selectedDeal.status || "Active"} · Balance schedule ready
+                  </p>
+                </div>
 
-            <small style={helperTextStyle}>
-              Defaulted deals are still available for manual payment entry.
-            </small>
+                <button
+                  type="button"
+                  onClick={handleClearSelectedDeal}
+                  style={clearSelectedDealButton}
+                >
+                  Change
+                </button>
+              </div>
+            )}
+
+            {dealSearchOpen && (
+              <div style={dealDropdown}>
+                {dealSearchText.trim().length === 0 ? (
+                  <div style={dealDropdownEmpty}>
+                    Start typing to search deals.
+                  </div>
+                ) : filteredDealOptions.length === 0 ? (
+                  <div style={dealDropdownEmpty}>
+                    No matching deals found.
+                  </div>
+                ) : (
+                  filteredDealOptions.map((deal) => (
+                    <button
+                      type="button"
+                      key={deal.id}
+                      onClick={() => handleSelectDeal(deal)}
+                      style={dealDropdownItem}
+                    >
+                      <div style={dealOptionTopRow}>
+                        <strong style={dealOptionTitle}>
+                          #{deal.deal_tag || "—"} ·{" "}
+                          {deal.customers?.customer_name || "Customer"}
+                        </strong>
+
+                        <span style={getDealStatusBadgeStyle(deal.status)}>
+                          {deal.status || "Active"}
+                        </span>
+                      </div>
+
+                      <div style={dealOptionMeta}>
+                        <span>{getPaymentFrequency(deal)}</span>
+                        <span>{deal.deal_type || "No Type"}</span>
+                        {deal.customers?.company_name && (
+                          <span>🏢 {deal.customers.company_name}</span>
+                        )}
+                        {deal.customers?.phone && (
+                          <span>📞 {deal.customers.phone}</span>
+                        )}
+                      </div>
+
+                      <div style={dealOptionSubText}>
+                        {`${deal.year || ""} ${deal.truck || ""}`.trim() ||
+                          "No truck listed"}
+                        {deal.vin ? ` · VIN ${deal.vin}` : ""}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* <small style={helperTextStyle}>
+              This is faster than scrolling through every deal in a dropdown.
+            </small> */}
           </div>
 
           <Input
@@ -575,16 +749,17 @@ function PaymentForm() {
 
               {installmentOptions.map((item) => (
                 <option key={item.dueDate} value={item.dueDate}>
-                  {formatDisplayDate(item.dueDate)} - Installment{" "}
-                  {item.installmentNumber} - Remaining{" "}
+                  {formatDisplayDate(item.dueDate)} -{" "}
+                  {item.paymentFrequency || getPaymentFrequency(selectedDeal)}{" "}
+                  Installment {item.installmentNumber} - Remaining{" "}
                   {formatMoney(item.remainingForDueDate)}
                 </option>
               ))}
             </select>
 
             <small style={helperTextStyle}>
-              If the customer pays extra, the extra amount will automatically go
-              to the next unpaid installment.
+              After selecting a deal, choose the installment where this payment
+              starts.
             </small>
           </div>
         </div>
@@ -611,21 +786,54 @@ function PaymentForm() {
             />
 
             <InfoItem
-              label="Truck"
-              value={`${selectedDeal.year || ""} ${selectedDeal.truck || ""}`}
+              label="Payment Frequency"
+              value={getPaymentFrequency(selectedDeal)}
             />
 
             <InfoItem
-              label="Monthly Payment"
+              label={getPaymentAmountLabel(selectedDeal)}
               value={formatMoney(selectedDeal.monthly_payment)}
             />
 
             <InfoItem
-              label="Start Date"
-              value={formatDisplayDate(selectedDeal.start_date)}
+              label="Total Remaining Balance"
+              value={formatMoney(selectedDealRemainingBalance)}
             />
 
-            <InfoItem label="Term" value={selectedDeal.term || "—"} />
+            <InfoItem
+              label={
+                getPaymentFrequency(selectedDeal) === "Biweekly"
+                  ? "First Payment Date"
+                  : "Start Date"
+              }
+              value={formatDisplayDate(getScheduleStartDate(selectedDeal))}
+            />
+
+            {getPaymentFrequency(selectedDeal) === "Monthly" && (
+              <InfoItem label="Due Day" value={selectedDeal.due_day || "—"} />
+            )}
+
+            <InfoItem
+              label={
+                getPaymentFrequency(selectedDeal) === "Biweekly"
+                  ? "Biweekly Payments"
+                  : "Term"
+              }
+              value={selectedDeal.term || "—"}
+            />
+
+            <InfoItem
+              label="Truck"
+              value={`${selectedDeal.year || ""} ${selectedDeal.truck || ""}`}
+            />
+          </div>
+
+          <div style={scheduleInfoBox}>
+            {getPaymentFrequency(selectedDeal) === "Biweekly"
+              ? "This is a biweekly deal. Due installments are generated every 14 days from the first payment date."
+              : getPaymentFrequency(selectedDeal) === "Monthly"
+              ? "This is a monthly deal. Due installments are generated from the start date, due day, and term."
+              : "This deal uses its saved payment schedule."}
           </div>
         </div>
       )}
@@ -647,7 +855,11 @@ function PaymentForm() {
           />
 
           <Input
-            label="Amount Paid Today"
+            label={
+              formData.paymentMethod === "Referral Credit"
+                ? "Referral Credit Applied"
+                : "Amount Paid Today"
+            }
             name="amountPaid"
             type="number"
             value={formData.amountPaid}
@@ -675,9 +887,12 @@ function PaymentForm() {
             >
               <option>Cash</option>
               <option>Zelle</option>
+              <option>Cash App</option>
+              <option>Apple Pay</option>
               <option>Card</option>
               <option>Check</option>
               <option>ACH</option>
+              <option>Referral Credit</option>
               <option>Other</option>
             </select>
           </div>
@@ -700,8 +915,10 @@ function PaymentForm() {
         {selectedInstallment && (
           <div style={installmentSummaryBox}>
             <strong>Selected Installment:</strong>{" "}
-            {formatDisplayDate(selectedInstallment.dueDate)} | Installment{" "}
-            {selectedInstallment.installmentNumber} | Remaining{" "}
+            {formatDisplayDate(selectedInstallment.dueDate)} |{" "}
+            {selectedInstallment.paymentFrequency ||
+              getPaymentFrequency(selectedDeal)}{" "}
+            Installment {selectedInstallment.installmentNumber} | Remaining{" "}
             {formatMoney(selectedInstallment.remainingForDueDate)}
           </div>
         )}
@@ -717,6 +934,7 @@ function PaymentForm() {
               <thead>
                 <tr>
                   <th style={allocationTh}>Installment</th>
+                  <th style={allocationTh}>Frequency</th>
                   <th style={allocationTh}>Due Date</th>
                   <th style={allocationTh}>Current Remaining</th>
                   <th style={allocationTh}>Payment Applied</th>
@@ -729,6 +947,11 @@ function PaymentForm() {
                   <tr key={allocation.dueDate}>
                     <td style={allocationTd}>
                       Installment {allocation.installmentNumber}
+                    </td>
+
+                    <td style={allocationTd}>
+                      {allocation.paymentFrequency ||
+                        getPaymentFrequency(selectedDeal)}
                     </td>
 
                     <td style={allocationTd}>
@@ -761,10 +984,17 @@ function PaymentForm() {
             </table>
           </div>
 
-          {extraPaymentAmount > 0 && (
+          {isExtraAppliedToFutureInstallments && (
             <div style={extraPaymentBox}>
               Extra payment detected: {formatMoney(extraPaymentAmount)} will be
               applied toward the next unpaid installment(s).
+            </div>
+          )}
+
+          {isOverpayingDealBalance && (
+            <div style={overpaymentWarningBox}>
+              Overpayment detected: {formatMoney(overpaymentAmount)} is above
+              the remaining open balance and will not be saved.
             </div>
           )}
         </Section>
@@ -778,7 +1008,11 @@ function PaymentForm() {
           name="notes"
           value={formData.notes}
           onChange={handleChange}
-          placeholder="Example: Customer paid extra, and the extra amount was applied to the next installment."
+          placeholder={
+            formData.paymentMethod === "Referral Credit"
+              ? "Example: Referral bonus applied as payment for referring customer John Smith / Deal #1728."
+              : "Example: Customer paid extra, and the extra amount was applied to the next installment."
+          }
           style={notesInput}
         />
       </Section>
@@ -813,10 +1047,21 @@ function PaymentForm() {
         </div>
       )}
 
-      {amountPaid > amountDue && (
+      {isExtraAppliedToFutureInstallments && (
         <div style={extraPaymentBox}>
-          This payment is more than the selected installment. The extra amount
-          will automatically go toward the next unpaid installment.
+          This payment is more than the selected installment. Extra amount{" "}
+          {formatMoney(extraPaymentAmount)} will automatically go toward the
+          next unpaid installment(s).
+        </div>
+      )}
+
+      {isOverpayingDealBalance && (
+        <div style={overpaymentWarningBox}>
+          Overpayment detected. The customer is trying to pay{" "}
+          {formatMoney(amountPaid)}, but only {formatMoney(totalOpenFromSelected)}{" "}
+          is still open from this installment forward. Extra amount{" "}
+          {formatMoney(overpaymentAmount)} should not be recorded as a normal
+          payment.
         </div>
       )}
 
@@ -831,6 +1076,8 @@ function PaymentForm() {
           disabled={isSaving}
           onClick={() => {
             setFormData(initialFormData);
+            setDealSearchText("");
+            setDealSearchOpen(false);
             setMessage("");
             setMessageType("");
             setReceiptPrompt(null);
@@ -847,8 +1094,50 @@ function PaymentForm() {
   );
 }
 
+function getFilteredDealOptions(deals, searchText) {
+  const query = String(searchText || "").trim().toLowerCase();
+
+  if (!query) return [];
+
+  return (deals || [])
+    .filter((deal) => getDealSearchText(deal).includes(query))
+    .slice(0, 12);
+}
+
+function getDealSearchText(deal) {
+  return [
+    deal?.deal_tag,
+    deal?.deal_type,
+    deal?.deal_subtype,
+    deal?.status,
+    deal?.truck,
+    deal?.year,
+    deal?.vin,
+    deal?.customers?.customer_name,
+    deal?.customers?.company_name,
+    deal?.customers?.phone,
+    deal?.customers?.email,
+    getPaymentFrequency(deal),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function getDealSearchLabel(deal) {
+  if (!deal) return "";
+
+  const customerName = deal.customers?.customer_name || "Customer";
+  const companyName = deal.customers?.company_name
+    ? ` · ${deal.customers.company_name}`
+    : "";
+
+  return `#${deal.deal_tag || "—"} · ${customerName}${companyName}`;
+}
+
 function getInstallmentOptions(deal, payments) {
   const schedule = getDealDueSchedule(deal);
+  const dealPaymentFrequency = getPaymentFrequency(deal);
 
   return schedule
     .map((installment) => {
@@ -876,6 +1165,7 @@ function getInstallmentOptions(deal, payments) {
 
       return {
         ...installment,
+        paymentFrequency: installment.paymentFrequency || dealPaymentFrequency,
         paidForDueDate,
         remainingForDueDate,
         status,
@@ -944,9 +1234,11 @@ function buildAllocationNote({
   const allocationNote = isSplitPayment
     ? `Auto-applied from total customer payment of ${formatMoney(
         totalPayment
-      )}. Applied ${formatMoney(allocation.amountApplied)} to installment ${
-        allocation.installmentNumber
-      } due ${formatDisplayDate(allocation.dueDate)}.`
+      )}. Applied ${formatMoney(allocation.amountApplied)} to ${
+        allocation.paymentFrequency || "scheduled"
+      } installment ${allocation.installmentNumber} due ${formatDisplayDate(
+        allocation.dueDate
+      )}.`
     : "";
 
   return [allocationNote, originalNotes].filter(Boolean).join("\n");
@@ -1007,6 +1299,55 @@ function InfoItem({ label, value }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+function getPaymentFrequency(deal) {
+  if (!deal) return "Monthly";
+
+  if (deal.deal_type === "Cash") return "Cash";
+
+  if (deal.deal_type === "Registration Money") return "One-Time";
+
+  return deal.payment_frequency || deal.paymentFrequency || "Monthly";
+}
+
+function getPaymentAmountLabel(deal) {
+  const frequency = getPaymentFrequency(deal);
+
+  if (frequency === "Biweekly") return "Biweekly Payment";
+  if (frequency === "One-Time") return "One-Time Amount";
+  if (frequency === "Cash") return "Cash Amount";
+
+  return "Monthly Payment";
+}
+
+function getScheduleStartDate(deal) {
+  const frequency = getPaymentFrequency(deal);
+
+  if (frequency === "Biweekly") {
+    return deal?.first_payment_date || deal?.firstPaymentDate || deal?.start_date;
+  }
+
+  return deal?.start_date;
+}
+
+function getReceiptPaymentType({ amountDue, amountPaid, paymentFrequency }) {
+  const due = Number(amountDue || 0);
+  const paid = Number(amountPaid || 0);
+
+  if (paymentFrequency === "Biweekly") {
+    return paid >= due ? "Full Biweekly Payment" : "Partial Biweekly Payment";
+  }
+
+  if (paymentFrequency === "One-Time") {
+    return paid >= due ? "Full One-Time Payment" : "Partial One-Time Payment";
+  }
+
+  if (paymentFrequency === "Cash") {
+    return "Cash Payment";
+  }
+
+  return paid >= due ? "Full Payment" : "Partial Payment";
 }
 
 function getDealStatusBadgeStyle(status) {
@@ -1138,11 +1479,109 @@ const inputStyle = {
   fontSize: "14px",
 };
 
+const selectedDealInputStyle = {
+  borderColor: "#16a34a",
+  background: "#f0fdf4",
+};
+
 const helperTextStyle = {
   display: "block",
   color: "#667085",
   fontSize: "12px",
   marginTop: "5px",
+};
+
+const dealSearchWrapper = {
+  position: "relative",
+  zIndex: 30,
+};
+
+const dealDropdown = {
+  position: "absolute",
+  top: "74px",
+  left: 0,
+  right: 0,
+  background: "white",
+  border: "1px solid #d1d5db",
+  borderRadius: "14px",
+  boxShadow: "0 16px 35px rgba(15, 23, 42, 0.18)",
+  zIndex: 100,
+  overflow: "hidden",
+  maxHeight: "360px",
+  overflowY: "auto",
+};
+
+const dealDropdownItem = {
+  width: "100%",
+  background: "white",
+  border: "none",
+  borderBottom: "1px solid #f1f5f9",
+  padding: "12px",
+  cursor: "pointer",
+  textAlign: "left",
+  display: "grid",
+  gap: "6px",
+  color: "#111827",
+};
+
+const dealDropdownEmpty = {
+  padding: "13px",
+  color: "#667085",
+  fontSize: "13px",
+  fontWeight: "800",
+  background: "#f8fafc",
+};
+
+const dealOptionTopRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "8px",
+};
+
+const dealOptionTitle = {
+  color: "#0A1A2F",
+  fontSize: "14px",
+  overflowWrap: "anywhere",
+};
+
+const dealOptionMeta = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "6px",
+  color: "#475569",
+  fontSize: "12px",
+  fontWeight: "800",
+};
+
+const dealOptionSubText = {
+  color: "#667085",
+  fontSize: "12px",
+  lineHeight: "1.35",
+  overflowWrap: "anywhere",
+};
+
+const selectedSearchDealCard = {
+  marginTop: "8px",
+  background: "#ecfdf5",
+  border: "1px solid #bbf7d0",
+  borderRadius: "12px",
+  padding: "10px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "10px",
+};
+
+const clearSelectedDealButton = {
+  background: "#0A1A2F",
+  color: "white",
+  border: "none",
+  borderRadius: "999px",
+  padding: "7px 10px",
+  cursor: "pointer",
+  fontWeight: "900",
+  whiteSpace: "nowrap",
 };
 
 const selectedDealBox = {
@@ -1166,6 +1605,17 @@ const selectedDealGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
   gap: "12px",
+};
+
+const scheduleInfoBox = {
+  marginTop: "13px",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  color: "#1d4ed8",
+  padding: "11px",
+  borderRadius: "10px",
+  fontSize: "13px",
+  fontWeight: "800",
 };
 
 const infoLabel = {
@@ -1193,7 +1643,7 @@ const allocationTableWrapper = {
 
 const allocationTable = {
   width: "100%",
-  minWidth: "760px",
+  minWidth: "860px",
   borderCollapse: "collapse",
 };
 
@@ -1258,6 +1708,16 @@ const extraPaymentBox = {
   borderRadius: "10px",
   marginTop: "14px",
   fontWeight: "800",
+};
+
+const overpaymentWarningBox = {
+  background: "#fee2e2",
+  border: "1px solid #fecaca",
+  color: "#991b1b",
+  padding: "12px",
+  borderRadius: "10px",
+  marginTop: "14px",
+  fontWeight: "900",
 };
 
 const buttonRow = {

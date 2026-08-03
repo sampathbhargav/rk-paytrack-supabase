@@ -11,6 +11,7 @@ function Deals() {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [frequencyFilter, setFrequencyFilter] = useState("All");
   const [isExporting, setIsExporting] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -37,22 +38,33 @@ function Deals() {
   };
 
   const filteredDeals = deals.filter((deal) => {
-    const text = search.toLowerCase();
+    const text = search.trim().toLowerCase();
+    const paymentFrequency = getPaymentFrequency(deal);
 
     const matchesSearch =
+      !text ||
       deal.deal_tag?.toLowerCase().includes(text) ||
       deal.customers?.customer_name?.toLowerCase().includes(text) ||
+      deal.customers?.company_name?.toLowerCase().includes(text) ||
       deal.customers?.phone?.toLowerCase().includes(text) ||
       deal.truck?.toLowerCase().includes(text) ||
       deal.year?.toLowerCase().includes(text) ||
       deal.vin?.toLowerCase().includes(text) ||
       deal.deal_type?.toLowerCase().includes(text) ||
-      deal.deal_subtype?.toLowerCase().includes(text);
+      deal.deal_subtype?.toLowerCase().includes(text) ||
+      paymentFrequency.toLowerCase().includes(text) ||
+      String(deal.start_date || "").toLowerCase().includes(text) ||
+      String(deal.first_payment_date || "").toLowerCase().includes(text) ||
+      String(deal.due_day || "").toLowerCase().includes(text) ||
+      String(deal.maturity_date || "").toLowerCase().includes(text);
 
     const matchesStatus =
       statusFilter === "All" || deal.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    const matchesFrequency =
+      frequencyFilter === "All" || paymentFrequency === frequencyFilter;
+
+    return matchesSearch && matchesStatus && matchesFrequency;
   });
 
   const activeDeals = deals.filter((deal) => deal.status === "Active");
@@ -61,6 +73,11 @@ function Deals() {
   const repoDeals = deals.filter((deal) => deal.status === "Repo");
   const closedDeals = deals.filter((deal) => deal.status === "Closed");
   const cancelledDeals = deals.filter((deal) => deal.status === "Cancelled");
+
+  const monthlyDeals = deals.filter((deal) => getPaymentFrequency(deal) === "Monthly");
+  const biweeklyDeals = deals.filter((deal) => getPaymentFrequency(deal) === "Biweekly");
+  const oneTimeDeals = deals.filter((deal) => getPaymentFrequency(deal) === "One-Time");
+  const cashDeals = deals.filter((deal) => getPaymentFrequency(deal) === "Cash");
 
   const totalFinanced = deals.reduce(
     (sum, deal) => sum + Number(deal.total_amount || 0),
@@ -81,11 +98,11 @@ function Deals() {
 
       const exportRows = filteredDeals.map((deal) => {
         const dealPayments = activePayments.filter(
-          (payment) => payment.deal_id === deal.id
+          (payment) => String(payment.deal_id) === String(deal.id)
         );
 
         const dealPromises = promises.filter(
-          (promise) => promise.deal_id === deal.id
+          (promise) => String(promise.deal_id) === String(deal.id)
         );
 
         const totalPaid = dealPayments.reduce(
@@ -95,6 +112,7 @@ function Deals() {
 
         const totalAmount = Number(deal.total_amount || 0);
         const balance = Math.max(totalAmount - totalPaid, 0);
+        const paymentFrequency = getPaymentFrequency(deal);
 
         const sortedPayments = [...dealPayments].sort((a, b) =>
           String(b.payment_date || "").localeCompare(
@@ -139,6 +157,7 @@ function Deals() {
         return {
           Deal_Tag: deal.deal_tag || "",
           Customer: deal.customers?.customer_name || "",
+          Company: deal.customers?.company_name || "",
           Phone: deal.customers?.phone || "",
           Email: deal.customers?.email || "",
           Address: deal.customers?.address || "",
@@ -146,6 +165,7 @@ function Deals() {
           Status: deal.status || "Active",
           Deal_Type: deal.deal_type || "",
           Deal_Sub_Type: deal.deal_subtype || "",
+          Payment_Frequency: getPaymentFrequencyLabel(paymentFrequency),
 
           Year: deal.year || "",
           Truck: deal.truck || "",
@@ -153,6 +173,9 @@ function Deals() {
 
           Start_Date: deal.start_date || "",
           Due_Day: deal.due_day || "",
+          First_Payment_Date: deal.first_payment_date || "",
+          Payment_Amount: deal.monthly_payment || 0,
+          Payment_Amount_Label: getPaymentAmountLabel(paymentFrequency),
           Monthly_Payment: deal.monthly_payment || 0,
           Term: deal.term || "",
           Maturity_Date: deal.maturity_date || "",
@@ -172,6 +195,11 @@ function Deals() {
           Active_Promise_Amount: activePromiseAmount,
           Promise_History: promiseHistory,
 
+          Referred_By_Name: deal.referred_by_name || "",
+          Referred_By_Phone: deal.referred_by_phone || "",
+          Referral_Money_Paid: deal.referral_money_paid ? "Yes" : "No",
+          Referral_Amount_Paid: deal.referral_amount_paid || 0,
+
           Notes: deal.notes || "",
         };
       });
@@ -189,6 +217,7 @@ function Deals() {
   const handleClearFilters = () => {
     setSearch("");
     setStatusFilter("All");
+    setFrequencyFilter("All");
   };
 
   return (
@@ -257,6 +286,30 @@ function Deals() {
         />
 
         <MetricCard
+          icon="🔁"
+          title="Monthly"
+          value={monthlyDeals.length}
+          subtitle="Monthly schedules"
+          tone="info"
+        />
+
+        <MetricCard
+          icon="📆"
+          title="Biweekly"
+          value={biweeklyDeals.length}
+          subtitle="Every 14 days"
+          tone="purple"
+        />
+
+        <MetricCard
+          icon="🧾"
+          title="One-Time"
+          value={oneTimeDeals.length}
+          subtitle="Registration money"
+          tone="teal"
+        />
+
+        <MetricCard
           icon="💵"
           title="Paid Off"
           value={paidOffDeals.length}
@@ -281,6 +334,13 @@ function Deals() {
         />
 
         <MetricCard
+          icon="🏦"
+          title="Cash"
+          value={cashDeals.length}
+          subtitle="No schedule"
+        />
+
+        <MetricCard
           icon="💰"
           title="Total Financed"
           value={formatCompactMoney(totalFinanced)}
@@ -294,8 +354,8 @@ function Deals() {
           <div>
             <h2 style={filterTitle}>Find a Deal</h2>
             <p style={filterDescription}>
-              Search by deal tag, customer, phone, truck, year, VIN, deal type,
-              or subtype.
+              Search by deal tag, customer, company, phone, truck, year, VIN,
+              deal type, subtype, payment frequency, or schedule date.
             </p>
           </div>
 
@@ -310,7 +370,7 @@ function Deals() {
             <SearchBar
               value={search}
               onChange={setSearch}
-              placeholder="Search deal tag, customer, phone, truck, year, VIN, or type..."
+              placeholder="Search deal tag, customer, company, phone, truck, VIN, frequency..."
             />
           </div>
 
@@ -330,6 +390,21 @@ function Deals() {
               <option>Defaulted</option>
             </select>
           </div>
+
+          <div style={filterControl}>
+            <label style={labelStyle}>Frequency Filter</label>
+            <select
+              value={frequencyFilter}
+              onChange={(e) => setFrequencyFilter(e.target.value)}
+              style={selectStyle}
+            >
+              <option>All</option>
+              <option>Monthly</option>
+              <option>Biweekly</option>
+              <option>One-Time</option>
+              <option>Cash</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -337,6 +412,7 @@ function Deals() {
         <SummaryItem label="Showing" value={filteredDeals.length} />
         <SummaryItem label="Search" value={search || "All Deals"} />
         <SummaryItem label="Status" value={statusFilter} />
+        <SummaryItem label="Frequency" value={frequencyFilter} />
         <SummaryItem label="Closed" value={closedDeals.length} />
         <SummaryItem label="Cancelled" value={cancelledDeals.length} />
       </div>
@@ -360,6 +436,30 @@ function Deals() {
       </div>
     </div>
   );
+}
+
+function getPaymentFrequency(deal) {
+  if (deal?.deal_type === "Cash") return "Cash";
+
+  if (deal?.deal_type === "Registration Money") {
+    return "One-Time";
+  }
+
+  return deal?.payment_frequency || deal?.paymentFrequency || "Monthly";
+}
+
+function getPaymentFrequencyLabel(frequency) {
+  if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "One-Time") return "One-Time";
+  if (frequency === "Cash") return "Cash";
+  return "Monthly";
+}
+
+function getPaymentAmountLabel(frequency) {
+  if (frequency === "Biweekly") return "Biweekly Payment";
+  if (frequency === "One-Time") return "One-Time Amount";
+  if (frequency === "Cash") return "Cash Amount";
+  return "Monthly Payment";
 }
 
 function MetricCard({ icon, title, value, subtitle, tone = "default" }) {
@@ -413,6 +513,18 @@ function getCardToneStyle(tone) {
   if (tone === "money") {
     return {
       borderTop: "4px solid #166534",
+    };
+  }
+
+  if (tone === "purple") {
+    return {
+      borderTop: "4px solid #7c3aed",
+    };
+  }
+
+  if (tone === "teal") {
+    return {
+      borderTop: "4px solid #0f766e",
     };
   }
 
@@ -601,7 +713,7 @@ const filterDescription = {
 
 const filterGrid = {
   display: "grid",
-  gridTemplateColumns: "minmax(260px, 1fr) 220px",
+  gridTemplateColumns: "minmax(260px, 1fr) 220px 220px",
   gap: "14px",
   alignItems: "end",
 };

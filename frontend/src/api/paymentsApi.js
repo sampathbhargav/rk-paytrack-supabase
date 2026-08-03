@@ -7,12 +7,26 @@ export async function getPayments() {
     .select(`
       *,
       deals (
+        id,
         deal_tag,
+        deal_type,
+        deal_subtype,
+        payment_frequency,
+        first_payment_date,
+        start_date,
+        due_day,
+        monthly_payment,
+        term,
+        maturity_date,
         truck,
         year,
         customers (
+          id,
           customer_name,
-          phone
+          company_name,
+          phone,
+          email,
+          address
         )
       )
     `)
@@ -20,7 +34,7 @@ export async function getPayments() {
 
   if (error) throw error;
 
-  return data;
+  return data || [];
 }
 
 export async function getPaymentsByDealId(dealId) {
@@ -32,7 +46,7 @@ export async function getPaymentsByDealId(dealId) {
 
   if (error) throw error;
 
-  return data;
+  return data || [];
 }
 
 export async function addPayment(paymentData) {
@@ -52,16 +66,17 @@ export async function addPayment(paymentData) {
     throw new Error("Amount paid must be greater than 0.");
   }
 
+  if (!amountDue || amountDue <= 0) {
+    throw new Error("Amount due must be greater than 0.");
+  }
+
   const paymentType = calculatePaymentType({
     amountDue,
     amountPaid,
     promisedDate: paymentData.promisedDate,
+    paymentFrequency: paymentData.paymentFrequency || paymentData.payment_frequency,
   });
 
-  /*
-    Look for an existing active promise for the same deal + installment.
-    This prevents duplicate promises for the same due date.
-  */
   const { data: existingPromise, error: existingPromiseError } = await supabase
     .from("payment_promises")
     .select("*")
@@ -74,10 +89,6 @@ export async function addPayment(paymentData) {
 
   if (existingPromiseError) throw existingPromiseError;
 
-  /*
-    If there is an existing promise, this payment is related to that promise.
-    Store promise_id on the payment so void logic can reset the promise later.
-  */
   const { data: payment, error: paymentError } = await supabase
     .from("payments")
     .insert({
@@ -133,15 +144,16 @@ async function updateExistingPromiseAfterPayment({
   promisedDate,
   notes,
 }) {
+  const paidAmount = Number(amountPaid || 0);
   const oldRemaining = Number(existingPromise.remaining_amount || 0);
-  const newRemaining = Math.max(oldRemaining - Number(amountPaid || 0), 0);
+  const newRemaining = Math.max(oldRemaining - paidAmount, 0);
 
   const oldPaidNow = Number(existingPromise.amount_paid_now || 0);
-  const newPaidNow = oldPaidNow + Number(amountPaid || 0);
+  const newPaidNow = oldPaidNow + paidAmount;
 
   const paymentNote = notes
-    ? `Additional payment received: ${amountPaid}. ${notes}`
-    : `Additional payment received: ${amountPaid}.`;
+    ? `Additional payment received: ${paidAmount}. ${notes}`
+    : `Additional payment received: ${paidAmount}.`;
 
   const updatedNotes = [existingPromise.notes, paymentNote]
     .filter(Boolean)
@@ -183,7 +195,7 @@ export async function updateDealPaidOffStatus(dealId) {
 
   if (paymentsError) throw paymentsError;
 
-  const totalPaid = payments.reduce(
+  const totalPaid = (payments || []).reduce(
     (sum, payment) => sum + Number(payment.amount_paid || 0),
     0
   );
@@ -265,13 +277,16 @@ async function resetPromiseAfterPaymentVoid(promiseId) {
     newStatus = "Broken";
   }
 
+  const resetNote =
+    "Promise status reset because related promise payment was voided.";
+
+  const updatedNotes = [promise.notes, resetNote].filter(Boolean).join("\n");
+
   const { error: updateError } = await supabase
     .from("payment_promises")
     .update({
       promise_status: newStatus,
-      notes:
-        promise.notes ||
-        "Promise status reset because related promise payment was voided.",
+      notes: updatedNotes,
     })
     .eq("id", promiseId);
 

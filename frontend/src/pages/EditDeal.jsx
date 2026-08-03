@@ -7,6 +7,60 @@ import {
   calculateMaturityDate,
 } from "../utils/dealDateUtils";
 
+const initialFormData = {
+  customerName: "",
+  companyName: "",
+  phone: "",
+  email: "",
+  address: "",
+  dealTag: "",
+  dealType: "In-house",
+  dealSubtype: "",
+  startDate: "",
+  paymentFrequency: "Monthly",
+  firstPaymentDate: "",
+  truck: "",
+  year: "",
+  vin: "",
+  totalAmount: "",
+  monthlyPayment: "",
+  dueDay: "",
+  term: "",
+  maturityDate: "",
+  referredByName: "",
+  referredByPhone: "",
+  referralMoneyPaid: "No",
+  referralAmountPaid: "",
+  status: "Active",
+  notes: "",
+};
+
+function calculateBiweeklyMaturityDate(firstPaymentDate, term) {
+  if (!firstPaymentDate || !term || Number(term) <= 0) return "";
+
+  const firstDate = new Date(`${firstPaymentDate}T00:00:00`);
+  const maturityDate = new Date(firstDate);
+
+  maturityDate.setDate(firstDate.getDate() + (Number(term) - 1) * 14);
+
+  return formatDateLocal(maturityDate);
+}
+
+function formatDateLocal(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getInitialPaymentFrequency(deal) {
+  if (deal.deal_type === "Cash") return "Monthly";
+  if (deal.deal_type === "Registration Money") return "One-Time";
+
+  return deal.payment_frequency || "Monthly";
+}
+
 function EditDeal() {
   const { dealId } = useParams();
   const navigate = useNavigate();
@@ -14,31 +68,7 @@ function EditDeal() {
   const [customerId, setCustomerId] = useState("");
   const [originalFormData, setOriginalFormData] = useState(null);
 
-  const [formData, setFormData] = useState({
-    customerName: "",
-    companyName: "",
-    phone: "",
-    email: "",
-    address: "",
-    dealTag: "",
-    dealType: "In-house",
-    dealSubtype: "",
-    startDate: "",
-    truck: "",
-    year: "",
-    vin: "",
-    totalAmount: "",
-    monthlyPayment: "",
-    dueDay: "",
-    term: "",
-    maturityDate: "",
-    referredByName: "",
-    referredByPhone: "",
-    referralMoneyPaid: "No",
-    referralAmountPaid: "",
-    status: "Active",
-    notes: "",
-  });
+  const [formData, setFormData] = useState(initialFormData);
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
@@ -47,6 +77,9 @@ function EditDeal() {
   const isCashDeal = formData.dealType === "Cash";
   const isInHouseDeal = formData.dealType === "In-house";
   const isRegistrationMoneyDeal = formData.dealType === "Registration Money";
+  const isPaymentDeal = !isCashDeal && !isRegistrationMoneyDeal;
+  const isBiweeklyDeal = isPaymentDeal && formData.paymentFrequency === "Biweekly";
+  const isMonthlyDeal = isPaymentDeal && formData.paymentFrequency !== "Biweekly";
 
   useEffect(() => {
     loadDeal();
@@ -62,6 +95,8 @@ function EditDeal() {
 
       setCustomerId(deal.customer_id);
 
+      const loadedPaymentFrequency = getInitialPaymentFrequency(deal);
+
       const loadedData = {
         customerName: deal.customers?.customer_name || "",
         companyName: deal.customers?.company_name || "",
@@ -72,6 +107,9 @@ function EditDeal() {
         dealType: deal.deal_type || "In-house",
         dealSubtype: deal.deal_subtype || "",
         startDate: deal.start_date || "",
+        paymentFrequency:
+          loadedPaymentFrequency === "One-Time" ? "Monthly" : loadedPaymentFrequency,
+        firstPaymentDate: deal.first_payment_date || "",
         truck: deal.truck || "",
         year: deal.year || "",
         vin: deal.vin || "",
@@ -111,6 +149,8 @@ function EditDeal() {
       truck: data.truck.trim(),
       year: data.year.trim(),
       vin: data.vin.trim().toUpperCase(),
+      paymentFrequency: data.paymentFrequency || "Monthly",
+      firstPaymentDate: data.firstPaymentDate || "",
       referredByName: data.referredByName.trim(),
       referredByPhone: data.referredByPhone.trim(),
       referralMoneyPaid: data.referralMoneyPaid,
@@ -141,6 +181,8 @@ function EditDeal() {
         }
 
         if (value === "Cash") {
+          updated.paymentFrequency = "Monthly";
+          updated.firstPaymentDate = "";
           updated.monthlyPayment = "";
           updated.dueDay = "";
           updated.term = "";
@@ -148,6 +190,8 @@ function EditDeal() {
         }
 
         if (value === "Registration Money") {
+          updated.paymentFrequency = "Monthly";
+          updated.firstPaymentDate = "";
           updated.term = "1";
 
           if (updated.totalAmount) {
@@ -158,6 +202,72 @@ function EditDeal() {
             const dueDay = getDueDayFromStartDate(updated.startDate);
             updated.dueDay = dueDay;
             updated.maturityDate = updated.startDate;
+          }
+        }
+
+        if (value !== "Cash" && value !== "Registration Money") {
+          if (!updated.paymentFrequency || updated.paymentFrequency === "One-Time") {
+            updated.paymentFrequency = "Monthly";
+          }
+
+          if (updated.paymentFrequency === "Monthly" && updated.startDate) {
+            const dueDay = updated.dueDay || getDueDayFromStartDate(updated.startDate);
+            updated.dueDay = dueDay;
+
+            if (updated.term) {
+              updated.maturityDate = calculateMaturityDate(
+                updated.startDate,
+                dueDay,
+                updated.term
+              );
+            }
+          }
+
+          if (updated.paymentFrequency === "Biweekly") {
+            updated.dueDay = "";
+            updated.firstPaymentDate =
+              updated.firstPaymentDate || updated.startDate || "";
+
+            if (updated.firstPaymentDate && updated.term) {
+              updated.maturityDate = calculateBiweeklyMaturityDate(
+                updated.firstPaymentDate,
+                updated.term
+              );
+            }
+          }
+        }
+      }
+
+      if (name === "paymentFrequency") {
+        if (value === "Biweekly") {
+          updated.dueDay = "";
+          updated.firstPaymentDate =
+            updated.firstPaymentDate || updated.startDate || "";
+
+          if (updated.firstPaymentDate && updated.term) {
+            updated.maturityDate = calculateBiweeklyMaturityDate(
+              updated.firstPaymentDate,
+              updated.term
+            );
+          } else {
+            updated.maturityDate = "";
+          }
+        }
+
+        if (value === "Monthly") {
+          updated.firstPaymentDate = "";
+
+          if (updated.startDate) {
+            const dueDay = updated.dueDay || getDueDayFromStartDate(updated.startDate);
+            updated.dueDay = dueDay;
+
+            if (updated.term) {
+              updated.maturityDate = calculateMaturityDate(
+                updated.startDate,
+                dueDay,
+                updated.term
+              );
+            }
           }
         }
       }
@@ -188,15 +298,44 @@ function EditDeal() {
         updated.dealType !== "Cash" &&
         updated.dealType !== "Registration Money"
       ) {
-        const dueDay = getDueDayFromStartDate(value);
-        updated.dueDay = dueDay;
+        if (updated.paymentFrequency === "Biweekly") {
+          updated.firstPaymentDate = updated.firstPaymentDate || value;
+          updated.dueDay = "";
 
-        if (updated.term) {
-          updated.maturityDate = calculateMaturityDate(
+          if (updated.firstPaymentDate && updated.term) {
+            updated.maturityDate = calculateBiweeklyMaturityDate(
+              updated.firstPaymentDate,
+              updated.term
+            );
+          }
+        } else {
+          const dueDay = getDueDayFromStartDate(value);
+          updated.dueDay = dueDay;
+          updated.firstPaymentDate = "";
+
+          if (updated.term) {
+            updated.maturityDate = calculateMaturityDate(
+              value,
+              dueDay,
+              updated.term
+            );
+          }
+        }
+      }
+
+      if (
+        name === "firstPaymentDate" &&
+        updated.dealType !== "Cash" &&
+        updated.dealType !== "Registration Money" &&
+        updated.paymentFrequency === "Biweekly"
+      ) {
+        if (value && updated.term) {
+          updated.maturityDate = calculateBiweeklyMaturityDate(
             value,
-            dueDay,
             updated.term
           );
+        } else {
+          updated.maturityDate = "";
         }
       }
 
@@ -205,17 +344,25 @@ function EditDeal() {
         updated.dealType !== "Cash" &&
         updated.dealType !== "Registration Money"
       ) {
-        updated.maturityDate = calculateMaturityDate(
-          updated.startDate,
-          updated.dueDay,
-          value
-        );
+        if (updated.paymentFrequency === "Biweekly") {
+          updated.maturityDate = calculateBiweeklyMaturityDate(
+            updated.firstPaymentDate || updated.startDate,
+            value
+          );
+        } else {
+          updated.maturityDate = calculateMaturityDate(
+            updated.startDate,
+            updated.dueDay,
+            value
+          );
+        }
       }
 
       if (
         name === "dueDay" &&
         updated.dealType !== "Cash" &&
-        updated.dealType !== "Registration Money"
+        updated.dealType !== "Registration Money" &&
+        updated.paymentFrequency !== "Biweekly"
       ) {
         updated.maturityDate = calculateMaturityDate(
           updated.startDate,
@@ -291,12 +438,22 @@ function EditDeal() {
         return "Start date is required for payment deals.";
       }
 
-      if (!data.monthlyPayment || Number(data.monthlyPayment) <= 0) {
-        return "Monthly payment must be greater than 0.";
+      if (!data.paymentFrequency) {
+        return "Payment frequency is required.";
       }
 
-      if (!data.dueDay || Number(data.dueDay) < 1 || Number(data.dueDay) > 31) {
-        return "Due day must be between 1 and 31.";
+      if (!data.monthlyPayment || Number(data.monthlyPayment) <= 0) {
+        return "Payment amount must be greater than 0.";
+      }
+
+      if (data.paymentFrequency === "Biweekly") {
+        if (!data.firstPaymentDate) {
+          return "First payment date is required for biweekly deals.";
+        }
+      } else {
+        if (!data.dueDay || Number(data.dueDay) < 1 || Number(data.dueDay) > 31) {
+          return "Due day must be between 1 and 31.";
+        }
       }
 
       if (!data.term || Number(data.term) <= 0) {
@@ -321,6 +478,8 @@ function EditDeal() {
     const scheduleFields = [
       "totalAmount",
       "monthlyPayment",
+      "paymentFrequency",
+      "firstPaymentDate",
       "term",
       "dueDay",
       "startDate",
@@ -369,8 +528,28 @@ function EditDeal() {
         address: data.address,
       });
 
+      const finalPaymentFrequency =
+        data.dealType === "Cash"
+          ? null
+          : data.dealType === "Registration Money"
+          ? "One-Time"
+          : data.paymentFrequency || "Monthly";
+
+      const finalFirstPaymentDate =
+        finalPaymentFrequency === "Biweekly"
+          ? data.firstPaymentDate || data.startDate || null
+          : null;
+
       const finalDueDay =
         data.dealType === "Cash"
+          ? null
+          : data.dealType === "Registration Money"
+          ? data.dueDay
+            ? Number(data.dueDay)
+            : data.startDate
+            ? Number(getDueDayFromStartDate(data.startDate))
+            : null
+          : finalPaymentFrequency === "Biweekly"
           ? null
           : data.dueDay
           ? Number(data.dueDay)
@@ -397,6 +576,8 @@ function EditDeal() {
           ? null
           : data.dealType === "Registration Money"
           ? data.startDate
+          : finalPaymentFrequency === "Biweekly"
+          ? calculateBiweeklyMaturityDate(finalFirstPaymentDate, finalTerm)
           : data.maturityDate ||
             calculateMaturityDate(data.startDate, finalDueDay, finalTerm);
 
@@ -405,6 +586,8 @@ function EditDeal() {
         dealType: data.dealType,
         dealSubtype: data.dealType === "In-house" ? data.dealSubtype : null,
         startDate: data.startDate || null,
+        paymentFrequency: finalPaymentFrequency,
+        firstPaymentDate: finalFirstPaymentDate,
         truck: data.truck,
         year: data.year,
         vin: data.vin,
@@ -685,15 +868,15 @@ function EditDeal() {
           title="Payment Schedule"
           description={
             isCashDeal
-              ? "Cash deals do not need monthly schedule fields."
+              ? "Cash deals do not need payment schedule fields."
               : isRegistrationMoneyDeal
               ? "Registration Money is treated as a one-time scheduled receivable."
-              : "Schedule is calculated from start date, due day, term, and monthly payment."
+              : "Schedule is calculated from payment frequency, payment amount, term, and due date rules."
           }
         >
           {isCashDeal && (
             <div style={infoBox}>
-              Cash deal selected. Monthly payment, due day, term, and maturity
+              Cash deal selected. Payment amount, due day, term, and maturity
               date are not required.
             </div>
           )}
@@ -702,7 +885,15 @@ function EditDeal() {
             <div style={infoBox}>
               Registration Money selected. Use the tentative due date as the
               date the customer is expected to pay title/registration money.
-              Term will stay 1 and monthly payment will match the total amount.
+              Term will stay 1 and payment amount will match the total amount.
+            </div>
+          )}
+
+          {isBiweeklyDeal && (
+            <div style={biweeklyInfoBox}>
+              Biweekly selected. The payment schedule will start from the first
+              payment date and repeat every 14 days. Due day is not used for
+              biweekly deals.
             </div>
           )}
 
@@ -720,15 +911,42 @@ function EditDeal() {
               helperText={
                 isRegistrationMoneyDeal
                   ? "This is the expected sticker pickup / registration money due date."
+                  : isBiweeklyDeal
+                  ? "This is the deal start date. First payment date controls the biweekly schedule."
                   : "Due day will auto-fill from this date."
               }
             />
+
+            {isPaymentDeal && (
+              <Select
+                label="Payment Frequency"
+                name="paymentFrequency"
+                value={formData.paymentFrequency}
+                onChange={handleChange}
+                options={["Monthly", "Biweekly"]}
+                required
+              />
+            )}
+
+            {isBiweeklyDeal && (
+              <Input
+                label="First Payment Date"
+                name="firstPaymentDate"
+                type="date"
+                value={formData.firstPaymentDate}
+                onChange={handleChange}
+                required
+                helperText="The first biweekly installment date. Future payments repeat every 14 days."
+              />
+            )}
 
             <Input
               label={
                 isRegistrationMoneyDeal
                   ? "One-Time Amount"
-                  : "Monthly Payment"
+                  : isBiweeklyDeal
+                  ? "Biweekly Payment Amount"
+                  : "Monthly Payment Amount"
               }
               name="monthlyPayment"
               type="number"
@@ -738,19 +956,23 @@ function EditDeal() {
               required={!isCashDeal}
             />
 
-            <Input
-              label="Due Day"
-              name="dueDay"
-              type="number"
-              value={formData.dueDay}
-              onChange={handleChange}
-              disabled={isCashDeal || isRegistrationMoneyDeal}
-              required={!isCashDeal}
-              helperText="Auto-filled from start date, but can be edited for normal payment deals."
-            />
+            {isMonthlyDeal && (
+              <Input
+                label="Due Day"
+                name="dueDay"
+                type="number"
+                value={formData.dueDay}
+                onChange={handleChange}
+                disabled={isCashDeal || isRegistrationMoneyDeal}
+                required={!isCashDeal}
+                helperText="Auto-filled from start date, but can be edited for monthly payment deals."
+              />
+            )}
 
             <Input
-              label="Term"
+              label={
+                isBiweeklyDeal ? "Term / Number of Biweekly Payments" : "Term"
+              }
               name="term"
               type="number"
               value={formData.term}
@@ -770,6 +992,8 @@ function EditDeal() {
               helperText={
                 isRegistrationMoneyDeal
                   ? "Same as tentative due date for Registration Money."
+                  : isBiweeklyDeal
+                  ? "Auto-calculated from first payment date and number of biweekly payments."
                   : "Auto-calculated from start date, due day, and term."
               }
             />
@@ -1049,6 +1273,16 @@ const infoBox = {
   borderRadius: "10px",
   color: "#475569",
   marginBottom: "16px",
+};
+
+const biweeklyInfoBox = {
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  padding: "13px",
+  borderRadius: "10px",
+  color: "#1d4ed8",
+  marginBottom: "16px",
+  fontWeight: "800",
 };
 
 const referralInfoBox = {

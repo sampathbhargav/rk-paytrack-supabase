@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   createCustomer,
   getCustomers,
@@ -27,6 +28,8 @@ const initialFormData = {
   vin: "",
   totalAmount: "",
   monthlyPayment: "",
+  paymentFrequency: "Monthly",
+  firstPaymentDate: "",
   dueDay: "",
   term: "",
   maturityDate: "",
@@ -44,11 +47,40 @@ function DealForm() {
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
+  const [successDealLink, setSuccessDealLink] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  const messageAreaRef = useRef(null);
+
+  const scrollToMessageArea = () => {
+    setTimeout(() => {
+      messageAreaRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
+  };
 
   const isCashDeal = formData.dealType === "Cash";
   const isInHouseDeal = formData.dealType === "In-house";
   const isRegistrationMoneyDeal = formData.dealType === "Registration Money";
+  const isMonthlyPayment = formData.paymentFrequency === "Monthly";
+  const isBiweeklyPayment = formData.paymentFrequency === "Biweekly";
+
+  const scheduleMath = getScheduleMathCheck(formData);
+
+  const applySuggestedPaymentAmount = () => {
+    if (!scheduleMath.suggestedPaymentAmount) return;
+
+    setMessage("");
+    setMessageType("");
+    setSuccessDealLink(null);
+
+    setFormData((prev) => ({
+      ...prev,
+      monthlyPayment: String(scheduleMath.suggestedPaymentAmount),
+    }));
+  };
 
   useEffect(() => {
     loadCustomers();
@@ -107,6 +139,7 @@ function DealForm() {
     setCustomerSearchOpen(false);
     setMessage("");
     setMessageType("");
+    setSuccessDealLink(null);
   };
 
   const clearSelectedCustomer = () => {
@@ -128,6 +161,7 @@ function DealForm() {
 
     setMessage("");
     setMessageType("");
+    setSuccessDealLink(null);
 
     setFormData((prev) => {
       const updated = {
@@ -140,10 +174,8 @@ function DealForm() {
         setCustomerSearchOpen(true);
       }
 
-      if (name === "referralMoneyPaid") {
-        if (value === "No") {
-          updated.referralAmountPaid = "";
-        }
+      if (name === "referralMoneyPaid" && value === "No") {
+        updated.referralAmountPaid = "";
       }
 
       if (name === "dealType") {
@@ -153,12 +185,16 @@ function DealForm() {
 
         if (value === "Cash") {
           updated.monthlyPayment = "";
+          updated.paymentFrequency = "Monthly";
+          updated.firstPaymentDate = "";
           updated.dueDay = "";
           updated.term = "";
           updated.maturityDate = "";
         }
 
         if (value === "Registration Money") {
+          updated.paymentFrequency = "Monthly";
+          updated.firstPaymentDate = "";
           updated.term = "1";
 
           if (updated.totalAmount) {
@@ -169,6 +205,70 @@ function DealForm() {
             const dueDay = getDueDayFromStartDate(updated.startDate);
             updated.dueDay = dueDay;
             updated.maturityDate = updated.startDate;
+          }
+        }
+
+        if (value !== "Cash" && value !== "Registration Money") {
+          updated.paymentFrequency = updated.paymentFrequency || "Monthly";
+
+          if (updated.startDate && updated.paymentFrequency === "Monthly") {
+            const dueDay = getDueDayFromStartDate(updated.startDate);
+            updated.dueDay = updated.dueDay || dueDay;
+
+            if (updated.term) {
+              updated.maturityDate = calculateMaturityDate(
+                updated.startDate,
+                updated.dueDay || dueDay,
+                updated.term
+              );
+            }
+          }
+
+          if (updated.startDate && updated.paymentFrequency === "Biweekly") {
+            updated.firstPaymentDate =
+              updated.firstPaymentDate || updated.startDate;
+            updated.dueDay = "";
+
+            if (updated.term) {
+              updated.maturityDate = calculateBiweeklyMaturityDate(
+                updated.firstPaymentDate,
+                updated.term
+              );
+            }
+          }
+        }
+      }
+
+      if (name === "paymentFrequency") {
+        if (value === "Monthly") {
+          updated.firstPaymentDate = "";
+
+          if (updated.startDate) {
+            const dueDay = getDueDayFromStartDate(updated.startDate);
+            updated.dueDay = updated.dueDay || dueDay;
+
+            if (updated.term) {
+              updated.maturityDate = calculateMaturityDate(
+                updated.startDate,
+                updated.dueDay || dueDay,
+                updated.term
+              );
+            }
+          }
+        }
+
+        if (value === "Biweekly") {
+          updated.dueDay = "";
+          updated.firstPaymentDate =
+            updated.firstPaymentDate || updated.startDate || "";
+
+          if (updated.firstPaymentDate && updated.term) {
+            updated.maturityDate = calculateBiweeklyMaturityDate(
+              updated.firstPaymentDate,
+              updated.term
+            );
+          } else {
+            updated.maturityDate = "";
           }
         }
       }
@@ -199,15 +299,45 @@ function DealForm() {
         updated.dealType !== "Cash" &&
         updated.dealType !== "Registration Money"
       ) {
-        const dueDay = getDueDayFromStartDate(value);
-        updated.dueDay = dueDay;
+        if (updated.paymentFrequency === "Biweekly") {
+          updated.firstPaymentDate = updated.firstPaymentDate || value;
+          updated.dueDay = "";
 
-        if (updated.term) {
-          updated.maturityDate = calculateMaturityDate(
+          if (updated.term) {
+            updated.maturityDate = calculateBiweeklyMaturityDate(
+              updated.firstPaymentDate,
+              updated.term
+            );
+          }
+        } else {
+          const dueDay = getDueDayFromStartDate(value);
+          updated.dueDay = dueDay;
+
+          if (updated.term) {
+            updated.maturityDate = calculateMaturityDate(
+              value,
+              dueDay,
+              updated.term
+            );
+          }
+        }
+      }
+
+      if (
+        name === "firstPaymentDate" &&
+        updated.dealType !== "Cash" &&
+        updated.dealType !== "Registration Money" &&
+        updated.paymentFrequency === "Biweekly"
+      ) {
+        updated.dueDay = "";
+
+        if (value && updated.term) {
+          updated.maturityDate = calculateBiweeklyMaturityDate(
             value,
-            dueDay,
             updated.term
           );
+        } else {
+          updated.maturityDate = "";
         }
       }
 
@@ -216,17 +346,31 @@ function DealForm() {
         updated.dealType !== "Cash" &&
         updated.dealType !== "Registration Money"
       ) {
-        updated.maturityDate = calculateMaturityDate(
-          updated.startDate,
-          updated.dueDay,
-          value
-        );
+        if (updated.paymentFrequency === "Biweekly") {
+          updated.dueDay = "";
+
+          if (updated.firstPaymentDate && value) {
+            updated.maturityDate = calculateBiweeklyMaturityDate(
+              updated.firstPaymentDate,
+              value
+            );
+          } else {
+            updated.maturityDate = "";
+          }
+        } else {
+          updated.maturityDate = calculateMaturityDate(
+            updated.startDate,
+            updated.dueDay,
+            value
+          );
+        }
       }
 
       if (
         name === "dueDay" &&
         updated.dealType !== "Cash" &&
-        updated.dealType !== "Registration Money"
+        updated.dealType !== "Registration Money" &&
+        updated.paymentFrequency === "Monthly"
       ) {
         updated.maturityDate = calculateMaturityDate(
           updated.startDate,
@@ -248,6 +392,8 @@ function DealForm() {
       email: formData.email.trim(),
       address: formData.address.trim(),
       dealTag: formData.dealTag.trim(),
+      paymentFrequency: formData.paymentFrequency || "Monthly",
+      firstPaymentDate: formData.firstPaymentDate || "",
       truck: formData.truck.trim(),
       year: formData.year.trim(),
       vin: formData.vin.trim().toUpperCase(),
@@ -294,10 +440,7 @@ function DealForm() {
       return "Total amount must be greater than 0.";
     }
 
-    if (
-      data.referralAmountPaid &&
-      Number(data.referralAmountPaid) < 0
-    ) {
+    if (data.referralAmountPaid && Number(data.referralAmountPaid) < 0) {
       return "Referral amount paid cannot be negative.";
     }
 
@@ -325,16 +468,16 @@ function DealForm() {
         return "Start date is required for payment deals.";
       }
 
+      if (!data.paymentFrequency) {
+        return "Payment frequency is required.";
+      }
+
+      if (!["Monthly", "Biweekly"].includes(data.paymentFrequency)) {
+        return "Payment frequency must be Monthly or Biweekly.";
+      }
+
       if (!data.monthlyPayment || Number(data.monthlyPayment) <= 0) {
-        return "Monthly payment must be greater than 0.";
-      }
-
-      if (!data.dueDay || Number(data.dueDay) <= 0) {
-        return "Due day is required.";
-      }
-
-      if (Number(data.dueDay) < 1 || Number(data.dueDay) > 31) {
-        return "Due day must be between 1 and 31.";
+        return "Payment amount must be greater than 0.";
       }
 
       if (!data.term || Number(data.term) <= 0) {
@@ -343,6 +486,26 @@ function DealForm() {
 
       if (!Number.isInteger(Number(data.term))) {
         return "Term must be a whole number.";
+      }
+
+      if (data.paymentFrequency === "Monthly") {
+        if (!data.dueDay || Number(data.dueDay) <= 0) {
+          return "Due day is required for monthly deals.";
+        }
+
+        if (Number(data.dueDay) < 1 || Number(data.dueDay) > 31) {
+          return "Due day must be between 1 and 31.";
+        }
+      }
+
+      if (data.paymentFrequency === "Biweekly") {
+        if (!data.firstPaymentDate) {
+          return "First payment date is required for biweekly deals.";
+        }
+
+        if (data.firstPaymentDate < data.startDate) {
+          return "First payment date cannot be before the start date.";
+        }
       }
 
       if (!data.maturityDate) {
@@ -358,21 +521,38 @@ function DealForm() {
 
     setMessage("");
     setMessageType("");
+    setSuccessDealLink(null);
 
     const validationError = validateDealForm();
 
     if (validationError) {
       setMessage(validationError);
       setMessageType("error");
+      scrollToMessageArea();
       return;
     }
 
     const data = cleanFormData();
 
+    const savedPaymentFrequency = getSavedPaymentFrequency(data);
+    const savedPaymentAmount = getSavedPaymentAmount(data);
+    const savedDueDay = getSavedDueDay(data);
+    const savedTerm = getSavedTerm(data);
+    const savedFirstPaymentDate = getSavedFirstPaymentDate(data);
+    const savedMaturityDate = getSavedMaturityDate(data);
+
+    const scheduleCheckForConfirm = getScheduleMathCheck(data);
+
+    const scheduleWarningText = scheduleCheckForConfirm.hasWarning
+      ? `\n\nSchedule Math Warning:\n${scheduleCheckForConfirm.warningText}\n\nContinue only if this difference is intentional.`
+      : "";
+
     const confirmed = window.confirm(
-      data.selectedCustomerId
-        ? "Are you sure you want to add this new deal to the selected existing customer?"
-        : "Are you sure you want to create this customer and deal?"
+      `${
+        data.selectedCustomerId
+          ? "Are you sure you want to add this new deal to the selected existing customer?"
+          : "Are you sure you want to create this customer and deal?"
+      }${scheduleWarningText}`
     );
 
     if (!confirmed) return;
@@ -385,6 +565,7 @@ function DealForm() {
       if (existingDeal) {
         setMessage(`Deal tag ${data.dealTag} already exists.`);
         setMessageType("error");
+        scrollToMessageArea();
         return;
       }
 
@@ -418,25 +599,12 @@ function DealForm() {
         year: data.year,
         vin: data.vin,
         totalAmount: Number(data.totalAmount || 0),
-        monthlyPayment:
-          data.dealType === "Cash"
-            ? 0
-            : data.dealType === "Registration Money"
-            ? Number(data.totalAmount || 0)
-            : Number(data.monthlyPayment || 0),
-        dueDay: data.dealType === "Cash" ? null : Number(data.dueDay || 0),
-        term:
-          data.dealType === "Cash"
-            ? null
-            : data.dealType === "Registration Money"
-            ? 1
-            : Number(data.term || 0),
-        maturityDate:
-          data.dealType === "Cash"
-            ? null
-            : data.dealType === "Registration Money"
-            ? data.startDate
-            : data.maturityDate,
+        monthlyPayment: savedPaymentAmount,
+        paymentFrequency: savedPaymentFrequency,
+        firstPaymentDate: savedFirstPaymentDate,
+        dueDay: savedDueDay,
+        term: savedTerm,
+        maturityDate: savedMaturityDate,
         referredByName: data.referredByName,
         referredByPhone: data.referredByPhone,
         referralMoneyPaid: data.referralMoneyPaid === "Yes",
@@ -472,26 +640,13 @@ function DealForm() {
           year: data.year,
           vin: data.vin,
           total_amount: Number(data.totalAmount || 0),
-          monthly_payment:
-            data.dealType === "Cash"
-              ? 0
-              : data.dealType === "Registration Money"
-              ? Number(data.totalAmount || 0)
-              : Number(data.monthlyPayment || 0),
-          due_day: data.dealType === "Cash" ? null : Number(data.dueDay || 0),
-          term:
-            data.dealType === "Cash"
-              ? null
-              : data.dealType === "Registration Money"
-              ? 1
-              : Number(data.term || 0),
+          monthly_payment: savedPaymentAmount,
+          payment_frequency: savedPaymentFrequency,
+          first_payment_date: savedFirstPaymentDate,
+          due_day: savedDueDay,
+          term: savedTerm,
           start_date: data.startDate || null,
-          maturity_date:
-            data.dealType === "Cash"
-              ? null
-              : data.dealType === "Registration Money"
-              ? data.startDate
-              : data.maturityDate,
+          maturity_date: savedMaturityDate,
           referred_by_name: data.referredByName || "",
           referred_by_phone: data.referredByPhone || "",
           referral_money_paid: data.referralMoneyPaid === "Yes",
@@ -510,12 +665,19 @@ function DealForm() {
       );
 
       setMessageType("success");
+      setSuccessDealLink({
+        id: savedDeal?.id || "",
+        dealTag: savedDeal?.deal_tag || data.dealTag || "",
+      });
+      scrollToMessageArea();
+
       setFormData(initialFormData);
       setCustomerSearchOpen(false);
       await loadCustomers();
     } catch (error) {
       setMessage(`Failed to create deal: ${error.message}`);
       setMessageType("error");
+      scrollToMessageArea();
     } finally {
       setIsSaving(false);
     }
@@ -536,6 +698,8 @@ function DealForm() {
         <div style={dealTypeBadge}>{formData.dealType}</div>
       </div>
 
+      <div ref={messageAreaRef} />
+
       {message && (
         <div
           style={{
@@ -543,7 +707,14 @@ function DealForm() {
             ...(messageType === "success" ? successMessage : errorMessage),
           }}
         >
-          {message}
+          <div>{message}</div>
+
+          {messageType === "success" && successDealLink?.id && (
+            <Link to={`/deals/${successDealLink.id}`} style={goToDealButton}>
+              Open Deal{" "}
+              {successDealLink.dealTag ? `#${successDealLink.dealTag}` : ""}
+            </Link>
+          )}
         </div>
       )}
 
@@ -808,16 +979,18 @@ function DealForm() {
         title="Payment Schedule"
         description={
           isCashDeal
-            ? "Cash deals do not require a monthly schedule."
+            ? "Cash deals do not require a payment schedule."
             : isRegistrationMoneyDeal
             ? "Registration Money is treated as a one-time scheduled receivable."
-            : "Schedule is calculated from start date, due day, term, and monthly payment."
+            : isBiweeklyPayment
+            ? "Biweekly schedule is calculated from the first payment date, payment amount, and number of payments."
+            : "Monthly schedule is calculated from start date, due day, term, and payment amount."
         }
       >
         {isCashDeal && (
           <div style={infoBox}>
-            Cash deal selected. Monthly payment, due day, term, and maturity date
-            are not required.
+            Cash deal selected. Payment amount, frequency, due day, term, and
+            maturity date are not required.
           </div>
         )}
 
@@ -825,7 +998,15 @@ function DealForm() {
           <div style={infoBox}>
             Registration Money selected. Use the tentative due date as the date
             the customer is expected to pay title or registration money. Term
-            will stay 1 and monthly payment will match the total amount.
+            will stay 1 and payment amount will match the total amount.
+          </div>
+        )}
+
+        {!isCashDeal && !isRegistrationMoneyDeal && isBiweeklyPayment && (
+          <div style={biweeklyInfoBox}>
+            Biweekly selected. The app will create one installment every 14 days
+            starting from the first payment date. Term means number of biweekly
+            payments.
           </div>
         )}
 
@@ -841,13 +1022,33 @@ function DealForm() {
             helperText={
               isCashDeal
                 ? "Not required for Cash deals."
+                : isRegistrationMoneyDeal
+                ? "This is the one-time expected payment date."
+                : isBiweeklyPayment
+                ? "Deal start date. First payment date below controls the biweekly schedule."
                 : "Due day will auto-fill from this date."
             }
           />
 
+          {!isCashDeal && !isRegistrationMoneyDeal && (
+            <Select
+              label="Payment Frequency"
+              name="paymentFrequency"
+              value={formData.paymentFrequency}
+              onChange={handleChange}
+              options={["Monthly", "Biweekly"]}
+              required
+              helperText="Choose Monthly for once per month or Biweekly for every 14 days."
+            />
+          )}
+
           <Input
             label={
-              isRegistrationMoneyDeal ? "One-Time Amount" : "Monthly Payment"
+              isRegistrationMoneyDeal
+                ? "One-Time Amount"
+                : isBiweeklyPayment
+                ? "Biweekly Payment"
+                : "Monthly Payment"
             }
             name="monthlyPayment"
             type="number"
@@ -856,29 +1057,60 @@ function DealForm() {
             required={!isCashDeal}
             disabled={isCashDeal || isRegistrationMoneyDeal}
             placeholder="Example: 500"
+            helperText={
+              isCashDeal
+                ? "Not required for Cash deals."
+                : isRegistrationMoneyDeal
+                ? "Auto-filled from registration money amount."
+                : isBiweeklyPayment
+                ? "Amount due every 14 days."
+                : "Amount due every month."
+            }
           />
 
-          <Input
-            label="Due Day"
-            name="dueDay"
-            type="number"
-            value={formData.dueDay}
-            onChange={handleChange}
-            required={!isCashDeal}
-            disabled={isCashDeal || isRegistrationMoneyDeal}
-            placeholder="Auto from start date"
-            helperText="Auto-filled from start date but can be edited for normal payment deals."
-          />
+          {isMonthlyPayment && !isCashDeal && !isRegistrationMoneyDeal && (
+            <Input
+              label="Due Day"
+              name="dueDay"
+              type="number"
+              value={formData.dueDay}
+              onChange={handleChange}
+              required
+              placeholder="Auto from start date"
+              helperText="Auto-filled from start date but can be edited for monthly payment deals."
+            />
+          )}
+
+          {isBiweeklyPayment && !isCashDeal && !isRegistrationMoneyDeal && (
+            <Input
+              label="First Payment Date"
+              name="firstPaymentDate"
+              type="date"
+              value={formData.firstPaymentDate}
+              onChange={handleChange}
+              required
+              helperText="First installment due date. Future payments repeat every 14 days."
+            />
+          )}
 
           <Input
-            label="Term"
+            label={
+              isBiweeklyPayment && !isRegistrationMoneyDeal
+                ? "Number of Biweekly Payments"
+                : "Term"
+            }
             name="term"
             type="number"
             value={formData.term}
             onChange={handleChange}
             required={!isCashDeal}
             disabled={isCashDeal || isRegistrationMoneyDeal}
-            placeholder="Example: 5"
+            placeholder={isBiweeklyPayment ? "Example: 26" : "Example: 5"}
+            helperText={
+              isBiweeklyPayment && !isRegistrationMoneyDeal
+                ? "For biweekly deals, term means total number of 14-day payments."
+                : "For monthly deals, term means total number of monthly payments."
+            }
           />
 
           <Input
@@ -892,10 +1124,19 @@ function DealForm() {
             helperText={
               isRegistrationMoneyDeal
                 ? "Same as tentative due date for Registration Money."
+                : isBiweeklyPayment
+                ? "Auto-calculated from first payment date and number of biweekly payments."
                 : "Auto-calculated from start date, due day, and term."
             }
           />
         </div>
+
+        {!isCashDeal && (
+          <ScheduleMathCard
+            scheduleMath={scheduleMath}
+            onUseSuggestedPayment={applySuggestedPaymentAmount}
+          />
+        )}
       </Section>
 
       <Section
@@ -923,6 +1164,7 @@ function DealForm() {
             setFormData(initialFormData);
             setMessage("");
             setMessageType("");
+            setSuccessDealLink(null);
             setCustomerSearchOpen(false);
           }}
           disabled={isSaving}
@@ -931,6 +1173,240 @@ function DealForm() {
         </button>
       </div>
     </form>
+  );
+}
+
+function calculateBiweeklyMaturityDate(firstPaymentDate, term) {
+  if (!firstPaymentDate || !term || Number(term) <= 0) return "";
+
+  const date = new Date(`${firstPaymentDate}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+
+  date.setDate(date.getDate() + (Number(term) - 1) * 14);
+
+  return date.toISOString().split("T")[0];
+}
+
+function getSavedPaymentFrequency(data) {
+  if (data.dealType === "Cash") return null;
+  if (data.dealType === "Registration Money") return "One-Time";
+
+  return data.paymentFrequency || "Monthly";
+}
+
+function getSavedPaymentAmount(data) {
+  if (data.dealType === "Cash") return 0;
+  if (data.dealType === "Registration Money") {
+    return Number(data.totalAmount || 0);
+  }
+
+  return Number(data.monthlyPayment || 0);
+}
+
+function getSavedDueDay(data) {
+  if (data.dealType === "Cash") return null;
+  if (data.paymentFrequency === "Biweekly") return null;
+
+  return Number(data.dueDay || 0);
+}
+
+function getSavedTerm(data) {
+  if (data.dealType === "Cash") return null;
+  if (data.dealType === "Registration Money") return 1;
+
+  return Number(data.term || 0);
+}
+
+function getSavedFirstPaymentDate(data) {
+  if (data.dealType === "Cash") return null;
+  if (data.dealType === "Registration Money") return null;
+  if (data.paymentFrequency !== "Biweekly") return null;
+
+  return data.firstPaymentDate || data.startDate || null;
+}
+
+function getSavedMaturityDate(data) {
+  if (data.dealType === "Cash") return null;
+  if (data.dealType === "Registration Money") return data.startDate;
+
+  if (data.paymentFrequency === "Biweekly") {
+    return (
+      data.maturityDate ||
+      calculateBiweeklyMaturityDate(
+        data.firstPaymentDate || data.startDate,
+        data.term
+      )
+    );
+  }
+
+  return data.maturityDate;
+}
+
+function getScheduleMathCheck(data) {
+  const totalAmount = Number(data.totalAmount || 0);
+  const paymentAmount =
+    data.dealType === "Registration Money"
+      ? Number(data.totalAmount || 0)
+      : Number(data.monthlyPayment || 0);
+
+  const term =
+    data.dealType === "Registration Money" ? 1 : Number(data.term || 0);
+
+  const paymentFrequency =
+    data.dealType === "Registration Money"
+      ? "One-Time"
+      : data.paymentFrequency || "Monthly";
+
+  const paymentLabel =
+    paymentFrequency === "Biweekly"
+      ? "Biweekly Payment"
+      : paymentFrequency === "One-Time"
+      ? "One-Time Amount"
+      : "Monthly Payment";
+
+  const shouldShow =
+    data.dealType !== "Cash" &&
+    (totalAmount > 0 || paymentAmount > 0 || term > 0);
+
+  const scheduledTotal =
+    data.dealType === "Registration Money"
+      ? totalAmount
+      : paymentAmount * term;
+
+  const difference = Number((scheduledTotal - totalAmount).toFixed(2));
+  const absoluteDifference = Math.abs(difference);
+
+  const suggestedPaymentAmount =
+    totalAmount > 0 && term > 0
+      ? Number((totalAmount / term).toFixed(2))
+      : 0;
+
+  const hasWarning =
+    shouldShow &&
+    data.dealType !== "Registration Money" &&
+    totalAmount > 0 &&
+    paymentAmount > 0 &&
+    term > 0 &&
+    absoluteDifference > 1;
+
+  const warningText =
+    difference > 0
+      ? `Scheduled total is ${formatMoneyLocal(
+          absoluteDifference
+        )} more than the total amount. Check payment amount or term.`
+      : `Scheduled total is ${formatMoneyLocal(
+          absoluteDifference
+        )} less than the total amount. Check payment amount or term.`;
+
+  return {
+    shouldShow,
+    hasWarning,
+    totalAmount,
+    paymentAmount,
+    term,
+    paymentFrequency,
+    paymentLabel,
+    scheduledTotal,
+    difference,
+    suggestedPaymentAmount,
+    warningText,
+  };
+}
+
+function formatMoneyLocal(value) {
+  const amount = Number(value || 0);
+
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+  });
+}
+
+function ScheduleMathCard({ scheduleMath, onUseSuggestedPayment }) {
+  if (!scheduleMath.shouldShow) return null;
+
+  return (
+    <div
+      style={{
+        ...scheduleMathCard,
+        ...(scheduleMath.hasWarning
+          ? scheduleMathWarningCard
+          : scheduleMathGoodCard),
+      }}
+    >
+      <div style={scheduleMathHeader}>
+        <div>
+          <strong style={scheduleMathTitle}>Schedule Math Check</strong>
+          <p style={scheduleMathDescription}>
+            Confirms the payment amount and term match the total deal amount.
+          </p>
+        </div>
+
+        <span
+          style={
+            scheduleMath.hasWarning
+              ? scheduleMathWarningBadge
+              : scheduleMathGoodBadge
+          }
+        >
+          {scheduleMath.hasWarning ? "Check Needed" : "Looks Good"}
+        </span>
+      </div>
+
+      <div style={scheduleMathGrid}>
+        <div style={scheduleMathItem}>
+          <span>Total Amount</span>
+          <strong>{formatMoneyLocal(scheduleMath.totalAmount)}</strong>
+        </div>
+
+        <div style={scheduleMathItem}>
+          <span>{scheduleMath.paymentLabel}</span>
+          <strong>{formatMoneyLocal(scheduleMath.paymentAmount)}</strong>
+        </div>
+
+        <div style={scheduleMathItem}>
+          <span>Term</span>
+          <strong>{scheduleMath.term || "—"}</strong>
+        </div>
+
+        <div style={scheduleMathItem}>
+          <span>Scheduled Total</span>
+          <strong>{formatMoneyLocal(scheduleMath.scheduledTotal)}</strong>
+        </div>
+
+        <div style={scheduleMathItem}>
+          <span>Difference</span>
+          <strong
+            style={{
+              color: scheduleMath.hasWarning ? "#991b1b" : "#166534",
+            }}
+          >
+            {formatMoneyLocal(scheduleMath.difference)}
+          </strong>
+        </div>
+      </div>
+
+      {scheduleMath.hasWarning ? (
+        <div style={scheduleMathWarningText}>
+          {scheduleMath.warningText}
+
+          {scheduleMath.suggestedPaymentAmount > 0 && (
+            <button
+              type="button"
+              onClick={onUseSuggestedPayment}
+              style={useSuggestedButton}
+            >
+              Use Suggested {scheduleMath.paymentLabel}:{" "}
+              {formatMoneyLocal(scheduleMath.suggestedPaymentAmount)}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={scheduleMathGoodText}>
+          Scheduled total matches the total amount.
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -996,6 +1472,8 @@ function Select({
   options,
   placeholder,
   required,
+  disabled,
+  helperText,
 }) {
   return (
     <div>
@@ -1008,7 +1486,12 @@ function Select({
         value={value}
         onChange={onChange}
         required={required}
-        style={inputStyle}
+        disabled={disabled}
+        style={{
+          ...inputStyle,
+          background: disabled ? "#f3f4f6" : "white",
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
       >
         {placeholder && <option value="">{placeholder}</option>}
 
@@ -1018,6 +1501,8 @@ function Select({
           </option>
         ))}
       </select>
+
+      {helperText && <small style={helperTextStyle}>{helperText}</small>}
     </div>
   );
 }
@@ -1226,6 +1711,23 @@ const messageBox = {
   borderRadius: "10px",
   marginBottom: "18px",
   fontWeight: "bold",
+  display: "grid",
+  gap: "9px",
+};
+
+const goToDealButton = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "fit-content",
+  background: "#0A1A2F",
+  color: "white",
+  border: "none",
+  borderRadius: "999px",
+  padding: "9px 13px",
+  textDecoration: "none",
+  fontWeight: "900",
+  fontSize: "13px",
 };
 
 const successMessage = {
@@ -1249,6 +1751,16 @@ const infoBox = {
   marginBottom: "16px",
 };
 
+const biweeklyInfoBox = {
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  padding: "13px",
+  borderRadius: "10px",
+  color: "#1d4ed8",
+  marginBottom: "16px",
+  fontWeight: "800",
+};
+
 const referralInfoBox = {
   background: "#eff6ff",
   border: "1px solid #bfdbfe",
@@ -1257,6 +1769,107 @@ const referralInfoBox = {
   color: "#1d4ed8",
   marginBottom: "16px",
   fontWeight: "800",
+};
+
+const scheduleMathCard = {
+  marginTop: "16px",
+  padding: "14px",
+  borderRadius: "14px",
+  border: "1px solid #e5e7eb",
+};
+
+const scheduleMathGoodCard = {
+  background: "#f0fdf4",
+  borderColor: "#bbf7d0",
+};
+
+const scheduleMathWarningCard = {
+  background: "#fffbeb",
+  borderColor: "#fde68a",
+};
+
+const scheduleMathHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "12px",
+  flexWrap: "wrap",
+  marginBottom: "12px",
+};
+
+const scheduleMathTitle = {
+  display: "block",
+  color: "#111827",
+  fontSize: "15px",
+};
+
+const scheduleMathDescription = {
+  margin: "4px 0 0",
+  color: "#667085",
+  fontSize: "13px",
+};
+
+const scheduleMathGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+  gap: "10px",
+};
+
+const scheduleMathItem = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "10px",
+  display: "grid",
+  gap: "4px",
+  color: "#111827",
+};
+
+const scheduleMathGoodBadge = {
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #bbf7d0",
+  borderRadius: "999px",
+  padding: "6px 10px",
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
+const scheduleMathWarningBadge = {
+  background: "#fee2e2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+  borderRadius: "999px",
+  padding: "6px 10px",
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
+const scheduleMathGoodText = {
+  marginTop: "12px",
+  color: "#166534",
+  fontWeight: "900",
+  fontSize: "13px",
+};
+
+const scheduleMathWarningText = {
+  marginTop: "12px",
+  color: "#92400e",
+  fontWeight: "900",
+  fontSize: "13px",
+  display: "grid",
+  gap: "10px",
+};
+
+const useSuggestedButton = {
+  width: "fit-content",
+  background: "#0A1A2F",
+  color: "white",
+  border: "none",
+  borderRadius: "999px",
+  padding: "9px 12px",
+  cursor: "pointer",
+  fontWeight: "900",
 };
 
 export default DealForm;

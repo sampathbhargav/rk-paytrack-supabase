@@ -67,7 +67,9 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
     setReschedulePromiseItem(promise);
     setNewPromisedDate("");
     setRescheduleReason(
-      `Customer missed promise date ${promise.promised_date} and promised a new date.`
+      `Customer missed promise date ${formatDisplayDate(
+        promise.promised_date
+      )} and promised a new date.`
     );
   };
 
@@ -143,7 +145,7 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
         <h2 style={sectionTitle}>Promise History</h2>
         <p style={sectionDescription}>
           Tracks customer promises, broken promises, rescheduled promises, and
-          promise payments.
+          promise payments for monthly, biweekly, and one-time schedules.
         </p>
       </div>
 
@@ -153,10 +155,30 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
         <div style={modalBox}>
           <h3>Record Promise Payment</h3>
 
-          <p>
-            <strong>Remaining Amount:</strong>{" "}
-            {formatMoney(selectedPromise.remaining_amount)}
-          </p>
+          <div style={promiseDetailStrip}>
+            <div>
+              <span style={miniLabel}>Original Due</span>
+              <strong>{formatDisplayDate(selectedPromise.original_due_date)}</strong>
+            </div>
+
+            <div>
+              <span style={miniLabel}>Frequency</span>
+              <span
+                style={getFrequencyBadgeStyle(
+                  getPromisePaymentFrequency(selectedPromise)
+                )}
+              >
+                {getPaymentFrequencyLabel(
+                  getPromisePaymentFrequency(selectedPromise)
+                )}
+              </span>
+            </div>
+
+            <div>
+              <span style={miniLabel}>Remaining Amount</span>
+              <strong>{formatMoney(selectedPromise.remaining_amount)}</strong>
+            </div>
+          </div>
 
           <div style={grid}>
             <div>
@@ -216,15 +238,37 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
         <div style={modalBox}>
           <h3>Reschedule Promise</h3>
 
-          <p>
-            <strong>Old Promised Date:</strong>{" "}
-            {reschedulePromiseItem.promised_date}
-          </p>
+          <div style={promiseDetailStrip}>
+            <div>
+              <span style={miniLabel}>Old Promised Date</span>
+              <strong>{formatDisplayDate(reschedulePromiseItem.promised_date)}</strong>
+            </div>
 
-          <p>
-            <strong>Remaining Amount:</strong>{" "}
-            {formatMoney(reschedulePromiseItem.remaining_amount)}
-          </p>
+            <div>
+              <span style={miniLabel}>Original Due</span>
+              <strong>
+                {formatDisplayDate(reschedulePromiseItem.original_due_date)}
+              </strong>
+            </div>
+
+            <div>
+              <span style={miniLabel}>Frequency</span>
+              <span
+                style={getFrequencyBadgeStyle(
+                  getPromisePaymentFrequency(reschedulePromiseItem)
+                )}
+              >
+                {getPaymentFrequencyLabel(
+                  getPromisePaymentFrequency(reschedulePromiseItem)
+                )}
+              </span>
+            </div>
+
+            <div>
+              <span style={miniLabel}>Remaining Amount</span>
+              <strong>{formatMoney(reschedulePromiseItem.remaining_amount)}</strong>
+            </div>
+          </div>
 
           <div style={grid}>
             <div>
@@ -268,10 +312,30 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
         <div style={modalBox}>
           <h3>Partial Promise Payment</h3>
 
-          <p>
-            <strong>Current Promised Amount:</strong>{" "}
-            {formatMoney(partialPromiseItem.remaining_amount)}
-          </p>
+          <div style={promiseDetailStrip}>
+            <div>
+              <span style={miniLabel}>Original Due</span>
+              <strong>{formatDisplayDate(partialPromiseItem.original_due_date)}</strong>
+            </div>
+
+            <div>
+              <span style={miniLabel}>Frequency</span>
+              <span
+                style={getFrequencyBadgeStyle(
+                  getPromisePaymentFrequency(partialPromiseItem)
+                )}
+              >
+                {getPaymentFrequencyLabel(
+                  getPromisePaymentFrequency(partialPromiseItem)
+                )}
+              </span>
+            </div>
+
+            <div>
+              <span style={miniLabel}>Current Promised Amount</span>
+              <strong>{formatMoney(partialPromiseItem.remaining_amount)}</strong>
+            </div>
+          </div>
 
           <div style={grid}>
             <div>
@@ -361,6 +425,7 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
             <colgroup>
               <col style={{ width: "230px" }} />
               <col style={{ width: "125px" }} />
+              <col style={{ width: "130px" }} />
               <col style={{ width: "125px" }} />
               <col style={{ width: "125px" }} />
               <col style={{ width: "125px" }} />
@@ -374,6 +439,7 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
               <tr>
                 <th style={th}>Customer</th>
                 <th style={th}>Original Due</th>
+                <th style={th}>Frequency</th>
                 <th style={rightTh}>Amount Due</th>
                 <th style={rightTh}>Paid Now</th>
                 <th style={rightTh}>Remaining</th>
@@ -388,6 +454,7 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
               {promises.map((promise) => {
                 const customerName = getPromiseCustomerName(promise);
                 const companyName = getPromiseCompanyName(promise);
+                const paymentFrequency = getPromisePaymentFrequency(promise);
 
                 return (
                   <tr key={promise.id}>
@@ -407,10 +474,21 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
                       )}
                     </td>
 
-                    <td style={td}>{promise.original_due_date || "—"}</td>
+                    <td style={td}>
+                      {formatDisplayDate(promise.original_due_date)}
+                    </td>
+
+                    <td style={td}>
+                      <span style={getFrequencyBadgeStyle(paymentFrequency)}>
+                        {getPaymentFrequencyLabel(paymentFrequency)}
+                      </span>
+                    </td>
 
                     <td style={rightTd}>
-                      {formatMoney(promise.amount_due)}
+                      <div style={amountCell}>
+                        <strong>{formatMoney(promise.amount_due)}</strong>
+                        <span>{getPaymentAmountLabel(paymentFrequency)}</span>
+                      </div>
                     </td>
 
                     <td style={rightTd}>
@@ -421,7 +499,7 @@ function PromiseHistory({ promises, onPromiseUpdated }) {
                       <strong>{formatMoney(promise.remaining_amount)}</strong>
                     </td>
 
-                    <td style={td}>{promise.promised_date || "—"}</td>
+                    <td style={td}>{formatDisplayDate(promise.promised_date)}</td>
 
                     <td style={td}>
                       <span style={getStatusStyle(promise.promise_status)}>
@@ -496,6 +574,93 @@ function getPromiseCompanyName(promise) {
     promise?.company_name ||
     ""
   );
+}
+
+function getPromisePaymentFrequency(promise) {
+  const deal = promise?.deals || {};
+
+  if (deal?.deal_type === "Cash") return "Cash";
+
+  if (deal?.deal_type === "Registration Money") {
+    return "One-Time";
+  }
+
+  return (
+    deal?.payment_frequency ||
+    deal?.paymentFrequency ||
+    promise?.payment_frequency ||
+    promise?.paymentFrequency ||
+    "Monthly"
+  );
+}
+
+function getPaymentFrequencyLabel(frequency) {
+  if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "One-Time") return "One-Time";
+  if (frequency === "Cash") return "Cash";
+  return "Monthly";
+}
+
+function getPaymentAmountLabel(frequency) {
+  if (frequency === "Biweekly") return "biweekly";
+  if (frequency === "One-Time") return "one-time";
+  if (frequency === "Cash") return "cash";
+  return "monthly";
+}
+
+function formatDisplayDate(dateString) {
+  if (!dateString) return "—";
+
+  const [year, month, day] = String(dateString).split("-");
+  if (!year || !month || !day) return dateString;
+
+  return `${month}/${day}/${year}`;
+}
+
+function getFrequencyBadgeStyle(frequency) {
+  const base = {
+    padding: "5px 10px",
+    borderRadius: "999px",
+    fontSize: "12px",
+    fontWeight: "900",
+    display: "inline-flex",
+    whiteSpace: "nowrap",
+    border: "1px solid transparent",
+  };
+
+  if (frequency === "Biweekly") {
+    return {
+      ...base,
+      background: "#ede9fe",
+      color: "#6d28d9",
+      borderColor: "#ddd6fe",
+    };
+  }
+
+  if (frequency === "One-Time") {
+    return {
+      ...base,
+      background: "#ccfbf1",
+      color: "#0f766e",
+      borderColor: "#99f6e4",
+    };
+  }
+
+  if (frequency === "Cash") {
+    return {
+      ...base,
+      background: "#f3f4f6",
+      color: "#374151",
+      borderColor: "#d1d5db",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    borderColor: "#bfdbfe",
+  };
 }
 
 function getStatusStyle(status) {
@@ -573,6 +738,25 @@ const modalBox = {
   border: "1px solid #ddd",
 };
 
+const promiseDetailStrip = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  gap: "12px",
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "13px",
+  marginBottom: "15px",
+};
+
+const miniLabel = {
+  display: "block",
+  color: "#667085",
+  fontSize: "12px",
+  fontWeight: "800",
+  marginBottom: "5px",
+};
+
 const grid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -597,7 +781,7 @@ const tableWrapper = {
 
 const tableStyle = {
   width: "100%",
-  minWidth: "1515px",
+  minWidth: "1645px",
   tableLayout: "fixed",
   borderCollapse: "collapse",
 };
@@ -674,6 +858,11 @@ const smallText = {
   fontSize: "12px",
   whiteSpace: "normal",
   overflowWrap: "anywhere",
+};
+
+const amountCell = {
+  display: "grid",
+  gap: "3px",
 };
 
 const notesCell = {

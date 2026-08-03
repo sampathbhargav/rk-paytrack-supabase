@@ -115,6 +115,22 @@ function Dashboard() {
     (promise) => promise.promise_status === "Pending"
   );
 
+  const monthlyDeals = deals.filter(
+    (deal) =>
+      deal.status === "Active" &&
+      deal.deal_type !== "Cash" &&
+      deal.deal_type !== "Registration Money" &&
+      (deal.payment_frequency || "Monthly") === "Monthly"
+  );
+
+  const biweeklyDeals = deals.filter(
+    (deal) =>
+      deal.status === "Active" &&
+      deal.deal_type !== "Cash" &&
+      deal.deal_type !== "Registration Money" &&
+      deal.payment_frequency === "Biweekly"
+  );
+
   const balanceByDealType = deals.reduce((acc, deal) => {
     const dealPayments = activePayments.filter(
       (payment) => payment.deal_id === deal.id
@@ -145,7 +161,7 @@ function Dashboard() {
           <h1 style={pageTitle}>Dashboard</h1>
           <p style={pageDescription}>
             Daily customer payment follow-up, collection priorities, promises,
-            and finance balance summary.
+            monthly and biweekly schedules, and finance balance summary.
           </p>
 
           {lastRefreshedAt && (
@@ -245,6 +261,8 @@ function Dashboard() {
 
           <div style={summaryStrip}>
             <SummaryItem label="Active Deals" value={deals.length} />
+            <SummaryItem label="Monthly Deals" value={monthlyDeals.length} />
+            <SummaryItem label="Biweekly Deals" value={biweeklyDeals.length} />
             <SummaryItem
               label="Total Financed"
               value={formatMoney(totalFinanced)}
@@ -448,6 +466,7 @@ function PastDueTable({ items }) {
             <th style={{ ...th, width: "220px" }}>Customer</th>
             <th style={{ ...th, width: "120px" }}>Original Due</th>
             <th style={{ ...th, width: "100px" }}>Installment</th>
+            <th style={{ ...th, width: "115px" }}>Frequency</th>
             <th style={{ ...th, width: "115px" }}>Amount Due</th>
             <th style={{ ...th, width: "105px" }}>Paid</th>
             <th style={{ ...th, width: "115px" }}>Remaining</th>
@@ -484,6 +503,17 @@ function PastDueTable({ items }) {
 
               <td style={td}>{formatDisplayDate(item.dueDate)}</td>
               <td style={td}>{item.installmentNumber}</td>
+              <td style={td}>
+                <span
+                  style={getFrequencyBadgeStyle(
+                    item.paymentFrequency || item.deal?.payment_frequency
+                  )}
+                >
+                  {getPaymentFrequencyLabel(
+                    item.paymentFrequency || item.deal?.payment_frequency
+                  )}
+                </span>
+              </td>
               <td style={moneyDueCell}>{formatMoney(item.amountDue)}</td>
               <td style={moneyDueCell}>{formatMoney(item.paidForDueDate)}</td>
               <td style={dangerMoneyCell}>
@@ -517,6 +547,7 @@ function FollowUpTable({ items }) {
             <th style={{ ...th, width: "220px" }}>Customer</th>
             <th style={{ ...th, width: "120px" }}>Due Date</th>
             <th style={{ ...th, width: "100px" }}>Installment</th>
+            <th style={{ ...th, width: "115px" }}>Frequency</th>
             <th style={{ ...th, width: "110px" }}>Due</th>
             <th style={{ ...th, width: "105px" }}>Paid</th>
             <th style={{ ...th, width: "115px" }}>Remaining</th>
@@ -552,6 +583,17 @@ function FollowUpTable({ items }) {
 
               <td style={td}>{formatDisplayDate(item.dueDate)}</td>
               <td style={td}>{item.installmentNumber}</td>
+              <td style={td}>
+                <span
+                  style={getFrequencyBadgeStyle(
+                    item.paymentFrequency || item.deal?.payment_frequency
+                  )}
+                >
+                  {getPaymentFrequencyLabel(
+                    item.paymentFrequency || item.deal?.payment_frequency
+                  )}
+                </span>
+              </td>
               <td style={moneyDueCell}>{formatMoney(item.amountDue)}</td>
               <td style={moneyDueCell}>{formatMoney(item.paidForDueDate)}</td>
               <td style={warningMoneyCell}>
@@ -685,6 +727,64 @@ function EmptyState({ icon, title, message }) {
       <p style={{ margin: "6px 0 0" }}>{message}</p>
     </div>
   );
+}
+
+
+function getPaymentFrequencyLabel(frequency) {
+  if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "One-Time") return "One-Time";
+  if (frequency === "Cash") return "Cash";
+
+  return "Monthly";
+}
+
+function getFrequencyBadgeStyle(frequency) {
+  const base = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "fit-content",
+    padding: "5px 9px",
+    borderRadius: "999px",
+    fontSize: "11px",
+    fontWeight: "900",
+    whiteSpace: "nowrap",
+    border: "1px solid transparent",
+  };
+
+  if (frequency === "Biweekly") {
+    return {
+      ...base,
+      background: "#ede9fe",
+      color: "#6d28d9",
+      borderColor: "#ddd6fe",
+    };
+  }
+
+  if (frequency === "One-Time") {
+    return {
+      ...base,
+      background: "#ccfbf1",
+      color: "#0f766e",
+      borderColor: "#99f6e4",
+    };
+  }
+
+  if (frequency === "Cash") {
+    return {
+      ...base,
+      background: "#f3f4f6",
+      color: "#374151",
+      borderColor: "#d1d5db",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    borderColor: "#bfdbfe",
+  };
 }
 
 function getMetricToneStyle(tone) {
@@ -1131,7 +1231,7 @@ const tableScroll = {
 
 const pastDueTableStyle = {
   width: "100%",
-  minWidth: "1220px",
+  minWidth: "1340px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,
@@ -1139,7 +1239,7 @@ const pastDueTableStyle = {
 
 const dueTodayTableStyle = {
   width: "100%",
-  minWidth: "1010px",
+  minWidth: "1130px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,

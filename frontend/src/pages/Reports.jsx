@@ -87,47 +87,69 @@ function Reports() {
 
   const getDealBalanceInfo = (deal, activePaymentList = activePayments) => {
     const dealPayments = activePaymentList.filter(
-      (payment) => payment.deal_id === deal.id
+      (payment) => String(payment.deal_id) === String(deal.id)
     );
 
-    const totalPaid = dealPayments.reduce(
+    const totalApplied = dealPayments.reduce(
       (sum, payment) => sum + Number(payment.amount_paid || 0),
       0
     );
 
+    const cashCollected = dealPayments.reduce(
+      (sum, payment) => sum + getPaymentCashAmount(payment),
+      0
+    );
+
+    const creditApplied = dealPayments.reduce(
+      (sum, payment) => sum + getPaymentCreditAmount(payment),
+      0
+    );
+
     const totalAmount = Number(deal.total_amount || 0);
-    const balance = Math.max(totalAmount - totalPaid, 0);
+    const balance = Math.max(totalAmount - totalApplied, 0);
 
     return {
       dealPayments,
       totalAmount,
-      totalPaid,
+      totalPaid: totalApplied,
+      totalApplied,
+      cashCollected,
+      creditApplied,
       balance,
     };
   };
 
   const dealBalanceSummary = deals.reduce(
     (summary, deal) => {
-      const { totalAmount, totalPaid, balance } = getDealBalanceInfo(
-        deal,
-        activePayments
-      );
+      const {
+        totalAmount,
+        totalApplied,
+        cashCollected,
+        creditApplied,
+        balance,
+      } = getDealBalanceInfo(deal, activePayments);
 
       return {
         totalReceivable: summary.totalReceivable + totalAmount,
-        totalCollected: summary.totalCollected + totalPaid,
+        totalCollected: summary.totalCollected + cashCollected,
+        totalCreditsApplied: summary.totalCreditsApplied + creditApplied,
+        totalAppliedToBalance: summary.totalAppliedToBalance + totalApplied,
         totalBalance: summary.totalBalance + balance,
       };
     },
     {
       totalReceivable: 0,
       totalCollected: 0,
+      totalCreditsApplied: 0,
+      totalAppliedToBalance: 0,
       totalBalance: 0,
     }
   );
 
   const totalReceivable = dealBalanceSummary.totalReceivable;
   const totalCollected = dealBalanceSummary.totalCollected;
+  const totalCreditsApplied = dealBalanceSummary.totalCreditsApplied;
+  const totalAppliedToBalance = dealBalanceSummary.totalAppliedToBalance;
   const totalBalance = dealBalanceSummary.totalBalance;
 
   const maintenanceTotalAmount = enrichedMaintenanceJobs.reduce(
@@ -147,10 +169,19 @@ function Reports() {
 
   const grandOpenBalance = totalBalance + maintenanceOpenBalance;
   const grandCollected = totalCollected + maintenanceTotalPaid;
+  const grandAppliedToBalance = totalAppliedToBalance + maintenanceTotalPaid;
 
   const activeDeals = deals.filter((deal) => deal.status === "Active");
   const paidOffDeals = deals.filter((deal) => deal.status === "Paid Off");
   const defaultedDeals = deals.filter((deal) => deal.status === "Defaulted");
+
+  const monthlyDealCount = deals.filter(
+    (deal) => getPaymentFrequency(deal) === "Monthly"
+  ).length;
+
+  const biweeklyDealCount = deals.filter(
+    (deal) => getPaymentFrequency(deal) === "Biweekly"
+  ).length;
 
   const pastDueScheduled = getPastDueScheduledPayments(
     deals,
@@ -286,8 +317,15 @@ function Reports() {
       setError("");
 
       const rows = deals.map((deal) => {
-        const { dealPayments, totalAmount, totalPaid, balance } =
-          getDealBalanceInfo(deal);
+        const {
+          dealPayments,
+          totalAmount,
+          totalPaid,
+          totalApplied,
+          cashCollected,
+          creditApplied,
+          balance,
+        } = getDealBalanceInfo(deal);
 
         const dealPromises = promises.filter(
           (promise) => promise.deal_id === deal.id
@@ -346,8 +384,11 @@ function Reports() {
           Year: deal.year || "",
           Truck: deal.truck || "",
           VIN: deal.vin || "",
+          Payment_Frequency: getPaymentFrequencyLabel(getPaymentFrequency(deal)),
           Start_Date: deal.start_date || "",
+          First_Payment_Date: deal.first_payment_date || "",
           Due_Day: deal.due_day || "",
+          Payment_Amount: deal.monthly_payment || 0,
           Monthly_Payment: deal.monthly_payment || 0,
           Term: deal.term || "",
           Maturity_Date: deal.maturity_date || "",
@@ -356,6 +397,9 @@ function Reports() {
           Referral_Money_Paid: deal.referral_money_paid ? "Yes" : "No",
           Referral_Amount_Paid: deal.referral_amount_paid || 0,
           Total_Amount: totalAmount,
+          Cash_Collected: cashCollected,
+          Referral_Credit_Applied: creditApplied,
+          Total_Applied_To_Balance: totalApplied,
           Total_Paid: totalPaid,
           Balance: balance,
           Last_Payment_Date: lastPayment?.payment_date || "",
@@ -390,6 +434,9 @@ function Reports() {
         Company: item.deal?.customers?.company_name || "",
         Phone: item.deal?.customers?.phone || "",
         Deal_Type: item.deal?.deal_type || "",
+        Payment_Frequency: getPaymentFrequencyLabel(
+          item.paymentFrequency || getPaymentFrequency(item.deal)
+        ),
         Truck: `${item.deal?.year || ""} ${item.deal?.truck || ""}`,
         Due_Date: item.dueDate || "",
         Installment: item.installmentNumber || "",
@@ -397,7 +444,7 @@ function Reports() {
         Paid: item.paidForDueDate || 0,
         Remaining: item.remainingForDueDate || 0,
         Status: item.status || "",
-        Days_Past_Due: item.daysPastDue || "",
+        Days_Past_Due: getScheduledDaysPastDue(item),
       }));
 
       exportToCsv(`rk-paytrack-past-due-scheduled-${today}.csv`, rows);
@@ -420,8 +467,12 @@ function Reports() {
         Company: item.deal?.customers?.company_name || "",
         Phone: item.deal?.customers?.phone || "",
         Type: item.deal?.deal_type || "",
+        Payment_Frequency: getPaymentFrequencyLabel(
+          item.paymentFrequency || getPaymentFrequency(item.deal)
+        ),
         Truck: `${item.deal?.year || ""} ${item.deal?.truck || ""}`,
         Due_Date: item.dueDate || "",
+        Installment: item.installmentNumber || "",
         Amount_Due: item.amountDue || 0,
         Paid: item.paidForDueDate || 0,
         Remaining: item.remainingForDueDate || 0,
@@ -510,8 +561,15 @@ function Reports() {
       const rows = deals
         .filter((deal) => deal.status === "Paid Off")
         .map((deal) => {
-          const { dealPayments, totalAmount, totalPaid, balance } =
-            getDealBalanceInfo(deal);
+          const {
+            dealPayments,
+            totalAmount,
+            totalPaid,
+            totalApplied,
+            cashCollected,
+            creditApplied,
+            balance,
+          } = getDealBalanceInfo(deal);
 
           const sortedPayments = [...dealPayments].sort((a, b) =>
             String(b.payment_date || "").localeCompare(
@@ -527,13 +585,21 @@ function Reports() {
             Company: deal.customers?.company_name || "",
             Phone: deal.customers?.phone || "",
             Deal_Type: deal.deal_type || "",
+            Payment_Frequency: getPaymentFrequencyLabel(getPaymentFrequency(deal)),
+            Payment_Amount: deal.monthly_payment || 0,
+            First_Payment_Date: deal.first_payment_date || "",
+            Due_Day: deal.due_day || "",
             Truck: `${deal.year || ""} ${deal.truck || ""}`,
             VIN: deal.vin || "",
             Total_Amount: totalAmount,
+            Cash_Collected: cashCollected,
+            Referral_Credit_Applied: creditApplied,
+            Total_Applied_To_Balance: totalApplied,
             Total_Paid: totalPaid,
             Balance: balance,
             Last_Payment_Date: lastPayment?.payment_date || "",
             Last_Payment_Amount: lastPayment?.amount_paid || "",
+            Last_Payment_Method: lastPayment?.payment_method || "",
             Maturity_Date: deal.maturity_date || "",
             Referred_By_Name: deal.referred_by_name || "",
             Referred_By_Phone: deal.referred_by_phone || "",
@@ -559,7 +625,14 @@ function Reports() {
       const rows = deals
         .filter((deal) => deal.status === "Defaulted")
         .map((deal) => {
-          const { totalAmount, totalPaid, balance } = getDealBalanceInfo(deal);
+          const {
+            totalAmount,
+            totalPaid,
+            totalApplied,
+            cashCollected,
+            creditApplied,
+            balance,
+          } = getDealBalanceInfo(deal);
 
           return {
             Deal_Tag: deal.deal_tag || "",
@@ -567,13 +640,19 @@ function Reports() {
             Company: deal.customers?.company_name || "",
             Phone: deal.customers?.phone || "",
             Deal_Type: deal.deal_type || "",
+            Payment_Frequency: getPaymentFrequencyLabel(getPaymentFrequency(deal)),
             Truck: `${deal.year || ""} ${deal.truck || ""}`,
             VIN: deal.vin || "",
             Total_Amount: totalAmount,
+            Cash_Collected: cashCollected,
+            Referral_Credit_Applied: creditApplied,
+            Total_Applied_To_Balance: totalApplied,
             Total_Paid: totalPaid,
             Balance: balance,
+            Payment_Amount: deal.monthly_payment || 0,
             Monthly_Payment: deal.monthly_payment || 0,
             Start_Date: deal.start_date || "",
+            First_Payment_Date: deal.first_payment_date || "",
             Due_Day: deal.due_day || "",
             Term: deal.term || "",
             Maturity_Date: deal.maturity_date || "",
@@ -601,7 +680,14 @@ function Reports() {
       const rows = deals
         .filter((deal) => deal.deal_type === "Registration Money")
         .map((deal) => {
-          const { totalAmount, totalPaid, balance } = getDealBalanceInfo(deal);
+          const {
+            totalAmount,
+            totalPaid,
+            totalApplied,
+            cashCollected,
+            creditApplied,
+            balance,
+          } = getDealBalanceInfo(deal);
 
           return {
             Deal_Tag: deal.deal_tag || "",
@@ -613,6 +699,9 @@ function Reports() {
             VIN: deal.vin || "",
             Tentative_Due_Date: deal.start_date || "",
             Amount: totalAmount,
+            Cash_Collected: cashCollected,
+            Referral_Credit_Applied: creditApplied,
+            Total_Applied_To_Balance: totalApplied,
             Paid: totalPaid,
             Balance: balance,
             Notes: deal.notes || "",
@@ -645,10 +734,15 @@ function Reports() {
           Phone: payment.deals?.customers?.phone || "",
           Truck: `${payment.deals?.year || ""} ${payment.deals?.truck || ""}`,
           Amount_Due: payment.amount_due || 0,
-          Amount_Paid: payment.amount_paid || 0,
+          Amount_Applied_To_Balance: payment.amount_paid || 0,
+          Cash_Collected: getPaymentCashAmount(payment),
+          Referral_Credit_Applied: getPaymentCreditAmount(payment),
           Remaining: payment.remaining_amount || 0,
           Method: payment.payment_method || "",
           Type: payment.payment_type || "",
+          Payment_Frequency: getPaymentFrequencyLabel(
+            getPaymentFrequency(payment.deals)
+          ),
           Due_Date: payment.due_date || "",
           Notes: payment.notes || "",
         }));
@@ -666,7 +760,9 @@ function Reports() {
           Phone: payment.job?.phone || "",
           Truck: `${payment.job?.year || ""} ${payment.job?.truck || ""}`,
           Amount_Due: payment.job?.totals?.totalAmount || 0,
-          Amount_Paid: payment.amount_paid || 0,
+          Amount_Applied_To_Balance: payment.amount_paid || 0,
+          Cash_Collected: payment.amount_paid || 0,
+          Referral_Credit_Applied: 0,
           Remaining: "",
           Method: payment.payment_method || "",
           Type: payment.payment_status || "",
@@ -788,7 +884,7 @@ function Reports() {
       category: "Deals",
       title: "Full Deals Report",
       description:
-        "All deals with customer info, maturity date, total paid, balance, payment history, promise history, and notes.",
+        "All deals with customer info, maturity date, cash collected, referral credits, total applied, balance, payment history, promise history, and notes.",
       buttonText: "Export Full Deals",
       loadingKey: "Full Deals Report",
       onClick: exportFullDealsReport,
@@ -862,7 +958,7 @@ function Reports() {
       category: "Collections",
       title: "Monthly Collection",
       description:
-        "All deal and maintenance payments collected in the selected month with method, date, customer, and notes.",
+        "All deal and maintenance payments collected in the selected month with method, date, customer, cash collected, referral credit, and notes.",
       buttonText: `Export ${reportMonth}`,
       loadingKey: "Monthly Collection",
       onClick: exportMonthlyCollectionReport,
@@ -878,7 +974,7 @@ function Reports() {
       category: "Collections",
       title: "Daily Collection Summary",
       description:
-        "Daily summary of deal payments, maintenance payments, and total collected for the selected month.",
+        "Daily summary of deal cash, referral credits, maintenance payments, and total cash collected for the selected month.",
       buttonText: "Export Daily Summary",
       loadingKey: "Daily Collection Summary",
       onClick: exportCollectionSummaryByDayReport,
@@ -888,7 +984,7 @@ function Reports() {
       category: "Deals",
       title: "Paid Off Deals",
       description:
-        "Deals marked Paid Off with total paid, final balance, and last payment information.",
+        "Deals marked Paid Off with cash collected, referral credits, total applied, final balance, and last payment information.",
       buttonText: "Export Paid Off",
       loadingKey: "Paid Off Deals",
       onClick: exportPaidOffDealsReport,
@@ -908,7 +1004,7 @@ function Reports() {
       category: "Deals",
       title: "Registration Money",
       description:
-        "Registration money deals with tentative due date, amount, paid amount, balance, and notes.",
+        "Registration money deals with tentative due date, amount, cash collected, referral credits, balance, and notes.",
       buttonText: "Export Registration",
       loadingKey: "Registration Money",
       onClick: exportRegistrationMoneyReport,
@@ -953,8 +1049,8 @@ function Reports() {
           <h1 style={pageTitle}>Reports</h1>
           <p style={pageDescription}>
             Review collections, open balances, past due accounts, promises,
-            maintenance invoices, and export reports for management and
-            accounting.
+            maintenance invoices, referral credits, and export reports for
+            management and accounting.
           </p>
 
           {lastRefreshedAt && (
@@ -982,48 +1078,78 @@ function Reports() {
           title="Total Receivable"
           value={formatMoney(totalReceivable)}
         />
+
         <SummaryCard
-          title="Deal Collected"
+          title="Deal Cash Collected"
           value={formatMoney(totalCollected)}
           tone="success"
         />
+
+        <SummaryCard
+          title="Referral Credits Applied"
+          value={formatMoney(totalCreditsApplied)}
+          tone="info"
+        />
+
+        <SummaryCard
+          title="Applied to Deal Balances"
+          value={formatMoney(totalAppliedToBalance)}
+          tone="warning"
+        />
+
         <SummaryCard
           title="Deal Open Balance"
           value={formatMoney(totalBalance)}
           tone="danger"
         />
+
         <SummaryCard
           title="Maintenance Balance"
           value={formatMoney(maintenanceOpenBalance)}
           tone="warning"
         />
+
         <SummaryCard
           title="Grand Open Balance"
           value={formatMoney(grandOpenBalance)}
           tone="danger"
         />
+
         <SummaryCard
-          title="Grand Collected"
+          title="Grand Cash Collected"
           value={formatMoney(grandCollected)}
           tone="success"
         />
+
+        <SummaryCard
+          title="Grand Applied to Balances"
+          value={formatMoney(grandAppliedToBalance)}
+          tone="info"
+        />
+
         <SummaryCard title="Active Deals" value={activeDeals.length} />
+        <SummaryCard title="Monthly Deals" value={monthlyDealCount} tone="info" />
+        <SummaryCard title="Biweekly Deals" value={biweeklyDealCount} tone="warning" />
         <SummaryCard title="Paid Off" value={paidOffDeals.length} tone="success" />
+
         <SummaryCard
           title="Due Today"
           value={dueToday.length + maintenanceDueToday.length}
           tone="warning"
         />
+
         <SummaryCard
           title="Past Due"
           value={pastDueScheduled.length + maintenancePastDue.length}
           tone="danger"
         />
+
         <SummaryCard
           title="Broken Promises"
           value={brokenPromises.length + maintenanceBrokenPromises.length}
           tone="danger"
         />
+
         <SummaryCard title="Defaulted" value={defaultedDeals.length} tone="dark" />
       </div>
 
@@ -1083,7 +1209,7 @@ function Reports() {
       </div>
 
       <div style={chartGrid}>
-        <ChartCard title="Monthly Collection - Last 6 Months">
+        <ChartCard title="Monthly Cash Collection - Last 6 Months">
           <BarChart
             data={monthlyCollectionData}
             labelKey="month"
@@ -1144,7 +1270,7 @@ function Reports() {
             <h2 style={sectionTitle}>Export Reports</h2>
             <p style={sectionDescription}>
               Export reports for management review, collections, accounting,
-              maintenance billing, and customer follow-up.
+              maintenance billing, referral credits, and customer follow-up.
             </p>
           </div>
         </div>
@@ -1410,6 +1536,7 @@ function getMonthlyCollectionData(dealPayments, maintenancePayments) {
       month: label,
       dealAmount: 0,
       maintenanceAmount: 0,
+      creditAmount: 0,
       total: 0,
     });
   }
@@ -1419,8 +1546,12 @@ function getMonthlyCollectionData(dealPayments, maintenancePayments) {
     const monthItem = months.find((item) => item.key === paymentMonth);
 
     if (monthItem) {
-      monthItem.dealAmount += Number(payment.amount_paid || 0);
-      monthItem.total += Number(payment.amount_paid || 0);
+      const cashAmount = getPaymentCashAmount(payment);
+      const creditAmount = getPaymentCreditAmount(payment);
+
+      monthItem.dealAmount += cashAmount;
+      monthItem.creditAmount += creditAmount;
+      monthItem.total += cashAmount;
     }
   });
 
@@ -1511,7 +1642,7 @@ function getAgingReportData(pastDueScheduled) {
   };
 
   pastDueScheduled.forEach((item) => {
-    const daysPastDue = Number(item.daysPastDue || 0);
+    const daysPastDue = Number(getScheduledDaysPastDue(item) || 0);
     const remaining = Number(item.remainingForDueDate || 0);
 
     if (daysPastDue >= 1 && daysPastDue <= 7) {
@@ -1529,6 +1660,25 @@ function getAgingReportData(pastDueScheduled) {
     bucket,
     amount,
   }));
+}
+
+function isCreditPayment(payment) {
+  return (
+    String(payment?.payment_method || "").trim().toLowerCase() ===
+    "referral credit"
+  );
+}
+
+function getPaymentCashAmount(payment) {
+  if (isCreditPayment(payment)) return 0;
+
+  return Number(payment?.amount_paid || 0);
+}
+
+function getPaymentCreditAmount(payment) {
+  if (!isCreditPayment(payment)) return 0;
+
+  return Number(payment?.amount_paid || 0);
 }
 
 function getPaymentMethodData(dealPayments, maintenancePayments, reportMonth) {
@@ -1566,6 +1716,27 @@ function getMaintenanceCompanyName(job) {
   return job?.company_name || job?.customers?.company_name || "";
 }
 
+function getPaymentFrequency(deal) {
+  if (deal?.deal_type === "Cash") return "Cash";
+
+  if (deal?.deal_type === "Registration Money") {
+    return "One-Time";
+  }
+
+  return deal?.payment_frequency || deal?.paymentFrequency || "Monthly";
+}
+
+function getPaymentFrequencyLabel(frequency) {
+  if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "One-Time") return "One-Time";
+  if (frequency === "Cash") return "Cash";
+  return "Monthly";
+}
+
+function getScheduledDaysPastDue(item) {
+  return item?.daysPastDue ?? item?.daysLate ?? "";
+}
+
 function buildCustomerBalanceRows(
   deals,
   activePayments,
@@ -1590,12 +1761,17 @@ function buildCustomerBalanceRows(
         Address: address || "",
         Deal_Count: 0,
         Deal_Total: 0,
+        Deal_Cash_Collected: 0,
+        Deal_Referral_Credit_Applied: 0,
+        Deal_Total_Applied_To_Balance: 0,
         Deal_Paid: 0,
         Deal_Balance: 0,
         Maintenance_Count: 0,
         Maintenance_Total: 0,
         Maintenance_Paid: 0,
         Maintenance_Balance: 0,
+        Total_Cash_Collected: 0,
+        Total_Applied_To_Balance: 0,
         Total_Balance: 0,
       });
     }
@@ -1604,10 +1780,14 @@ function buildCustomerBalanceRows(
   };
 
   deals.forEach((deal) => {
-    const { totalAmount, totalPaid, balance } = getDealBalanceInfo(
-      deal,
-      activePayments
-    );
+    const {
+      totalAmount,
+      totalPaid,
+      totalApplied,
+      cashCollected,
+      creditApplied,
+      balance,
+    } = getDealBalanceInfo(deal, activePayments);
 
     const customer = ensureCustomer({
       id: deal.customer_id || deal.customers?.id,
@@ -1620,8 +1800,13 @@ function buildCustomerBalanceRows(
 
     customer.Deal_Count += 1;
     customer.Deal_Total += totalAmount;
+    customer.Deal_Cash_Collected += cashCollected;
+    customer.Deal_Referral_Credit_Applied += creditApplied;
+    customer.Deal_Total_Applied_To_Balance += totalApplied;
     customer.Deal_Paid += totalPaid;
     customer.Deal_Balance += balance;
+    customer.Total_Cash_Collected += cashCollected;
+    customer.Total_Applied_To_Balance += totalApplied;
     customer.Total_Balance += balance;
   });
 
@@ -1639,6 +1824,8 @@ function buildCustomerBalanceRows(
     customer.Maintenance_Total += Number(job.totals.totalAmount || 0);
     customer.Maintenance_Paid += Number(job.totals.totalPaid || 0);
     customer.Maintenance_Balance += Number(job.totals.balance || 0);
+    customer.Total_Cash_Collected += Number(job.totals.totalPaid || 0);
+    customer.Total_Applied_To_Balance += Number(job.totals.totalPaid || 0);
     customer.Total_Balance += Number(job.totals.balance || 0);
   });
 
@@ -1663,11 +1850,16 @@ function buildCollectionPriorityRows({
       Company: item.deal?.customers?.company_name || "",
       Phone: item.deal?.customers?.phone || "",
       Reference: item.deal?.deal_tag || "",
+      Payment_Frequency: getPaymentFrequencyLabel(
+        item.paymentFrequency || getPaymentFrequency(item.deal)
+      ),
       Date: item.dueDate || "",
-      Days_Past_Due: item.daysPastDue || "",
+      Days_Past_Due: getScheduledDaysPastDue(item),
       Amount: item.remainingForDueDate || 0,
       Status: item.status || "",
-      Notes: "Scheduled installment is past due.",
+      Notes: `${getPaymentFrequencyLabel(
+        item.paymentFrequency || getPaymentFrequency(item.deal)
+      )} scheduled installment is past due.`,
     });
   });
 
@@ -1732,9 +1924,11 @@ function buildDailyCollectionSummaryRows(
     if (!dayMap.has(date)) {
       dayMap.set(date, {
         Payment_Date: date,
-        Deal_Collection: 0,
+        Deal_Cash_Collection: 0,
+        Referral_Credit_Applied: 0,
         Maintenance_Collection: 0,
-        Total_Collection: 0,
+        Total_Cash_Collection: 0,
+        Total_Applied_To_Balance: 0,
         Payment_Count: 0,
       });
     }
@@ -1748,8 +1942,14 @@ function buildDailyCollectionSummaryRows(
     )
     .forEach((payment) => {
       const row = ensureDay(payment.payment_date || "");
-      row.Deal_Collection += Number(payment.amount_paid || 0);
-      row.Total_Collection += Number(payment.amount_paid || 0);
+      const cashAmount = getPaymentCashAmount(payment);
+      const creditAmount = getPaymentCreditAmount(payment);
+      const appliedAmount = Number(payment.amount_paid || 0);
+
+      row.Deal_Cash_Collection += cashAmount;
+      row.Referral_Credit_Applied += creditAmount;
+      row.Total_Cash_Collection += cashAmount;
+      row.Total_Applied_To_Balance += appliedAmount;
       row.Payment_Count += 1;
     });
 
@@ -1760,7 +1960,8 @@ function buildDailyCollectionSummaryRows(
     .forEach((payment) => {
       const row = ensureDay(payment.payment_date || "");
       row.Maintenance_Collection += Number(payment.amount_paid || 0);
-      row.Total_Collection += Number(payment.amount_paid || 0);
+      row.Total_Cash_Collection += Number(payment.amount_paid || 0);
+      row.Total_Applied_To_Balance += Number(payment.amount_paid || 0);
       row.Payment_Count += 1;
     });
 
@@ -1786,6 +1987,7 @@ function getSummaryTone(tone) {
   if (tone === "dark") return { borderLeft: "5px solid #111827" };
   if (tone === "success") return { borderLeft: "5px solid #16a34a" };
   if (tone === "warning") return { borderLeft: "5px solid #f59e0b" };
+  if (tone === "info") return { borderLeft: "5px solid #2563eb" };
   return { borderLeft: "5px solid #2563eb" };
 }
 

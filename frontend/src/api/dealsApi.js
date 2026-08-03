@@ -10,7 +10,12 @@ const customerJoin = `
 `;
 
 function normalizeReferralPaid(value) {
-  return value === true || value === "true" || value === "Yes" || value === "Paid";
+  return (
+    value === true ||
+    value === "true" ||
+    value === "Yes" ||
+    value === "Paid"
+  );
 }
 
 function normalizeReferralAmount(dealData) {
@@ -19,6 +24,29 @@ function normalizeReferralAmount(dealData) {
   if (!isPaid) return 0;
 
   return Number(dealData.referralAmountPaid || 0);
+}
+
+function normalizePaymentFrequency(dealData) {
+  if (dealData.dealType === "Cash") return null;
+
+  if (dealData.dealType === "Registration Money") {
+    return "One-Time";
+  }
+
+  return dealData.paymentFrequency || dealData.payment_frequency || "Monthly";
+}
+
+function normalizeFirstPaymentDate(dealData) {
+  const paymentFrequency = normalizePaymentFrequency(dealData);
+
+  if (paymentFrequency !== "Biweekly") return null;
+
+  return (
+    dealData.firstPaymentDate ||
+    dealData.first_payment_date ||
+    dealData.startDate ||
+    null
+  );
 }
 
 export async function getDeals() {
@@ -73,7 +101,11 @@ export async function getDealByTag(dealTag) {
 
 export async function createDeal(dealData) {
   const isCashDeal = dealData.dealType === "Cash";
+  const isRegistrationMoneyDeal = dealData.dealType === "Registration Money";
+
   const referralMoneyPaid = normalizeReferralPaid(dealData.referralMoneyPaid);
+  const paymentFrequency = normalizePaymentFrequency(dealData);
+  const firstPaymentDate = normalizeFirstPaymentDate(dealData);
 
   const { data, error } = await supabase
     .from("deals")
@@ -87,14 +119,28 @@ export async function createDeal(dealData) {
 
       start_date: dealData.startDate || null,
 
+      payment_frequency: paymentFrequency,
+      first_payment_date: firstPaymentDate,
+
       truck: dealData.truck || "",
       year: dealData.year || "",
       vin: dealData.vin || "",
 
       total_amount: Number(dealData.totalAmount || 0),
-      monthly_payment: isCashDeal ? 0 : Number(dealData.monthlyPayment || 0),
+
+      monthly_payment: isCashDeal
+        ? 0
+        : isRegistrationMoneyDeal
+        ? Number(dealData.totalAmount || 0)
+        : Number(dealData.monthlyPayment || 0),
 
       due_day: isCashDeal
+        ? null
+        : isRegistrationMoneyDeal
+        ? dealData.dueDay
+          ? Number(dealData.dueDay)
+          : null
+        : paymentFrequency === "Biweekly"
         ? null
         : dealData.dueDay
         ? Number(dealData.dueDay)
@@ -127,7 +173,11 @@ export async function createDeal(dealData) {
 
 export async function updateDeal(dealId, dealData) {
   const isCashDeal = dealData.dealType === "Cash";
+  const isRegistrationMoneyDeal = dealData.dealType === "Registration Money";
+
   const referralMoneyPaid = normalizeReferralPaid(dealData.referralMoneyPaid);
+  const paymentFrequency = normalizePaymentFrequency(dealData);
+  const firstPaymentDate = normalizeFirstPaymentDate(dealData);
 
   const { data, error } = await supabase
     .from("deals")
@@ -140,14 +190,28 @@ export async function updateDeal(dealId, dealData) {
 
       start_date: dealData.startDate || null,
 
+      payment_frequency: paymentFrequency,
+      first_payment_date: firstPaymentDate,
+
       truck: dealData.truck || "",
       year: dealData.year || "",
       vin: dealData.vin || "",
 
       total_amount: Number(dealData.totalAmount || 0),
-      monthly_payment: isCashDeal ? 0 : Number(dealData.monthlyPayment || 0),
+
+      monthly_payment: isCashDeal
+        ? 0
+        : isRegistrationMoneyDeal
+        ? Number(dealData.totalAmount || 0)
+        : Number(dealData.monthlyPayment || 0),
 
       due_day: isCashDeal
+        ? null
+        : isRegistrationMoneyDeal
+        ? dealData.dueDay
+          ? Number(dealData.dueDay)
+          : null
+        : paymentFrequency === "Biweekly"
         ? null
         : dealData.dueDay
         ? Number(dealData.dueDay)

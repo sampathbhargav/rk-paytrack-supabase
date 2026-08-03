@@ -77,15 +77,17 @@ function LegalPolicies() {
           <p style={isMobile ? mobilePageDescription : pageDescription}>
             Review internal software-use rules, customer privacy expectations,
             terms, security responsibilities, compliance reminders, trademark
-            checks, and payment-record policies.
+            checks, payment-record policies, referral credits, and reporting
+            controls.
           </p>
 
           <div style={isMobile ? mobileHeroPills : heroPills}>
             <span style={heroPill}>Acceptable Use</span>
             <span style={heroPill}>Privacy</span>
-            <span style={heroPill}>Terms</span>
+            <span style={heroPill}>Payments</span>
+            <span style={heroPill}>Referral Credits</span>
+            <span style={heroPill}>Reports</span>
             <span style={heroPill}>Compliance</span>
-            <span style={heroPill}>Trademark</span>
           </div>
         </div>
 
@@ -120,19 +122,19 @@ function LegalPolicies() {
         <QuickPolicyCard
           icon="🔒"
           title="Privacy"
-          text="Customer, payment, balance, and report information must be protected."
+          text="Customer, payment, balance, referral, and report information must be protected."
         />
 
         <QuickPolicyCard
-          icon="📄"
-          title="Terms"
-          text="Terms define user responsibilities, prohibited conduct, and limitations."
+          icon="💵"
+          title="Payment Records"
+          text="Payments, referral credits, overpayments, and voids must be entered accurately."
         />
 
         <QuickPolicyCard
-          icon="™️"
-          title="Trademark"
-          text="Search USPTO before treating RK PayTrack as a final product brand."
+          icon="📊"
+          title="Reports"
+          text="Reports should separate real cash collected from referral credits applied."
         />
       </div>
 
@@ -335,15 +337,16 @@ const policies = [
       {
         heading: "Purpose",
         text:
-          "This Acceptable Use Policy protects RK PayTrack, company records, customer information, payment data, maintenance invoices, reports, and dealership operations by setting clear rules for approved system use.",
+          "This Acceptable Use Policy protects RK PayTrack, company records, customer information, payment data, maintenance invoices, reports, referral information, and dealership operations by setting clear rules for approved system use.",
       },
       {
         heading: "Authorized Business Use Only",
         text:
           "RK PayTrack may be used only by approved users for legitimate dealership business purposes.",
         items: [
-          "View customer, deal, payment, promise, maintenance, and report information only for approved business needs.",
+          "View customer, company, deal, payment, promise, maintenance, and report information only for approved business needs.",
           "Record payments only when money has actually been received and verified.",
+          "Record Referral Credit only when management approves that a referral bonus may be applied to a customer balance.",
           "Create promises only when the customer gives a clear future payment date or follow-up commitment.",
           "Use reports only for accounting, management, reconciliation, collections, or authorized review.",
           "Print receipts, invoices, and customer summaries only for business purposes.",
@@ -357,6 +360,8 @@ const policies = [
           "Do not share passwords, login sessions, or system access with anyone.",
           "Do not use another employee's account.",
           "Do not enter false, estimated, fake, backdated, or misleading payments.",
+          "Do not record more than the customer's remaining open balance as a normal payment.",
+          "Do not count Referral Credit as cash collected.",
           "Do not change balances, promises, due dates, invoices, notes, or customer records without authorization.",
           "Do not export reports for personal use or send them to unauthorized people.",
           "Do not copy, resell, reverse engineer, modify, or redistribute the software without written approval.",
@@ -369,7 +374,10 @@ const policies = [
         text:
           "Users are responsible for reviewing information before saving records or taking business action.",
         items: [
-          "Verify customer name, phone number, deal tag, invoice number, payment amount, payment date, and payment method before saving.",
+          "Verify customer name, phone number, company name, deal tag, invoice number, payment amount, payment date, and payment method before saving.",
+          "Review the total remaining balance before accepting or recording a payment.",
+          "Review monthly, biweekly, and one-time schedules before saving deals or payments.",
+          "Use the Schedule Math Check warning to identify possible incorrect payment amounts or terms.",
           "Review balances and reports before relying on them for collection, accounting, or management decisions.",
           "Use notes honestly and professionally.",
           "Use customer follow-up notes professionally and do not enter false, misleading, disrespectful, or unnecessary notes.",
@@ -444,9 +452,11 @@ const policies = [
         items: [
           "Customer name, company name, phone number, email, address, and contact notes.",
           "Edited customer contact information, including customer name, company name, phone, email, and address changes.",
-          "Deal tag, truck details, year, VIN, deal type, sale amount, due dates, maturity date, and balance.",
-          "Referral information such as referred by name, referred by phone, referral paid status, and referral amount paid.",
+          "Deal tag, truck details, year, VIN, deal type, sale amount, due dates, maturity date, payment frequency, first payment date, and balance.",
+          "Monthly payment, biweekly payment, one-time payment, term, due day, and schedule information.",
+          "Referral information such as referred by name, referred by phone, referral paid status, referral amount paid, and referral credit applied to balances.",
           "Payment date, payment method, amount paid, amount due, remaining amount, notes, and receipt details.",
+          "Payment methods including Cash, Zelle, Cash App, Apple Pay, Card, Check, ACH, Referral Credit, and Other.",
           "Maintenance invoice information, labor amount, parts amount, tax, discounts, technician, work status, payment status, and balance.",
           "Promises, follow-up notes, collection notes, broken promises, disputes, next follow-up dates, and customer communication history.",
           "User account information such as email address, login/session data, activity logs, report exports, and record-change history.",
@@ -457,7 +467,8 @@ const policies = [
         text:
           "Information should be used only for legitimate dealership business purposes.",
         items: [
-          "Track customer balances, payments, promises, due dates, and maintenance invoices.",
+          "Track customer balances, payments, promises, due dates, payment schedules, and maintenance invoices.",
+          "Separate actual cash collected from Referral Credit applied.",
           "Print receipts, invoices, customer statements, and account summaries.",
           "Perform accounting, reconciliation, reporting, management review, collections, and customer service.",
           "Investigate errors, void payments, correct records, monitor activity, and improve internal controls.",
@@ -528,6 +539,8 @@ const policies = [
         items: [
           "Confirm customer identity before discussing account information.",
           "Verify amounts and payment methods before saving payments.",
+          "Confirm total remaining balance before recording payment.",
+          "Use Referral Credit only when the credit is approved and documented.",
           "Use voiding procedures instead of deleting incorrect financial records.",
           "Review reports before using them for decisions.",
           "Do not misuse the system, data, exports, receipts, or customer information.",
@@ -541,6 +554,8 @@ const policies = [
           "No unauthorized copying, distribution, resale, or sublicensing.",
           "No malicious use, tampering, hacking, scraping, automated abuse, or bypassing controls.",
           "No false entries, misleading notes, unauthorized edits, or fraudulent records.",
+          "No recording overpayments beyond the remaining balance as normal payments.",
+          "No counting referral credits as real cash collection.",
           "No use of the app for unlawful, abusive, discriminatory, harassing, or unauthorized purposes.",
         ],
       },
@@ -572,7 +587,7 @@ const policies = [
       {
         heading: "No Guarantee of Error-Free Records",
         text:
-          "The software may calculate, display, or organize information based on data entered by users. Incorrect user input, missing records, duplicate entries, incorrect dates, incorrect payment methods, or changed business rules can affect results.",
+          "The software may calculate, display, or organize information based on data entered by users. Incorrect user input, missing records, duplicate entries, incorrect dates, incorrect payment methods, incorrect referral credits, incorrect payment schedules, or changed business rules can affect results.",
         items: [
           "Users must verify records before relying on balances, reports, receipts, statements, or due schedules.",
           "Management should review reports before accounting, legal, collection, tax, or customer-facing use.",
@@ -619,6 +634,9 @@ const policies = [
           "Data-entry mistakes by users.",
           "Unauthorized user actions.",
           "Incorrect payment records entered by users.",
+          "Incorrect payment method selection.",
+          "Incorrect Referral Credit entry.",
+          "Incorrect monthly or biweekly schedule setup.",
           "Customer disputes caused by inaccurate or incomplete business records.",
           "Failure to verify reports before business use.",
         ],
@@ -632,6 +650,230 @@ const policies = [
         heading: "User Misuse",
         text:
           "Users and the company are responsible for consequences caused by misuse, unauthorized exports, false entries, sharing passwords, ignoring warnings, bypassing controls, or using the software for improper purposes.",
+      },
+    ],
+  },
+  {
+    id: "paymentRecords",
+    title: "Payment Records Policy",
+    icon: "💵",
+    category: "Payments",
+    purpose:
+      "Defines expectations for entering, reviewing, voiding, and protecting payment records.",
+    sections: [
+      {
+        heading: "Payment Accuracy",
+        text:
+          "Users must verify the customer, deal tag or invoice number, payment amount, payment date, due date, remaining balance, and payment method before saving any payment.",
+      },
+      {
+        heading: "Approved Payment Methods",
+        text:
+          "Users must select the correct payment method so reports and receipts remain accurate.",
+        items: [
+          "Cash.",
+          "Zelle.",
+          "Cash App.",
+          "Apple Pay.",
+          "Card.",
+          "Check.",
+          "ACH.",
+          "Referral Credit.",
+          "Other.",
+        ],
+      },
+      {
+        heading: "Deal Payments",
+        text:
+          "Deal payments should be recorded only under the correct customer deal and correct due installment.",
+        items: [
+          "Select the correct customer deal.",
+          "Review the total remaining balance before accepting or saving the payment.",
+          "Select the correct due installment.",
+          "Enter only the actual amount received or approved credit applied.",
+          "Use the correct payment method.",
+          "If a customer pays more than the selected installment, verify that the extra payment is correctly applied toward the next unpaid installment.",
+          "If no future installment or open balance remains, do not record the excess amount as a normal payment.",
+          "Add clear notes for special situations, partial payments, extra payments, Referral Credit, or customer promises.",
+        ],
+      },
+      {
+        heading: "Referral Credit",
+        text:
+          "Referral Credit may be used when a customer earned a referral bonus and management approves applying that bonus toward the customer's own balance.",
+        items: [
+          "Use Payment Method: Referral Credit.",
+          "Enter only the approved referral credit amount.",
+          "Add notes explaining who was referred and why the credit was applied.",
+          "Referral Credit should reduce the customer balance.",
+          "Referral Credit should not be counted as real cash collected.",
+        ],
+      },
+      {
+        heading: "Overpayment Handling",
+        text:
+          "Users must not allow a deal balance to go below zero through a normal payment entry.",
+        items: [
+          "If the customer owes $5,000 and tries to pay $5,500, record only $5,000 unless management creates a separate refund or unapplied-credit process.",
+          "If the customer owes $500 on the last installment and gives $600, record only $500 as the deal payment.",
+          "The extra amount should be refunded, returned, or handled outside the normal payment record according to management instructions.",
+          "Do not create fake future installments just to absorb an overpayment.",
+        ],
+      },
+      {
+        heading: "Maintenance Payments",
+        text:
+          "Maintenance payments should be recorded only under the correct maintenance invoice.",
+        items: [
+          "Verify the invoice number.",
+          "Verify the customer name and work title.",
+          "Confirm the open maintenance balance.",
+          "Record the actual amount received.",
+          "Print or save the maintenance receipt if requested.",
+        ],
+      },
+      {
+        heading: "No Estimated Payments",
+        text:
+          "Users must not enter estimated, expected, future, fake, or unverified payments. Only actual received and verified payments or approved credits should be recorded.",
+      },
+    ],
+  },
+  {
+    id: "dealSchedulePolicy",
+    title: "Deal Schedule Policy",
+    icon: "📅",
+    category: "Payments",
+    purpose:
+      "Defines expectations for monthly, biweekly, one-time, and cash deal schedules.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Deal schedules help calculate due dates, installment balances, payment allocations, past-due accounts, and reports.",
+      },
+      {
+        heading: "Schedule Types",
+        text:
+          "Users must choose the correct schedule type when creating or editing a deal.",
+        items: [
+          "Monthly: one installment is created each month based on start date, due day, term, and payment amount.",
+          "Biweekly: one installment is created every 14 days based on first payment date, term, and payment amount.",
+          "One-Time: Registration Money is treated as a one-time scheduled receivable.",
+          "Cash: no payment schedule is required.",
+        ],
+      },
+      {
+        heading: "Schedule Math Check",
+        text:
+          "Users should review the Schedule Math Check before saving a deal. This check compares total amount, payment amount, term, scheduled total, and difference.",
+        items: [
+          "If the scheduled total matches the total amount, the schedule is likely correct.",
+          "If the scheduled total is higher or lower than the total amount, users must review payment amount and term.",
+          "Warnings should be ignored only when management confirms the difference is intentional.",
+        ],
+      },
+      {
+        heading: "Biweekly Schedule Rule",
+        text:
+          "For biweekly deals, users must confirm the first payment date because future due dates are calculated every 14 days from that date.",
+      },
+      {
+        heading: "User Responsibility",
+        text:
+          "Users are responsible for reviewing schedule details before saving a deal because incorrect schedules may affect balances, due reports, receipts, customer communications, and collections.",
+      },
+    ],
+  },
+  {
+    id: "voidPayment",
+    title: "Voiding a Payment",
+    icon: "🚫",
+    category: "Payments",
+    purpose:
+      "Explains when voiding should be used instead of deleting payment records.",
+    sections: [
+      {
+        heading: "When to Void",
+        text:
+          "Void a payment only when it was entered incorrectly, duplicated, or needs to be excluded from balance calculations.",
+      },
+      {
+        heading: "Why Void Instead of Delete?",
+        text:
+          "Voiding keeps a record that the payment existed while excluding it from totals. This helps maintain audit history and protects the business from unexplained missing payment records.",
+      },
+      {
+        heading: "Void Reason",
+        text:
+          "Users should enter a clear void reason so management can understand why the payment was voided.",
+        items: [
+          "Wrong customer selected.",
+          "Wrong amount entered.",
+          "Duplicate payment entry.",
+          "Wrong payment method.",
+          "Wrong due date or invoice.",
+          "Payment was not actually received.",
+          "Referral Credit was entered incorrectly.",
+        ],
+      },
+      {
+        heading: "Effect of Voiding",
+        text:
+          "Voided payments should not count toward total paid, cash collected, referral credits applied, balance reduction, due schedule status, or reports.",
+      },
+      {
+        heading: "Approval",
+        text:
+          "Management may require approval before voiding high-value payments, old payments, or payments that affect customer disputes.",
+      },
+    ],
+  },
+  {
+    id: "reportExportPolicy",
+    title: "Report Export Policy",
+    icon: "📊",
+    category: "Reports",
+    purpose:
+      "Defines safe use of exported reports and customer financial information.",
+    sections: [
+      {
+        heading: "Exported Data",
+        text:
+          "Reports may include customer names, company names, phone numbers, referral information, follow-up notes, deal balances, payment history, promises, maintenance balances, activity details, notes, and other sensitive business information.",
+      },
+      {
+        heading: "Cash Collected vs Credit Applied",
+        text:
+          "Reports should separate actual cash collected from credits applied to customer balances.",
+        items: [
+          "Cash, Zelle, Cash App, Apple Pay, Card, Check, ACH, and similar methods may count as cash collected when actually received.",
+          "Referral Credit should reduce the customer balance but should not count as cash collected.",
+          "Total Applied to Balance may include both real payments and approved credits.",
+          "Management should review reporting totals before using them for accounting or tax purposes.",
+        ],
+      },
+      {
+        heading: "Payment Method Breakdown",
+        text:
+          "Payment Method Breakdown reports should be reviewed using the correct selected report month. If a month has no payments, the chart may show no data available.",
+      },
+      {
+        heading: "Approved Use",
+        text:
+          "Reports should be exported only for management review, accounting, reconciliation, collections, authorized business needs, or backup purposes.",
+      },
+      {
+        heading: "Sharing Restrictions",
+        text:
+          "Users must not share exported reports with unauthorized people or store them in unsafe locations.",
+        items: [
+          "Do not send reports to personal email accounts.",
+          "Do not upload reports to unapproved websites.",
+          "Do not leave reports on shared computers.",
+          "Do not print reports unnecessarily.",
+          "Delete old exports when they are no longer needed.",
+        ],
       },
     ],
   },
@@ -781,89 +1023,6 @@ const policies = [
     ],
   },
   {
-    id: "paymentRecords",
-    title: "Payment Records Policy",
-    icon: "💵",
-    category: "Payments",
-    purpose:
-      "Defines expectations for entering, reviewing, voiding, and protecting payment records.",
-    sections: [
-      {
-        heading: "Payment Accuracy",
-        text:
-          "Users must verify the customer, deal tag or invoice number, payment amount, payment date, due date, and payment method before saving any payment.",
-      },
-      {
-        heading: "Deal Payments",
-        text:
-          "Deal payments should be recorded only under the correct customer deal and correct due installment.",
-        items: [
-          "Select the correct customer deal.",
-          "Select the correct due installment.",
-          "Enter only the actual amount received.",
-          "Use the correct payment method.",
-          "If a customer pays more than the selected installment, verify that the extra payment is correctly applied toward the next unpaid installment.",
-          "Add clear notes for special situations, partial payments, extra payments, or customer promises.",
-        ],
-      },
-      {
-        heading: "Maintenance Payments",
-        text:
-          "Maintenance payments should be recorded only under the correct maintenance invoice.",
-        items: [
-          "Verify the invoice number.",
-          "Verify the customer name and work title.",
-          "Confirm the open maintenance balance.",
-          "Record the actual amount received.",
-          "Print or save the maintenance receipt if requested.",
-        ],
-      },
-      {
-        heading: "No Estimated Payments",
-        text:
-          "Users must not enter estimated, expected, future, fake, or unverified payments. Only actual received and verified payments should be recorded.",
-      },
-    ],
-  },
-  {
-    id: "voidPayment",
-    title: "Voiding a Payment",
-    icon: "🚫",
-    category: "Payments",
-    purpose:
-      "Explains when voiding should be used instead of deleting payment records.",
-    sections: [
-      {
-        heading: "When to Void",
-        text:
-          "Void a payment only when it was entered incorrectly, duplicated, or needs to be excluded from balance calculations.",
-      },
-      {
-        heading: "Why Void Instead of Delete?",
-        text:
-          "Voiding keeps a record that the payment existed while excluding it from totals. This helps maintain audit history and protects the business from unexplained missing payment records.",
-      },
-      {
-        heading: "Void Reason",
-        text:
-          "Users should enter a clear void reason so management can understand why the payment was voided.",
-        items: [
-          "Wrong customer selected.",
-          "Wrong amount entered.",
-          "Duplicate payment entry.",
-          "Wrong payment method.",
-          "Wrong due date or invoice.",
-          "Payment was not actually received.",
-        ],
-      },
-      {
-        heading: "Approval",
-        text:
-          "Management may require approval before voiding high-value payments, old payments, or payments that affect customer disputes.",
-      },
-    ],
-  },
-  {
     id: "dataRetention",
     title: "Data Retention Policy",
     icon: "🗂️",
@@ -913,6 +1072,7 @@ const policies = [
         items: [
           "Voiding payments.",
           "Editing deal totals.",
+          "Editing payment schedules.",
           "Editing maintenance invoice totals.",
           "Exporting reports.",
           "Viewing activity logs.",
@@ -979,7 +1139,7 @@ const policies = [
       {
         heading: "Incident Examples",
         text:
-          "An incident may include unauthorized access, missing records, incorrect payment changes, suspicious exports, system failure, malware, device loss, or possible customer-data exposure.",
+          "An incident may include unauthorized access, missing records, incorrect payment changes, suspicious exports, system failure, malware, device loss, possible customer-data exposure, or suspicious report activity.",
       },
       {
         heading: "Reporting",
@@ -996,6 +1156,7 @@ const policies = [
           "Review affected records.",
           "Preserve logs and relevant exports.",
           "Correct incorrect data.",
+          "Void incorrect payments instead of silently deleting them.",
           "Notify appropriate people if required.",
           "Document the issue.",
           "Improve controls to prevent repeat issues.",
@@ -1014,7 +1175,7 @@ const policies = [
       {
         heading: "Backups",
         text:
-          "The company should maintain regular backups of important RK PayTrack data, including customers, deals, payments, promises, maintenance records, maintenance payments, follow-up notes, and reports.",
+          "The company should maintain regular backups of important RK PayTrack data, including customers, deals, payments, promises, maintenance records, maintenance payments, follow-up notes, referral records, and reports.",
       },
       {
         heading: "Exports",
@@ -1030,38 +1191,6 @@ const policies = [
         heading: "Testing",
         text:
           "Backups and recovery steps should be tested periodically to confirm that data can actually be restored when needed.",
-      },
-    ],
-  },
-  {
-    id: "exportPolicy",
-    title: "Report Export Policy",
-    icon: "📊",
-    category: "Reports",
-    purpose:
-      "Defines safe use of exported reports and customer financial information.",
-    sections: [
-      {
-        heading: "Exported Data",
-        text:
-          "Reports may include customer names, company names, phone numbers, referral information, follow-up notes, deal balances, payment history, promises, maintenance balances, activity details, notes, and other sensitive business information.",
-      },
-      {
-        heading: "Approved Use",
-        text:
-          "Reports should be exported only for management review, accounting, reconciliation, collections, authorized business needs, or backup purposes.",
-      },
-      {
-        heading: "Sharing Restrictions",
-        text:
-          "Users must not share exported reports with unauthorized people or store them in unsafe locations.",
-        items: [
-          "Do not send reports to personal email accounts.",
-          "Do not upload reports to unapproved websites.",
-          "Do not leave reports on shared computers.",
-          "Do not print reports unnecessarily.",
-          "Delete old exports when they are no longer needed.",
-        ],
       },
     ],
   },
@@ -1086,7 +1215,7 @@ const policies = [
       {
         heading: "User Review Required",
         text:
-          "Users should review payment amounts, balances, due dates, promises, exports, invoices, receipts, and reports for accuracy before taking action.",
+          "Users should review payment amounts, balances, due dates, promises, exports, invoices, receipts, reports, Referral Credit entries, and schedule calculations for accuracy before taking action.",
       },
       {
         heading: "Final Legal Documents",

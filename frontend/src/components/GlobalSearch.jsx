@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { getCustomers } from "../api/customersApi";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
 import { getPromises } from "../api/promisesApi";
@@ -7,6 +8,7 @@ import { formatMoney } from "../utils/moneyUtils";
 
 function GlobalSearch() {
   const [search, setSearch] = useState("");
+  const [customers, setCustomers] = useState([]);
   const [deals, setDeals] = useState([]);
   const [payments, setPayments] = useState([]);
   const [promises, setPromises] = useState([]);
@@ -34,12 +36,15 @@ function GlobalSearch() {
     try {
       setLoading(true);
 
-      const [dealsData, paymentsData, promisesData] = await Promise.all([
-        getDeals(),
-        getPayments(),
-        getPromises(),
-      ]);
+      const [customersData, dealsData, paymentsData, promisesData] =
+        await Promise.all([
+          getCustomers(),
+          getDeals(),
+          getPayments(),
+          getPromises(),
+        ]);
 
+      setCustomers(customersData || []);
       setDeals(dealsData || []);
       setPayments(paymentsData || []);
       setPromises(promisesData || []);
@@ -55,28 +60,62 @@ function GlobalSearch() {
 
     if (!text) return [];
 
-    const dealResults = deals
-      .filter((deal) => {
-        return (
-          String(deal.deal_tag || "").toLowerCase().includes(text) ||
-          String(deal.customers?.customer_name || "")
-            .toLowerCase()
-            .includes(text) ||
-          String(deal.customers?.company_name || "")
-            .toLowerCase()
-            .includes(text) ||
-          String(deal.customers?.phone || "").toLowerCase().includes(text) ||
-          String(deal.customers?.email || "").toLowerCase().includes(text) ||
-          String(deal.customers?.address || "").toLowerCase().includes(text) ||
-          String(deal.truck || "").toLowerCase().includes(text) ||
-          String(deal.year || "").toLowerCase().includes(text) ||
-          String(deal.vin || "").toLowerCase().includes(text) ||
-          String(deal.deal_type || "").toLowerCase().includes(text) ||
-          String(deal.deal_subtype || "").toLowerCase().includes(text) ||
-          String(deal.status || "").toLowerCase().includes(text) ||
-          String(deal.notes || "").toLowerCase().includes(text)
+    const customerResults = customers
+      .filter((customer) =>
+        matchesSearchText(
+          [
+            customer.customer_name,
+            customer.company_name,
+            customer.phone,
+            customer.email,
+            customer.address,
+          ],
+          text
+        )
+      )
+      .map((customer) => {
+        const customerDeals = deals.filter(
+          (deal) => String(deal.customer_id) === String(customer.id)
         );
-      })
+
+        return {
+          id: `customer-${customer.id}`,
+          type: "Customer",
+          to: `/customers/${customer.id}`,
+          title: customer.company_name
+            ? `${customer.customer_name || "Customer"} (${customer.company_name})`
+            : customer.customer_name || "Customer",
+          subtitle:
+            customerDeals.length > 0
+              ? `${customerDeals.length} deal(s) on file`
+              : "Customer profile only - no deal on file",
+          meta: customer.phone || customer.email || "Customer Profile",
+          amount: "",
+          priority: customerDeals.length > 0 ? 2 : 1,
+        };
+      });
+
+    const dealResults = deals
+      .filter((deal) =>
+        matchesSearchText(
+          [
+            deal.deal_tag,
+            deal.customers?.customer_name,
+            deal.customers?.company_name,
+            deal.customers?.phone,
+            deal.customers?.email,
+            deal.customers?.address,
+            deal.truck,
+            deal.year,
+            deal.vin,
+            deal.deal_type,
+            deal.deal_subtype,
+            deal.status,
+            deal.notes,
+          ],
+          text
+        )
+      )
       .map((deal) => {
         const customerName = deal.customers?.customer_name || "Customer";
         const companyName = deal.customers?.company_name || "";
@@ -84,7 +123,7 @@ function GlobalSearch() {
         return {
           id: `deal-${deal.id}`,
           type: "Deal",
-          dealId: deal.id,
+          to: `/deals/${deal.id}`,
           title: companyName
             ? `${deal.deal_tag || "—"} - ${customerName} (${companyName})`
             : `${deal.deal_tag || "—"} - ${customerName}`,
@@ -93,40 +132,37 @@ function GlobalSearch() {
           } • ${deal.status || "Active"}`,
           meta: companyName || deal.customers?.phone || "No phone",
           amount: deal.total_amount,
+          priority: 3,
         };
       });
 
     const paymentResults = payments
-      .filter((payment) => {
-        return (
-          String(payment.deals?.deal_tag || "").toLowerCase().includes(text) ||
-          String(payment.deals?.customers?.customer_name || "")
-            .toLowerCase()
-            .includes(text) ||
-          String(payment.deals?.customers?.company_name || "")
-            .toLowerCase()
-            .includes(text) ||
-          String(payment.deals?.customers?.phone || "")
-            .toLowerCase()
-            .includes(text) ||
-          String(payment.deals?.customers?.email || "")
-            .toLowerCase()
-            .includes(text) ||
-          String(payment.payment_method || "").toLowerCase().includes(text) ||
-          String(payment.payment_type || "").toLowerCase().includes(text) ||
-          String(payment.payment_status || "").toLowerCase().includes(text) ||
-          String(payment.notes || "").toLowerCase().includes(text)
-        );
-      })
+      .filter((payment) =>
+        matchesSearchText(
+          [
+            payment.deals?.deal_tag,
+            payment.deals?.customers?.customer_name,
+            payment.deals?.customers?.company_name,
+            payment.deals?.customers?.phone,
+            payment.deals?.customers?.email,
+            payment.payment_method,
+            payment.payment_type,
+            payment.payment_status,
+            payment.notes,
+          ],
+          text
+        )
+      )
       .map((payment) => {
         const customerName =
           payment.deals?.customers?.customer_name || "Customer";
         const companyName = payment.deals?.customers?.company_name || "";
+        const dealId = payment.deal_id || payment.deals?.id;
 
         return {
           id: `payment-${payment.id}`,
           type: "Payment",
-          dealId: payment.deal_id || payment.deals?.id,
+          to: dealId ? `/deals/${dealId}` : "",
           title: companyName
             ? `${payment.deals?.deal_tag || "—"} - ${customerName} (${companyName})`
             : `${payment.deals?.deal_tag || "—"} - ${customerName}`,
@@ -135,39 +171,36 @@ function GlobalSearch() {
           } • ${payment.payment_status || "Active"}`,
           meta: companyName || payment.payment_method || "Payment",
           amount: payment.amount_paid,
+          priority: 4,
         };
       })
-      .filter((item) => item.dealId);
+      .filter((item) => item.to);
 
     const promiseResults = promises
-      .filter((promise) => {
-        return (
-          String(promise.deals?.deal_tag || "").toLowerCase().includes(text) ||
-          String(promise.deals?.customers?.customer_name || "")
-            .toLowerCase()
-            .includes(text) ||
-          String(promise.deals?.customers?.company_name || "")
-            .toLowerCase()
-            .includes(text) ||
-          String(promise.deals?.customers?.phone || "")
-            .toLowerCase()
-            .includes(text) ||
-          String(promise.deals?.customers?.email || "")
-            .toLowerCase()
-            .includes(text) ||
-          String(promise.promise_status || "").toLowerCase().includes(text) ||
-          String(promise.notes || "").toLowerCase().includes(text)
-        );
-      })
+      .filter((promise) =>
+        matchesSearchText(
+          [
+            promise.deals?.deal_tag,
+            promise.deals?.customers?.customer_name,
+            promise.deals?.customers?.company_name,
+            promise.deals?.customers?.phone,
+            promise.deals?.customers?.email,
+            promise.promise_status,
+            promise.notes,
+          ],
+          text
+        )
+      )
       .map((promise) => {
         const customerName =
           promise.deals?.customers?.customer_name || "Customer";
         const companyName = promise.deals?.customers?.company_name || "";
+        const dealId = promise.deal_id || promise.deals?.id;
 
         return {
           id: `promise-${promise.id}`,
           type: "Promise",
-          dealId: promise.deal_id || promise.deals?.id,
+          to: dealId ? `/deals/${dealId}` : "",
           title: companyName
             ? `${promise.deals?.deal_tag || "—"} - ${customerName} (${companyName})`
             : `${promise.deals?.deal_tag || "—"} - ${customerName}`,
@@ -176,12 +209,20 @@ function GlobalSearch() {
           } • ${promise.promise_status || "Pending"}`,
           meta: companyName || promise.deals?.customers?.phone || "No phone",
           amount: promise.remaining_amount,
+          priority: 5,
         };
       })
-      .filter((item) => item.dealId);
+      .filter((item) => item.to);
 
-    return [...dealResults, ...paymentResults, ...promiseResults].slice(0, 12);
-  }, [search, deals, payments, promises]);
+    return [
+      ...customerResults,
+      ...dealResults,
+      ...paymentResults,
+      ...promiseResults,
+    ]
+      .sort((a, b) => a.priority - b.priority)
+      .slice(0, 14);
+  }, [search, customers, deals, payments, promises]);
 
   const handleSearchChange = (value) => {
     setSearch(value);
@@ -204,7 +245,7 @@ function GlobalSearch() {
           onFocus={() => {
             if (search.trim()) setOpen(true);
           }}
-          placeholder="Search deal tag, customer, company, phone, VIN, payment, promise..."
+          placeholder="Search customer profile, company, deal tag, phone, VIN, payment, promise..."
           style={inputStyle}
         />
 
@@ -224,15 +265,15 @@ function GlobalSearch() {
 
           {results.length === 0 ? (
             <div style={emptyState}>
-              No matching records found. Try deal tag, customer name, company
-              name, phone, or VIN.
+              No matching records found. Try customer name, company name, phone,
+              email, deal tag, or VIN.
             </div>
           ) : (
             <div style={resultList}>
               {results.map((result) => (
                 <Link
                   key={result.id}
-                  to={`/deals/${result.dealId}`}
+                  to={result.to}
                   style={resultItem}
                   onClick={clearSearch}
                 >
@@ -241,7 +282,7 @@ function GlobalSearch() {
                       {result.type}
                     </span>
 
-                    <div>
+                    <div style={resultTextBlock}>
                       <div style={resultTitle}>{result.title}</div>
                       <div style={resultSubtitle}>{result.subtitle}</div>
                     </div>
@@ -258,12 +299,26 @@ function GlobalSearch() {
   );
 }
 
+function matchesSearchText(values, searchText) {
+  const haystack = values
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ");
+
+  const tokens = String(searchText || "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return tokens.every((token) => haystack.includes(token));
+}
+
 function getTypeBadgeStyle(type) {
   const base = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minWidth: "68px",
+    minWidth: "76px",
     padding: "6px 9px",
     borderRadius: "999px",
     fontSize: "11px",
@@ -271,6 +326,15 @@ function getTypeBadgeStyle(type) {
     border: "1px solid transparent",
     flexShrink: 0,
   };
+
+  if (type === "Customer") {
+    return {
+      ...base,
+      background: "#ede9fe",
+      color: "#5b21b6",
+      borderColor: "#ddd6fe",
+    };
+  }
 
   if (type === "Payment") {
     return {
@@ -389,6 +453,10 @@ const resultLeft = {
   display: "flex",
   alignItems: "center",
   gap: "12px",
+  minWidth: 0,
+};
+
+const resultTextBlock = {
   minWidth: 0,
 };
 

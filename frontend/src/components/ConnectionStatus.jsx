@@ -3,14 +3,44 @@ import { supabase } from "../supabaseClient";
 
 function ConnectionStatus() {
   const [status, setStatus] = useState("checking");
-  const [message, setMessage] = useState("Checking database connection...");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     checkConnection();
+
+    const handleOnline = () => {
+      checkConnection();
+    };
+
+    const handleOffline = () => {
+      setStatus("error");
+      setMessage("No internet connection. RK PayTrack may not save or load data.");
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    const interval = setInterval(() => {
+      if (navigator.onLine) {
+        checkConnection();
+      }
+    }, 60000);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      clearInterval(interval);
+    };
   }, []);
 
   const checkConnection = async () => {
     try {
+      if (!navigator.onLine) {
+        setStatus("error");
+        setMessage("No internet connection. RK PayTrack may not save or load data.");
+        return;
+      }
+
       const { error } = await supabase.from("deals").select("id").limit(1);
 
       if (error) {
@@ -20,32 +50,61 @@ function ConnectionStatus() {
       }
 
       setStatus("connected");
-      setMessage("Connected to RK PayTrack database.");
+      setMessage("");
     } catch (error) {
       setStatus("error");
       setMessage("No internet or database connection failed.");
     }
   };
 
-  const style = {
-    padding: "10px 14px",
-    borderRadius: "8px",
-    marginBottom: "20px",
-    background:
-      status === "connected"
-        ? "#dcfce7"
-        : status === "error"
-        ? "#fee2e2"
-        : "#fef9c3",
-    color:
-      status === "connected"
-        ? "#166534"
-        : status === "error"
-        ? "#991b1b"
-        : "#854d0e",
-  };
+  if (status !== "error") {
+    return null;
+  }
 
-  return <div style={style}>{message}</div>;
+  return (
+    <div style={style}>
+      <div>
+        <strong>Connection Problem</strong>
+        <p style={messageStyle}>{message}</p>
+      </div>
+
+      <button type="button" onClick={checkConnection} style={retryButton}>
+        Retry
+      </button>
+    </div>
+  );
 }
+
+const style = {
+  padding: "12px 14px",
+  borderRadius: "12px",
+  marginBottom: "16px",
+  background: "#fee2e2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap",
+  fontWeight: "900",
+};
+
+const messageStyle = {
+  margin: "4px 0 0",
+  color: "#991b1b",
+  fontSize: "13px",
+  fontWeight: "700",
+};
+
+const retryButton = {
+  background: "#991b1b",
+  color: "white",
+  border: "none",
+  borderRadius: "999px",
+  padding: "8px 12px",
+  cursor: "pointer",
+  fontWeight: "900",
+};
 
 export default ConnectionStatus;

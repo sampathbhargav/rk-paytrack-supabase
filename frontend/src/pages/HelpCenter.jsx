@@ -67,18 +67,18 @@ function HelpCenter() {
           <h1 style={isMobile ? mobilePageTitle : pageTitle}>Help Center</h1>
 
           <p style={isMobile ? mobilePageDescription : pageDescription}>
-            Quick employee training articles for deals, payments, customers,
-            follow-ups, referrals, maintenance, receipts, reports, and daily
-            workflow.
+            Quick employee training articles for deals, monthly and biweekly
+            payments, customers, follow-ups, referrals, maintenance, receipts,
+            reports, payment methods, and daily workflow.
           </p>
 
           <div style={isMobile ? mobileHeroPills : heroPills}>
             <span style={heroPill}>Customers</span>
             <span style={heroPill}>Payments</span>
-            <span style={heroPill}>Follow-Ups</span>
+            <span style={heroPill}>Biweekly</span>
+            <span style={heroPill}>Referral Credits</span>
             <span style={heroPill}>Maintenance</span>
             <span style={heroPill}>Reports</span>
-            <span style={heroPill}>Best Practices</span>
           </div>
         </div>
 
@@ -99,7 +99,7 @@ function HelpCenter() {
         <QuickStartCard
           icon="🚀"
           title="New Employee Path"
-          text="Start with Getting Started, then review Customers, Add Payment, Follow-Up Notes, Due Schedule, Promises, Receipts, and Reports."
+          text="Start with Getting Started, then review Customers, Deal Entry, Payment Methods, Add Payment, Overpayments, Due Schedule, Promises, Receipts, and Reports."
         />
 
         <QuickStartCard
@@ -111,13 +111,13 @@ function HelpCenter() {
         <QuickStartCard
           icon="💵"
           title="Taking Payments"
-          text="Use Payment Center for deal payments and maintenance invoice payments. Extra deal payments can apply toward the next installment."
+          text="Use Payment Center for deal payments and maintenance payments. Cash App, Apple Pay, and Referral Credit are supported payment methods."
         />
 
         <QuickStartCard
           icon="⚠️"
           title="Important Rule"
-          text="Always verify customer, company, deal/invoice, amount, date, method, and notes before saving."
+          text="Do not record more than the remaining open balance. Extra money can apply to future installments only when future installments exist."
         />
       </div>
 
@@ -130,8 +130,8 @@ function HelpCenter() {
         >
           Getting Started
         </button>{" "}
-        and then review payments, customer profiles, follow-up notes, promises,
-        due schedule, receipts, reports, and common mistakes.
+        and then review deal entry, schedule math check, payment methods,
+        overpayments, referral credits, reports, and common mistakes.
       </div>
 
       <div style={isMobile ? mobileToolbar : toolbar}>
@@ -271,15 +271,16 @@ const articles = [
       {
         heading: "What is RK PayTrack?",
         text:
-          "RK PayTrack is used to manage dealership deals, customer balances, payments, due schedules, promises, receipts, maintenance invoices, follow-up notes, referral information, and reports.",
+          "RK PayTrack is used to manage dealership deals, customer balances, monthly payments, biweekly payments, registration money, payments, due schedules, promises, receipts, maintenance invoices, follow-up notes, referral information, and reports.",
       },
       {
         heading: "Main Things You Can Do",
         text: "Employees can use the system to track customer payment activity.",
         items: [
           "View customer, company, deal, and maintenance details.",
-          "Check balances and monthly payment amounts.",
+          "Check balances, monthly payment amounts, and biweekly payment amounts.",
           "Add deal payments and maintenance payments.",
+          "Use Cash, Zelle, Cash App, Apple Pay, Card, Check, ACH, Referral Credit, or Other as payment methods.",
           "Create promises for partial or delayed payments.",
           "Add customer follow-up notes for calls, texts, disputes, and manager notes.",
           "Edit basic customer information from the customer profile.",
@@ -292,7 +293,7 @@ const articles = [
       {
         heading: "Best Practice",
         text:
-          "Always review the customer name, company name, deal tag or invoice number, payment amount, payment method, and due date before saving any payment or promise.",
+          "Always review the customer name, company name, deal tag or invoice number, payment amount, payment method, due date, total remaining balance, and notes before saving any payment or promise.",
       },
     ],
   },
@@ -429,6 +430,107 @@ const articles = [
     ],
   },
   {
+    id: "dealEntry",
+    title: "Deal Entry",
+    icon: "🚚",
+    category: "Deals",
+    summary:
+      "Explains how to create a deal and choose the correct deal type, payment frequency, and schedule.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Deal Entry is used to create a new customer deal or add a new deal to an existing customer.",
+      },
+      {
+        heading: "Deal Types",
+        text: "Choose the correct deal type before entering the payment schedule.",
+        items: [
+          "In-house: customer pays the dealership over time.",
+          "Down Finance: customer owes a down payment or financed down amount.",
+          "Borrow Money: customer borrowed money and must repay it.",
+          "Motor Finance: customer has a motor-related financed balance.",
+          "Registration Money: one-time expected payment for registration or title-related money.",
+          "Cash: customer paid cash and no schedule is required.",
+        ],
+      },
+      {
+        heading: "Best Practice",
+        text:
+          "Before saving a deal, verify the deal tag, customer, company, truck, VIN, total amount, payment frequency, payment amount, term, and maturity date.",
+      },
+    ],
+  },
+  {
+    id: "scheduleMathCheck",
+    title: "Schedule Math Check",
+    icon: "🧮",
+    category: "Deals",
+    summary:
+      "Explains the deal entry math check that helps prevent wrong payment amounts or wrong terms.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "The Schedule Math Check confirms whether the payment amount multiplied by the term matches the total deal amount.",
+      },
+      {
+        heading: "How It Helps",
+        text: "This feature helps reduce human errors while creating deals.",
+        items: [
+          "Shows the total deal amount.",
+          "Shows the monthly or biweekly payment amount.",
+          "Shows the term.",
+          "Shows the scheduled total.",
+          "Shows the difference between scheduled total and total amount.",
+          "Warns employees if the schedule does not match the deal total.",
+        ],
+      },
+      {
+        heading: "Important",
+        text:
+          "If the Schedule Math Check shows a warning, review the total amount, payment amount, and term before creating the deal. Continue only when the difference is intentional.",
+      },
+    ],
+  },
+  {
+    id: "biweeklyPayments",
+    title: "Biweekly Payments",
+    icon: "📅",
+    category: "Payments",
+    summary:
+      "Explains how biweekly deal schedules work and how employees should enter them.",
+    sections: [
+      {
+        heading: "Purpose",
+        text:
+          "Biweekly payments are used when a customer pays every 14 days instead of once per month.",
+      },
+      {
+        heading: "Required Fields",
+        text: "For a biweekly deal, employees must enter the correct schedule details.",
+        items: [
+          "Start date.",
+          "Payment frequency set to Biweekly.",
+          "Biweekly payment amount.",
+          "First payment date.",
+          "Number of biweekly payments.",
+          "Maturity date, which is calculated by the system.",
+        ],
+      },
+      {
+        heading: "How the Schedule Works",
+        text:
+          "The system creates one installment every 14 days starting from the first payment date. The term means the total number of biweekly payments.",
+      },
+      {
+        heading: "Best Practice",
+        text:
+          "Confirm the first payment date with the customer before saving the deal because all future biweekly due dates are based on that date.",
+      },
+    ],
+  },
+  {
     id: "followupNotes",
     title: "Customer Follow-Up Notes",
     icon: "📝",
@@ -534,6 +636,41 @@ const articles = [
     ],
   },
   {
+    id: "paymentMethods",
+    title: "Payment Methods",
+    icon: "💰",
+    category: "Payments",
+    summary:
+      "Explains the payment methods available and how Referral Credit should be treated.",
+    sections: [
+      {
+        heading: "Available Payment Methods",
+        text: "Employees can record payments using the available payment methods.",
+        items: [
+          "Cash.",
+          "Zelle.",
+          "Cash App.",
+          "Apple Pay.",
+          "Card.",
+          "Check.",
+          "ACH.",
+          "Referral Credit.",
+          "Other.",
+        ],
+      },
+      {
+        heading: "Referral Credit",
+        text:
+          "Referral Credit is used when a customer earned a referral bonus and wants to apply that bonus toward their own balance.",
+      },
+      {
+        heading: "Important Accounting Rule",
+        text:
+          "Referral Credit reduces the customer's balance, but it should not be counted as real cash collected. Reports should separate cash collected from referral credits applied.",
+      },
+    ],
+  },
+  {
     id: "addPayment",
     title: "How to Add a Deal Payment",
     icon: "💵",
@@ -544,7 +681,7 @@ const articles = [
       {
         heading: "Before Adding Payment",
         text:
-          "Before saving a payment, confirm the customer, deal tag, amount received, payment method, and correct installment due date.",
+          "Before saving a payment, confirm the customer, deal tag, total remaining balance, amount received, payment method, and correct installment due date.",
       },
       {
         heading: "Steps",
@@ -552,11 +689,13 @@ const articles = [
         items: [
           "Open Add Payment.",
           "Choose Deal / Installment Payment.",
-          "Select the correct customer deal.",
+          "Search and select the correct customer deal.",
+          "Review the selected deal summary and total remaining balance.",
           "Select the correct due installment.",
-          "Enter the amount paid.",
+          "Enter the amount paid or credit applied.",
           "Choose payment method.",
           "Add notes if needed.",
+          "Review the payment allocation preview.",
           "Save the payment.",
           "Print or view the receipt if required.",
         ],
@@ -564,7 +703,7 @@ const articles = [
       {
         heading: "Partial Payments",
         text:
-          "If the customer pays less than the installment amount, enter the partial amount and provide a promised date for the remaining balance.",
+          "If the customer pays less than the selected installment amount, enter the partial amount and provide a promised date for the remaining balance.",
       },
       {
         heading: "Extra Payments",
@@ -574,7 +713,7 @@ const articles = [
       {
         heading: "Important",
         text:
-          "Do not enter fake or estimated payments. Only record payments that were actually received and verified.",
+          "Do not enter fake or estimated payments. Only record payments that were actually received or approved as a valid credit.",
       },
     ],
   },
@@ -599,13 +738,23 @@ const articles = [
           "Selected installment is paid first.",
           "Extra money goes to the next unpaid installment.",
           "If the next installment is only partially covered, it remains partially paid.",
-          "The customer balance is reduced by the full payment amount.",
+          "The customer balance is reduced by the full valid payment amount.",
         ],
+      },
+      {
+        heading: "Overpayment With No Installments Left",
+        text:
+          "If the customer tries to pay more than the total remaining open balance, the extra amount should not be saved as a normal payment. The employee should record only the remaining balance and handle the extra amount as a refund or outside adjustment.",
+      },
+      {
+        heading: "Example",
+        text:
+          "If the customer owes $500 on the last installment but gives $600, only $500 should be recorded as the deal payment. The extra $100 should not reduce the balance below zero.",
       },
       {
         heading: "Best Practice",
         text:
-          "Always select the correct starting due installment before entering an extra payment.",
+          "Always select the correct starting due installment before entering an extra payment. Review the allocation preview before saving.",
       },
     ],
   },
@@ -682,12 +831,23 @@ const articles = [
     title: "Due Schedule",
     icon: "📆",
     category: "Payments",
-    summary: "Explains how to read the monthly installment schedule.",
+    summary:
+      "Explains how to read monthly, biweekly, and one-time due schedules.",
     sections: [
       {
         heading: "What the Due Schedule Shows",
         text:
-          "The due schedule shows each installment, due date, amount due, amount paid, remaining amount, and current status.",
+          "The due schedule shows each installment, due date, payment frequency, amount due, amount paid, remaining amount, and current status.",
+      },
+      {
+        heading: "Schedule Types",
+        text: "Different deal types can have different schedules.",
+        items: [
+          "Monthly deals create one installment per month.",
+          "Biweekly deals create one installment every 14 days.",
+          "Registration Money creates one one-time scheduled receivable.",
+          "Cash deals do not require a payment schedule.",
+        ],
       },
       {
         heading: "Status Meaning",
@@ -761,6 +921,11 @@ const articles = [
           "The account summary gives a broader view of the customer account, including deal details, total paid, balance, payments, and promises.",
       },
       {
+        heading: "Referral Credit Receipts",
+        text:
+          "If Referral Credit is applied as payment, the receipt should clearly show the method as Referral Credit so it is not confused with cash received.",
+      },
+      {
         heading: "Best Practice",
         text:
           "Print or save receipts immediately after payment when the customer requests proof of payment.",
@@ -777,7 +942,7 @@ const articles = [
       {
         heading: "Purpose",
         text:
-          "Reports help management review collections, balances, due payments, paid-off deals, defaulted deals, maintenance balances, payment activity, company information, and referral information.",
+          "Reports help management review collections, balances, due payments, paid-off deals, defaulted deals, maintenance balances, payment activity, company information, payment methods, and referral information.",
       },
       {
         heading: "Common Reports",
@@ -793,8 +958,19 @@ const articles = [
           "Defaulted Deals.",
           "Registration Money.",
           "Monthly Collection.",
+          "Daily Collection Summary.",
           "Maintenance Balances.",
         ],
+      },
+      {
+        heading: "Cash vs Referral Credit",
+        text:
+          "Reports should separate real cash collected from Referral Credit applied. Referral Credit reduces the customer balance, but it should not be counted as cash collected.",
+      },
+      {
+        heading: "Payment Method Breakdown",
+        text:
+          "Payment Method Breakdown shows payment method totals for the selected report month. If it says no data available, check that the selected month matches the payment dates.",
       },
       {
         heading: "Important",
@@ -881,6 +1057,11 @@ const articles = [
           "Voiding keeps a record that the payment existed while excluding it from totals. This helps maintain better audit history.",
       },
       {
+        heading: "What Voiding Affects",
+        text:
+          "Voided payments should not count toward total paid, cash collected, referral credits applied, deal balance, maintenance balance, reports, or due schedule calculations.",
+      },
+      {
         heading: "Best Practice",
         text:
           "Always enter a clear void reason so management can understand why the payment was voided.",
@@ -905,6 +1086,9 @@ const articles = [
           "Do not enter payment under the wrong due date.",
           "Do not forget to mark incorrect payments as voided.",
           "Do not create promises without a promised date.",
+          "Do not count Referral Credit as cash collected.",
+          "Do not record more than the customer’s remaining open balance.",
+          "Do not ignore the Schedule Math Check warning when creating a deal.",
           "Do not forget to add follow-up notes after important customer conversations.",
           "Do not export reports and share them without approval.",
           "Do not ignore broken promises or past-due installments.",
@@ -913,7 +1097,7 @@ const articles = [
       {
         heading: "Best Practice",
         text:
-          "Before saving anything, verify customer name, company name, deal tag or invoice number, payment amount, due date, payment method, and notes.",
+          "Before saving anything, verify customer name, company name, deal tag or invoice number, payment amount, due date, payment method, total remaining balance, and notes.",
       },
     ],
   },

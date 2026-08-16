@@ -78,8 +78,24 @@ function EditDeal() {
   const isInHouseDeal = formData.dealType === "In-house";
   const isRegistrationMoneyDeal = formData.dealType === "Registration Money";
   const isPaymentDeal = !isCashDeal && !isRegistrationMoneyDeal;
-  const isBiweeklyDeal = isPaymentDeal && formData.paymentFrequency === "Biweekly";
-  const isMonthlyDeal = isPaymentDeal && formData.paymentFrequency !== "Biweekly";
+  const isBiweeklyDeal =
+    isPaymentDeal && formData.paymentFrequency === "Biweekly";
+  const isMonthlyDeal =
+    isPaymentDeal && formData.paymentFrequency !== "Biweekly";
+
+  const scheduleMath = getScheduleMathCheck(formData);
+
+  const applySuggestedPaymentAmount = () => {
+    if (!scheduleMath.suggestedPaymentAmount) return;
+
+    setMessage("");
+    setMessageType("");
+
+    setFormData((prev) => ({
+      ...prev,
+      monthlyPayment: String(scheduleMath.suggestedPaymentAmount),
+    }));
+  };
 
   useEffect(() => {
     loadDeal();
@@ -108,7 +124,9 @@ function EditDeal() {
         dealSubtype: deal.deal_subtype || "",
         startDate: deal.start_date || "",
         paymentFrequency:
-          loadedPaymentFrequency === "One-Time" ? "Monthly" : loadedPaymentFrequency,
+          loadedPaymentFrequency === "One-Time"
+            ? "Monthly"
+            : loadedPaymentFrequency,
         firstPaymentDate: deal.first_payment_date || "",
         truck: deal.truck || "",
         year: deal.year || "",
@@ -211,7 +229,8 @@ function EditDeal() {
           }
 
           if (updated.paymentFrequency === "Monthly" && updated.startDate) {
-            const dueDay = updated.dueDay || getDueDayFromStartDate(updated.startDate);
+            const dueDay =
+              updated.dueDay || getDueDayFromStartDate(updated.startDate);
             updated.dueDay = dueDay;
 
             if (updated.term) {
@@ -258,7 +277,8 @@ function EditDeal() {
           updated.firstPaymentDate = "";
 
           if (updated.startDate) {
-            const dueDay = updated.dueDay || getDueDayFromStartDate(updated.startDate);
+            const dueDay =
+              updated.dueDay || getDueDayFromStartDate(updated.startDate);
             updated.dueDay = dueDay;
 
             if (updated.term) {
@@ -451,7 +471,11 @@ function EditDeal() {
           return "First payment date is required for biweekly deals.";
         }
       } else {
-        if (!data.dueDay || Number(data.dueDay) < 1 || Number(data.dueDay) > 31) {
+        if (
+          !data.dueDay ||
+          Number(data.dueDay) < 1 ||
+          Number(data.dueDay) > 31
+        ) {
           return "Due day must be between 1 and 31.";
         }
       }
@@ -509,9 +533,15 @@ function EditDeal() {
 
     const data = cleanFormData(formData);
 
+    const scheduleCheckForConfirm = getScheduleMathCheck(data);
+
+    const scheduleWarningText = scheduleCheckForConfirm.hasWarning
+      ? `\n\nSchedule Math Warning:\n${scheduleCheckForConfirm.warningText}\n\nContinue only if this difference is intentional.`
+      : "";
+
     const confirmationMessage = didScheduleChange()
-      ? "Are you sure you want to save these changes? You changed important deal or schedule information. This may affect the payment schedule, balance, due payments, and paid-off status."
-      : "Are you sure you want to save these changes?";
+      ? `Are you sure you want to save these changes? You changed important deal or schedule information. This may affect the payment schedule, balance, due payments, and paid-off status.${scheduleWarningText}`
+      : `Are you sure you want to save these changes?${scheduleWarningText}`;
 
     const confirmed = window.confirm(confirmationMessage);
 
@@ -633,7 +663,7 @@ function EditDeal() {
     <div style={pageWrapper}>
       <div style={topActionBar}>
         <Link to={`/deals/${dealId}`} style={backLink}>
-          ← Back to Customer
+          ← Back to deal
         </Link>
 
         <button
@@ -998,6 +1028,13 @@ function EditDeal() {
               }
             />
           </div>
+
+          {!isCashDeal && (
+            <ScheduleMathCard
+              scheduleMath={scheduleMath}
+              onUseSuggestedPayment={applySuggestedPaymentAmount}
+            />
+          )}
         </Section>
 
         <Section
@@ -1025,6 +1062,196 @@ function EditDeal() {
       </form>
     </div>
   );
+}
+
+function getScheduleMathCheck(data) {
+  const totalAmount = roundMoney(data.totalAmount);
+
+  const paymentAmount =
+    data.dealType === "Registration Money"
+      ? roundMoney(data.totalAmount)
+      : roundMoney(data.monthlyPayment);
+
+  const term =
+    data.dealType === "Registration Money" ? 1 : Number(data.term || 0);
+
+  const paymentFrequency =
+    data.dealType === "Registration Money"
+      ? "One-Time"
+      : data.paymentFrequency || "Monthly";
+
+  const paymentLabel =
+    paymentFrequency === "Biweekly"
+      ? "Biweekly Payment"
+      : paymentFrequency === "One-Time"
+      ? "One-Time Amount"
+      : "Monthly Payment";
+
+  const shouldShow =
+    data.dealType !== "Cash" &&
+    (totalAmount > 0 || paymentAmount > 0 || term > 0);
+
+  const scheduledTotal = roundMoney(
+    data.dealType === "Registration Money"
+      ? totalAmount
+      : paymentAmount * term
+  );
+
+  const difference = subtractMoney(scheduledTotal, totalAmount);
+  const absoluteDifference = Math.abs(difference);
+
+  const suggestedPaymentAmount =
+    totalAmount > 0 && term > 0 ? roundMoney(totalAmount / term) : 0;
+
+  const hasWarning =
+    shouldShow &&
+    data.dealType !== "Registration Money" &&
+    totalAmount > 0 &&
+    paymentAmount > 0 &&
+    term > 0 &&
+    absoluteDifference > 1;
+
+  const warningText =
+    difference > 0
+      ? `Scheduled total is ${formatMoneyLocal(
+          absoluteDifference
+        )} more than the total amount. Check payment amount or term.`
+      : `Scheduled total is ${formatMoneyLocal(
+          absoluteDifference
+        )} less than the total amount. Check payment amount or term.`;
+
+  return {
+    shouldShow,
+    hasWarning,
+    totalAmount,
+    paymentAmount,
+    term,
+    paymentFrequency,
+    paymentLabel,
+    scheduledTotal,
+    difference,
+    suggestedPaymentAmount,
+    warningText,
+  };
+}
+
+function ScheduleMathCard({ scheduleMath, onUseSuggestedPayment }) {
+  if (!scheduleMath.shouldShow) return null;
+
+  return (
+    <div
+      style={{
+        ...scheduleMathCard,
+        ...(scheduleMath.hasWarning
+          ? scheduleMathWarningCard
+          : scheduleMathGoodCard),
+      }}
+    >
+      <div style={scheduleMathHeader}>
+        <div>
+          <strong style={scheduleMathTitle}>Schedule Math Check</strong>
+          <p style={scheduleMathDescription}>
+            Confirms the payment amount and term match the total deal amount.
+          </p>
+        </div>
+
+        <span
+          style={
+            scheduleMath.hasWarning
+              ? scheduleMathWarningBadge
+              : scheduleMathGoodBadge
+          }
+        >
+          {scheduleMath.hasWarning ? "Check Needed" : "Looks Good"}
+        </span>
+      </div>
+
+      <div style={scheduleMathGrid}>
+        <div style={scheduleMathItem}>
+          <span>Total Amount</span>
+          <strong>{formatMoneyLocal(scheduleMath.totalAmount)}</strong>
+        </div>
+
+        <div style={scheduleMathItem}>
+          <span>{scheduleMath.paymentLabel}</span>
+          <strong>{formatMoneyLocal(scheduleMath.paymentAmount)}</strong>
+        </div>
+
+        <div style={scheduleMathItem}>
+          <span>Term</span>
+          <strong>{scheduleMath.term || "—"}</strong>
+        </div>
+
+        <div style={scheduleMathItem}>
+          <span>Scheduled Total</span>
+          <strong>{formatMoneyLocal(scheduleMath.scheduledTotal)}</strong>
+        </div>
+
+        <div style={scheduleMathItem}>
+          <span>Difference</span>
+          <strong
+            style={{
+              color: scheduleMath.hasWarning ? "#991b1b" : "#166534",
+            }}
+          >
+            {formatMoneyLocal(scheduleMath.difference)}
+          </strong>
+        </div>
+      </div>
+
+      {scheduleMath.hasWarning ? (
+        <div style={scheduleMathWarningText}>
+          {scheduleMath.warningText}
+
+          {scheduleMath.suggestedPaymentAmount > 0 && (
+            <button
+              type="button"
+              onClick={onUseSuggestedPayment}
+              style={useSuggestedButton}
+            >
+              Use Suggested {scheduleMath.paymentLabel}:{" "}
+              {formatMoneyLocal(scheduleMath.suggestedPaymentAmount)}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={scheduleMathGoodText}>
+          Scheduled total matches the total amount.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function toCents(value) {
+  const numberValue = Number(value || 0);
+
+  if (!Number.isFinite(numberValue)) {
+    return 0;
+  }
+
+  return Math.round(numberValue * 100);
+}
+
+function fromCents(cents) {
+  return Number((Number(cents || 0) / 100).toFixed(2));
+}
+
+function roundMoney(value) {
+  return fromCents(toCents(value));
+}
+
+function subtractMoney(amountA, amountB) {
+  return fromCents(toCents(amountA) - toCents(amountB));
+}
+
+function formatMoneyLocal(value) {
+  const amount = Number(value || 0);
+
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+  });
 }
 
 function Section({ title, description, children }) {
@@ -1348,6 +1575,107 @@ const errorMessage = {
   background: "#fee2e2",
   color: "#991b1b",
   border: "1px solid #fecaca",
+};
+
+const scheduleMathCard = {
+  marginTop: "16px",
+  padding: "14px",
+  borderRadius: "14px",
+  border: "1px solid #e5e7eb",
+};
+
+const scheduleMathGoodCard = {
+  background: "#f0fdf4",
+  borderColor: "#bbf7d0",
+};
+
+const scheduleMathWarningCard = {
+  background: "#fffbeb",
+  borderColor: "#fde68a",
+};
+
+const scheduleMathHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "12px",
+  flexWrap: "wrap",
+  marginBottom: "12px",
+};
+
+const scheduleMathTitle = {
+  display: "block",
+  color: "#111827",
+  fontSize: "15px",
+};
+
+const scheduleMathDescription = {
+  margin: "4px 0 0",
+  color: "#667085",
+  fontSize: "13px",
+};
+
+const scheduleMathGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+  gap: "10px",
+};
+
+const scheduleMathItem = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "10px",
+  display: "grid",
+  gap: "4px",
+  color: "#111827",
+};
+
+const scheduleMathGoodBadge = {
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #bbf7d0",
+  borderRadius: "999px",
+  padding: "6px 10px",
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
+const scheduleMathWarningBadge = {
+  background: "#fee2e2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+  borderRadius: "999px",
+  padding: "6px 10px",
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
+const scheduleMathGoodText = {
+  marginTop: "12px",
+  color: "#166534",
+  fontWeight: "900",
+  fontSize: "13px",
+};
+
+const scheduleMathWarningText = {
+  marginTop: "12px",
+  color: "#92400e",
+  fontWeight: "900",
+  fontSize: "13px",
+  display: "grid",
+  gap: "10px",
+};
+
+const useSuggestedButton = {
+  width: "fit-content",
+  background: "#0A1A2F",
+  color: "white",
+  border: "none",
+  borderRadius: "999px",
+  padding: "9px 12px",
+  cursor: "pointer",
+  fontWeight: "900",
 };
 
 export default EditDeal;

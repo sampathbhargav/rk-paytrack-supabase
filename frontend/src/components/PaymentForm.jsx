@@ -6,6 +6,8 @@ import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
 import { logActivity } from "../api/activityLogsApi";
 import PaymentReceipt from "./PaymentReceipt";
+// import LoadingSpinner from "../components/LoadingSpinner";
+import LoadingSpinner from "./LoadingSpinner";
 
 const initialFormData = {
   dealId: "",
@@ -134,25 +136,22 @@ function PaymentForm() {
     ? getInstallmentOptions(selectedDeal, activePayments)
     : [];
 
-    const selectedInstallment = installmentOptions.find(
-      (item) => item.dueDate === formData.dueDate
-    );
-  
-    const selectedDealTotalPaid = selectedDeal
-      ? activePayments
-          .filter((payment) => String(payment.deal_id) === String(selectedDeal.id))
-          .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0)
-      : 0;
-  
-    const selectedDealRemainingBalance = selectedDeal
-      ? Math.max(
-          Number(selectedDeal.total_amount || 0) - selectedDealTotalPaid,
-          0
-        )
-      : 0;
-  
-    const amountDue = Number(formData.amountDue || 0);
-    const amountPaid = Number(formData.amountPaid || 0);
+  const selectedInstallment = installmentOptions.find(
+    (item) => item.dueDate === formData.dueDate
+  );
+
+  const selectedDealTotalPaid = selectedDeal
+    ? activePayments
+        .filter((payment) => String(payment.deal_id) === String(selectedDeal.id))
+        .reduce((sum, payment) => addMoney(sum, payment.amount_paid), 0)
+    : 0;
+
+  const selectedDealRemainingBalance = selectedDeal
+    ? moneyMax(subtractMoney(selectedDeal.total_amount, selectedDealTotalPaid), 0)
+    : 0;
+
+  const amountDue = roundMoney(formData.amountDue);
+  const amountPaid = roundMoney(formData.amountPaid);
 
   const totalOpenFromSelected = getTotalOpenFromSelectedInstallment(
     installmentOptions,
@@ -160,34 +159,37 @@ function PaymentForm() {
   );
 
   const paymentAllocations =
-    selectedDeal && formData.dueDate && amountPaid > 0
+    selectedDeal && formData.dueDate && isMoneyGreaterThan(amountPaid, 0)
       ? buildPaymentAllocations(installmentOptions, formData.dueDate, amountPaid)
       : [];
 
-  const selectedInstallmentRemainingAfterPayment = Math.max(
-    amountDue - amountPaid,
+  const selectedInstallmentRemainingAfterPayment = moneyMax(
+    subtractMoney(amountDue, amountPaid),
     0
   );
 
-  const totalRemainingAfterPayment = Math.max(
-    totalOpenFromSelected - amountPaid,
+  const totalRemainingAfterPayment = moneyMax(
+    subtractMoney(totalOpenFromSelected, amountPaid),
     0
   );
 
-  const extraPaymentAmount = Math.max(amountPaid - amountDue, 0);
+  const extraPaymentAmount = moneyMax(subtractMoney(amountPaid, amountDue), 0);
 
-  const overpaymentAmount = Math.max(amountPaid - totalOpenFromSelected, 0);
+  const overpaymentAmount = moneyMax(
+    subtractMoney(amountPaid, totalOpenFromSelected),
+    0
+  );
 
   const isOverpayingDealBalance =
     selectedDeal &&
     formData.dueDate &&
-    amountPaid > totalOpenFromSelected;
+    isMoneyGreaterThan(amountPaid, totalOpenFromSelected);
 
   const isExtraAppliedToFutureInstallments =
     selectedDeal &&
     formData.dueDate &&
-    amountPaid > amountDue &&
-    amountPaid <= totalOpenFromSelected;
+    isMoneyGreaterThan(amountPaid, amountDue) &&
+    !isMoneyGreaterThan(amountPaid, totalOpenFromSelected);
 
   const clearStatusMessages = () => {
     setMessage("");
@@ -248,13 +250,17 @@ function PaymentForm() {
       (item) => item.dueDate === selectedDueDate
     );
 
+    const cleanRemaining = installment
+      ? roundMoney(installment.remainingForDueDate).toFixed(2)
+      : "";
+
     clearStatusMessages();
 
     setFormData((prev) => ({
       ...prev,
       dueDate: selectedDueDate,
-      amountDue: installment ? installment.remainingForDueDate : "",
-      amountPaid: installment ? installment.remainingForDueDate : "",
+      amountDue: cleanRemaining,
+      amountPaid: cleanRemaining,
       promisedDate: "",
     }));
   };
@@ -281,17 +287,17 @@ function PaymentForm() {
       return "Please select a due installment.";
     }
 
-    if (!formData.amountDue || Number(formData.amountDue) <= 0) {
+    if (!formData.amountDue || !isMoneyGreaterThan(amountDue, 0)) {
       return "Amount due must be greater than 0.";
     }
 
-    if (!formData.amountPaid || Number(formData.amountPaid) <= 0) {
+    if (!formData.amountPaid || !isMoneyGreaterThan(amountPaid, 0)) {
       return "Amount paid must be greater than 0.";
     }
 
-    if (Number(formData.amountPaid) > Number(totalOpenFromSelected || 0)) {
+    if (isMoneyGreaterThan(amountPaid, totalOpenFromSelected)) {
       return `Overpayment not allowed. Customer is trying to pay ${formatMoney(
-        Number(formData.amountPaid || 0)
+        amountPaid
       )}, but the remaining open balance from this installment forward is only ${formatMoney(
         totalOpenFromSelected
       )}. Extra amount: ${formatMoney(
@@ -305,7 +311,7 @@ function PaymentForm() {
       return "Payment method is required.";
     }
 
-    if (amountPaid < amountDue && !formData.promisedDate) {
+    if (isMoneyGreaterThan(amountDue, amountPaid) && !formData.promisedDate) {
       return "Promised date is required when the customer pays a partial amount on the selected installment.";
     }
 
@@ -367,7 +373,7 @@ function PaymentForm() {
       for (const allocation of paymentAllocations) {
         const isSelectedInstallment = allocation.dueDate === formData.dueDate;
         const isPartialSelectedInstallment =
-          isSelectedInstallment && amountPaid < amountDue;
+          isSelectedInstallment && isMoneyGreaterThan(amountDue, amountPaid);
 
         const allocationPaymentFrequency =
           allocation.paymentFrequency || selectedDealPaymentFrequency;
@@ -377,8 +383,8 @@ function PaymentForm() {
           paymentFrequency: allocationPaymentFrequency,
           payment_frequency: allocationPaymentFrequency,
           dueDate: allocation.dueDate,
-          amountDue: allocation.remainingForDueDate,
-          amountPaid: allocation.amountApplied,
+          amountDue: roundMoney(allocation.remainingForDueDate),
+          amountPaid: roundMoney(allocation.amountApplied),
           promisedDate: isPartialSelectedInstallment
             ? formData.promisedDate
             : "",
@@ -404,13 +410,12 @@ function PaymentForm() {
 
       const totalPaidForDealBeforeThisPayment = activePayments
         .filter((payment) => String(payment.deal_id) === String(formData.dealId))
-        .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+        .reduce((sum, payment) => addMoney(sum, payment.amount_paid), 0);
 
-      const newTotalPaid =
-        totalPaidForDealBeforeThisPayment + Number(formData.amountPaid || 0);
+      const newTotalPaid = addMoney(totalPaidForDealBeforeThisPayment, amountPaid);
 
-      const remainingBalance = Math.max(
-        Number(selectedDealData?.total_amount || 0) - newTotalPaid,
+      const remainingBalance = moneyMax(
+        subtractMoney(selectedDealData?.total_amount, newTotalPaid),
         0
       );
 
@@ -418,8 +423,8 @@ function PaymentForm() {
         paymentAllocations.length > 1
           ? `Split ${selectedDealPaymentFrequency} Payment`
           : getReceiptPaymentType({
-              amountDue: formData.amountDue,
-              amountPaid: formData.amountPaid,
+              amountDue,
+              amountPaid,
               paymentFrequency: selectedDealPaymentFrequency,
             });
 
@@ -434,7 +439,7 @@ function PaymentForm() {
           selectedDealData?.truck || ""
         }`.trim(),
         vin: selectedDealData?.vin || "",
-        amountPaid: Number(formData.amountPaid || 0),
+        amountPaid,
         paymentMethod: formData.paymentMethod || "Other",
         paymentDate: formData.paymentDate || "",
         dueDate: formData.dueDate || "",
@@ -459,7 +464,7 @@ function PaymentForm() {
           selectedDealData?.customers?.customer_name ||
           "Deal Payment",
         description: `${selectedDealPaymentFrequency} deal payment of ${formatMoney(
-          Number(formData.amountPaid || 0)
+          amountPaid
         )} recorded for ${
           selectedDealData?.customers?.customer_name || "customer"
         } on deal ${selectedDealData?.deal_tag || "—"}. ${
@@ -481,8 +486,8 @@ function PaymentForm() {
           truck: selectedDealData?.truck || "",
           year: selectedDealData?.year || "",
           vin: selectedDealData?.vin || "",
-          amount_due: Number(formData.amountDue || 0),
-          amount_paid: Number(formData.amountPaid || 0),
+          amount_due: amountDue,
+          amount_paid: amountPaid,
           extra_payment_amount: extraPaymentAmount,
           selected_installment_remaining_after_payment:
             selectedInstallmentRemainingAfterPayment,
@@ -517,7 +522,7 @@ function PaymentForm() {
 
       setMessage(
         `Payment saved successfully. ${formatMoney(
-          Number(formData.amountPaid || 0)
+          amountPaid
         )} was recorded for ${
           selectedDealData?.customers?.customer_name || "customer"
         }. ${
@@ -547,6 +552,21 @@ function PaymentForm() {
 
   return (
     <form onSubmit={handleSubmit} style={formStyle}>
+      {isSaving && (
+        <div style={savingOverlay}>
+          <div style={savingCard}>
+            <LoadingSpinner
+              message="Saving payment..."
+              height="160px"
+              size={46}
+            />
+
+            <p style={savingText}>
+              Please wait. The payment is being recorded and applied to the schedule.
+            </p>
+          </div>
+        </div>
+      )}
       <div style={formHeader}>
         <div>
           <h2 style={formTitle}>Payment Entry Form</h2>
@@ -715,10 +735,6 @@ function PaymentForm() {
                 )}
               </div>
             )}
-
-            {/* <small style={helperTextStyle}>
-              This is faster than scrolling through every deal in a dropdown.
-            </small> */}
           </div>
 
           <Input
@@ -903,9 +919,9 @@ function PaymentForm() {
             type="date"
             value={formData.promisedDate}
             onChange={handleChange}
-            required={amountPaid > 0 && amountPaid < amountDue}
+            required={isMoneyGreaterThan(amountDue, amountPaid)}
             helperText={
-              amountPaid > 0 && amountPaid < amountDue
+              isMoneyGreaterThan(amountDue, amountPaid)
                 ? "Required because the selected installment still has a balance."
                 : "Not needed when extra payment is applied to future installments."
             }
@@ -969,10 +985,12 @@ function PaymentForm() {
                     <td style={allocationTd}>
                       <strong
                         style={{
-                          color:
-                            allocation.remainingAfterPayment > 0
-                              ? "#991b1b"
-                              : "#166534",
+                          color: isMoneyGreaterThan(
+                            allocation.remainingAfterPayment,
+                            0
+                          )
+                            ? "#991b1b"
+                            : "#166534",
                         }}
                       >
                         {formatMoney(allocation.remainingAfterPayment)}
@@ -1032,7 +1050,9 @@ function PaymentForm() {
           <span style={summaryLabel}>Total Remaining After Payment</span>
           <strong
             style={{
-              color: totalRemainingAfterPayment > 0 ? "#991b1b" : "#166534",
+              color: isMoneyGreaterThan(totalRemainingAfterPayment, 0)
+                ? "#991b1b"
+                : "#166534",
             }}
           >
             {formatMoney(totalRemainingAfterPayment)}
@@ -1040,7 +1060,7 @@ function PaymentForm() {
         </div>
       </div>
 
-      {amountPaid > 0 && amountPaid < amountDue && (
+      {isMoneyGreaterThan(amountDue, amountPaid) && (
         <div style={partialWarningBox}>
           This is a partial payment. A promise will be created for the remaining
           amount when a promised date is entered.
@@ -1067,7 +1087,7 @@ function PaymentForm() {
 
       <div style={buttonRow}>
         <button type="submit" style={buttonStyle} disabled={isSaving}>
-          {isSaving ? "Saving..." : "Save Payment"}
+        {isSaving ? "Saving Payment..." : "Save Payment"}
         </button>
 
         <button
@@ -1092,6 +1112,44 @@ function PaymentForm() {
       <PaymentReceipt receipt={receipt} onClose={() => setReceipt(null)} />
     </form>
   );
+}
+
+function toCents(value) {
+  const numberValue = Number(value || 0);
+
+  if (!Number.isFinite(numberValue)) {
+    return 0;
+  }
+
+  return Math.round(numberValue * 100);
+}
+
+function fromCents(cents) {
+  return Number((Number(cents || 0) / 100).toFixed(2));
+}
+
+function roundMoney(value) {
+  return fromCents(toCents(value));
+}
+
+function addMoney(amountA, amountB) {
+  return fromCents(toCents(amountA) + toCents(amountB));
+}
+
+function subtractMoney(amountA, amountB) {
+  return fromCents(toCents(amountA) - toCents(amountB));
+}
+
+function moneyMax(amountA, amountB) {
+  return fromCents(Math.max(toCents(amountA), toCents(amountB)));
+}
+
+function moneyMin(amountA, amountB) {
+  return fromCents(Math.min(toCents(amountA), toCents(amountB)));
+}
+
+function isMoneyGreaterThan(amountA, amountB) {
+  return toCents(amountA) > toCents(amountB);
 }
 
 function getFilteredDealOptions(deals, searchText) {
@@ -1148,34 +1206,40 @@ function getInstallmentOptions(deal, payments) {
             payment.due_date === installment.dueDate &&
             payment.payment_status !== "Voided"
         )
-        .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+        .reduce((sum, payment) => addMoney(sum, payment.amount_paid), 0);
 
-      const remainingForDueDate = Math.max(
-        Number(installment.amountDue || 0) - paidForDueDate,
+      const installmentAmountDue = roundMoney(installment.amountDue);
+
+      const remainingForDueDate = moneyMax(
+        subtractMoney(installmentAmountDue, paidForDueDate),
         0
       );
 
       let status = "Due";
 
-      if (paidForDueDate >= installment.amountDue) {
+      if (!isMoneyGreaterThan(installmentAmountDue, paidForDueDate)) {
         status = "Paid";
-      } else if (paidForDueDate > 0) {
+      } else if (isMoneyGreaterThan(paidForDueDate, 0)) {
         status = "Partial";
       }
 
       return {
         ...installment,
+        amountDue: installmentAmountDue,
         paymentFrequency: installment.paymentFrequency || dealPaymentFrequency,
         paidForDueDate,
         remainingForDueDate,
         status,
       };
     })
-    .filter((item) => Number(item.remainingForDueDate || 0) > 0)
+    .filter((item) => isMoneyGreaterThan(item.remainingForDueDate, 0))
     .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
 }
 
-function getTotalOpenFromSelectedInstallment(installmentOptions, selectedDueDate) {
+function getTotalOpenFromSelectedInstallment(
+  installmentOptions,
+  selectedDueDate
+) {
   const selectedIndex = installmentOptions.findIndex(
     (item) => item.dueDate === selectedDueDate
   );
@@ -1184,7 +1248,7 @@ function getTotalOpenFromSelectedInstallment(installmentOptions, selectedDueDate
 
   return installmentOptions
     .slice(selectedIndex)
-    .reduce((sum, item) => sum + Number(item.remainingForDueDate || 0), 0);
+    .reduce((sum, item) => addMoney(sum, item.remainingForDueDate), 0);
 }
 
 function buildPaymentAllocations(
@@ -1198,27 +1262,32 @@ function buildPaymentAllocations(
 
   if (selectedIndex === -1) return [];
 
-  let remainingPayment = Number(amountPaid || 0);
+  let remainingPayment = roundMoney(amountPaid);
   const allocations = [];
 
   installmentOptions.slice(selectedIndex).forEach((installment) => {
-    if (remainingPayment <= 0) return;
+    if (!isMoneyGreaterThan(remainingPayment, 0)) return;
 
-    const installmentRemaining = Number(installment.remainingForDueDate || 0);
-    const amountApplied = Math.min(installmentRemaining, remainingPayment);
+    const installmentRemaining = roundMoney(
+      installment.remainingForDueDate || 0
+    );
 
-    if (amountApplied > 0) {
+    const amountApplied = moneyMin(installmentRemaining, remainingPayment);
+
+    if (isMoneyGreaterThan(amountApplied, 0)) {
       allocations.push({
         ...installment,
-        amountApplied: Number(amountApplied.toFixed(2)),
-        remainingAfterPayment: Number(
-          Math.max(installmentRemaining - amountApplied, 0).toFixed(2)
+        amountApplied,
+        remainingAfterPayment: moneyMax(
+          subtractMoney(installmentRemaining, amountApplied),
+          0
         ),
       });
     }
 
-    remainingPayment = Number(
-      Math.max(remainingPayment - amountApplied, 0).toFixed(2)
+    remainingPayment = moneyMax(
+      subtractMoney(remainingPayment, amountApplied),
+      0
     );
   });
 
@@ -1332,22 +1401,26 @@ function getScheduleStartDate(deal) {
 }
 
 function getReceiptPaymentType({ amountDue, amountPaid, paymentFrequency }) {
-  const due = Number(amountDue || 0);
-  const paid = Number(amountPaid || 0);
+  const due = roundMoney(amountDue);
+  const paid = roundMoney(amountPaid);
 
   if (paymentFrequency === "Biweekly") {
-    return paid >= due ? "Full Biweekly Payment" : "Partial Biweekly Payment";
+    return !isMoneyGreaterThan(due, paid)
+      ? "Full Biweekly Payment"
+      : "Partial Biweekly Payment";
   }
 
   if (paymentFrequency === "One-Time") {
-    return paid >= due ? "Full One-Time Payment" : "Partial One-Time Payment";
+    return !isMoneyGreaterThan(due, paid)
+      ? "Full One-Time Payment"
+      : "Partial One-Time Payment";
   }
 
   if (paymentFrequency === "Cash") {
     return "Cash Payment";
   }
 
-  return paid >= due ? "Full Payment" : "Partial Payment";
+  return !isMoneyGreaterThan(due, paid) ? "Full Payment" : "Partial Payment";
 }
 
 function getDealStatusBadgeStyle(status) {
@@ -1834,6 +1907,36 @@ const skipReceiptButton = {
   padding: "10px 13px",
   cursor: "pointer",
   fontWeight: "900",
+};
+
+const savingOverlay = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15, 23, 42, 0.48)",
+  zIndex: 9999,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "20px",
+};
+
+const savingCard = {
+  background: "white",
+  borderRadius: "18px",
+  padding: "20px",
+  width: "100%",
+  maxWidth: "420px",
+  boxShadow: "0 20px 55px rgba(15, 23, 42, 0.30)",
+  color: "#111827",
+  textAlign: "center",
+};
+
+const savingText = {
+  margin: "10px 0 0",
+  color: "#667085",
+  fontSize: "13px",
+  fontWeight: "700",
+  lineHeight: "1.45",
 };
 
 export default PaymentForm;

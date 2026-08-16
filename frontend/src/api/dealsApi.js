@@ -255,3 +255,32 @@ export async function checkDealTagExists(dealTag) {
 
   return data;
 }
+
+export async function getDealByIdOrTag(value) {
+  if (!value) {
+    throw new Error("Deal ID or deal tag is required.");
+  }
+
+  const searchValue = String(value).trim();
+
+  const { data, error } = await supabase
+    .from("deals")
+    .select(
+      `
+      *,
+      customers (*)
+    `
+    )
+    .or(`id.eq.${searchValue},deal_tag.eq.${searchValue}`)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error(`No deal found for ${searchValue}.`);
+  }
+
+  return data;
+}

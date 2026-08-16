@@ -11,6 +11,7 @@ import {
   getDueDayFromStartDate,
   calculateMaturityDate,
 } from "../utils/dealDateUtils";
+import LoadingSpinner from "./LoadingSpinner";
 
 const initialFormData = {
   selectedCustomerId: "",
@@ -685,6 +686,21 @@ function DealForm() {
 
   return (
     <form onSubmit={handleSubmit} style={formStyle}>
+      {isSaving && (
+        <div style={savingOverlay}>
+          <div style={savingCard}>
+            <LoadingSpinner
+              message="Creating deal..."
+              height="160px"
+              size={46}
+            />
+
+            <p style={savingText}>
+              Please wait. The customer and deal are being saved.
+            </p>
+          </div>
+        </div>
+      )}
       <div style={formHeader}>
         <div>
           <h2 style={formTitle}>Deal Entry Form</h2>
@@ -1154,7 +1170,7 @@ function DealForm() {
 
       <div style={buttonRow}>
         <button type="submit" style={buttonStyle} disabled={isSaving}>
-          {isSaving ? "Saving..." : "Create Deal"}
+        {isSaving ? "Creating Deal..." : "Create Deal"}
         </button>
 
         <button
@@ -1870,6 +1886,36 @@ const useSuggestedButton = {
   padding: "9px 12px",
   cursor: "pointer",
   fontWeight: "900",
+};
+
+const savingOverlay = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15, 23, 42, 0.48)",
+  zIndex: 9999,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "20px",
+};
+
+const savingCard = {
+  background: "white",
+  borderRadius: "18px",
+  padding: "20px",
+  width: "100%",
+  maxWidth: "420px",
+  boxShadow: "0 20px 55px rgba(15, 23, 42, 0.30)",
+  color: "#111827",
+  textAlign: "center",
+};
+
+const savingText = {
+  margin: "10px 0 0",
+  color: "#667085",
+  fontSize: "13px",
+  fontWeight: "700",
+  lineHeight: "1.45",
 };
 
 export default DealForm;

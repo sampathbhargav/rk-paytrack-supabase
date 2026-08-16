@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getDealById } from "../api/dealsApi";
+// import { getDealById } from "../api/dealsApi";
+import { getDealByIdOrTag } from "../api/dealsApi";
 import {
   getPaymentsByDealId,
   updateDealPaidOffStatus,
@@ -57,22 +58,46 @@ function CustomerDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId]);
 
+  // const loadCustomerDetail = async () => {
+  //   try {
+  //     setError("");
+
+  //     await updateBrokenPromises();
+  //     await updateDealPaidOffStatus(dealId);
+
+  //     const dealData = await getDealById(dealId);
+  //     const paymentsData = await getPaymentsByDealId(dealId);
+  //     const promisesData = await getPromisesByDealId(dealId);
+
+  //     setDeal(dealData);
+  //     setPayments(paymentsData || []);
+  //     setPromises(promisesData || []);
+  //   } catch (error) {
+  //     setError(error.message);
+  //   }
+  // };
   const loadCustomerDetail = async () => {
     try {
       setError("");
-
+  
       await updateBrokenPromises();
-      await updateDealPaidOffStatus(dealId);
-
-      const dealData = await getDealById(dealId);
-      const paymentsData = await getPaymentsByDealId(dealId);
-      const promisesData = await getPromisesByDealId(dealId);
-
+  
+      const dealData = await getDealByIdOrTag(dealId);
+  
+      if (!dealData?.id) {
+        throw new Error("Deal was found, but the deal ID is missing.");
+      }
+  
+      await updateDealPaidOffStatus(dealData.id);
+  
+      const paymentsData = await getPaymentsByDealId(dealData.id);
+      const promisesData = await getPromisesByDealId(dealData.id);
+  
       setDeal(dealData);
       setPayments(paymentsData || []);
       setPromises(promisesData || []);
     } catch (error) {
-      setError(error.message);
+      setError(error.message || "Unable to load customer account.");
     }
   };
 

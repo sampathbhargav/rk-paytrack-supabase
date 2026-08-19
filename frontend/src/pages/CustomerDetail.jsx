@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-// import { getDealById } from "../api/dealsApi";
 import { getDealByIdOrTag } from "../api/dealsApi";
 import {
   getPaymentsByDealId,
@@ -19,10 +18,25 @@ import DueSchedule from "../components/DueSchedule";
 import AccountSummaryPrint from "../components/AccountSummaryPrint";
 import PaymentReceipt from "../components/PaymentReceipt";
 import CustomerFollowUps from "../components/CustomerFollowUps";
+import { openDealContractPdf } from "../utils/openDealContractPdf";
 
 function CustomerDetail() {
   const { dealId } = useParams();
   const navigate = useNavigate();
+
+  const [deal, setDeal] = useState(null);
+  const [payments, setPayments] = useState([]);
+  const [promises, setPromises] = useState([]);
+  const [error, setError] = useState("");
+
+  const [receipt, setReceipt] = useState(null);
+  const [showReminderMenu, setShowReminderMenu] = useState(false);
+  const [isGeneratingContract, setIsGeneratingContract] = useState(false);
+
+  useEffect(() => {
+    loadCustomerDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dealId]);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -45,54 +59,36 @@ function CustomerDetail() {
     });
   };
 
-  const [deal, setDeal] = useState(null);
-  const [payments, setPayments] = useState([]);
-  const [promises, setPromises] = useState([]);
-  const [error, setError] = useState("");
+  const handleOpenContractPdf = async () => {
+    try {
+      if (!deal) return;
 
-  const [receipt, setReceipt] = useState(null);
-  const [showReminderMenu, setShowReminderMenu] = useState(false);
+      setIsGeneratingContract(true);
+      await openDealContractPdf(deal);
+    } catch (error) {
+      alert(error.message || "Unable to open contract PDF.");
+    } finally {
+      setIsGeneratingContract(false);
+    }
+  };
 
-  useEffect(() => {
-    loadCustomerDetail();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dealId]);
-
-  // const loadCustomerDetail = async () => {
-  //   try {
-  //     setError("");
-
-  //     await updateBrokenPromises();
-  //     await updateDealPaidOffStatus(dealId);
-
-  //     const dealData = await getDealById(dealId);
-  //     const paymentsData = await getPaymentsByDealId(dealId);
-  //     const promisesData = await getPromisesByDealId(dealId);
-
-  //     setDeal(dealData);
-  //     setPayments(paymentsData || []);
-  //     setPromises(promisesData || []);
-  //   } catch (error) {
-  //     setError(error.message);
-  //   }
-  // };
   const loadCustomerDetail = async () => {
     try {
       setError("");
-  
+
       await updateBrokenPromises();
-  
+
       const dealData = await getDealByIdOrTag(dealId);
-  
+
       if (!dealData?.id) {
         throw new Error("Deal was found, but the deal ID is missing.");
       }
-  
+
       await updateDealPaidOffStatus(dealData.id);
-  
+
       const paymentsData = await getPaymentsByDealId(dealData.id);
       const promisesData = await getPromisesByDealId(dealData.id);
-  
+
       setDeal(dealData);
       setPayments(paymentsData || []);
       setPromises(promisesData || []);
@@ -286,9 +282,21 @@ function CustomerDetail() {
             💵 Take Payment
           </button>
 
-          <Link to={`/deals/${dealId}/edit`} style={editButtonStyle}>
+          <Link to={`/deals/${deal.id}/edit`} style={editButtonStyle}>
             ✏️ Edit Deal
           </Link>
+
+          <button
+            type="button"
+            onClick={handleOpenContractPdf}
+            disabled={isGeneratingContract}
+            style={{
+              ...printContractButton,
+              ...(isGeneratingContract ? disabledTopActionButton : {}),
+            }}
+          >
+            {isGeneratingContract ? "Generating PDF..." : "📄 Print Contract"}
+          </button>
 
           <div style={reminderDropdownWrapper}>
             <button
@@ -583,26 +591,26 @@ function CustomerDetail() {
                   </strong>
                 </div>
               </div>
-                        ) : (
-                          <div style={referralEmptyState}>
-                            No referral information added for this deal.
-                          </div>
-                        )}
-                      </div>
-            
-                      <div style={accountNotesCard}>
-                        <div style={accountNotesHeader}>
-                          <div>
-                            <div style={referralLabel}>Internal Notes</div>
-                            <h3 style={referralTitle}>Deal Notes</h3>
-                          </div>
-                        </div>
-            
-                        <div style={accountNotesContent}>
-                          {deal.notes || "No internal notes added for this deal."}
-                        </div>
-                      </div>
-                    </main>
+            ) : (
+              <div style={referralEmptyState}>
+                No referral information added for this deal.
+              </div>
+            )}
+          </div>
+
+          <div style={accountNotesCard}>
+            <div style={accountNotesHeader}>
+              <div>
+                <div style={referralLabel}>Internal Notes</div>
+                <h3 style={referralTitle}>Deal Notes</h3>
+              </div>
+            </div>
+
+            <div style={accountNotesContent}>
+              {deal.notes || "No internal notes added for this deal."}
+            </div>
+          </div>
+        </main>
       </div>
 
       <div style={sectionStack}>
@@ -621,6 +629,7 @@ function CustomerDetail() {
         >
           <PaymentHistory
             payments={payments}
+            deal={deal}
             onPaymentUpdated={loadCustomerDetail}
             openPaymentReceipt={openPaymentReceipt}
           />
@@ -732,7 +741,12 @@ function getScheduleStartDate(deal) {
   const paymentFrequency = getPaymentFrequency(deal);
 
   if (paymentFrequency === "Biweekly") {
-    return deal?.first_payment_date || deal?.firstPaymentDate || deal?.start_date || "";
+    return (
+      deal?.first_payment_date ||
+      deal?.firstPaymentDate ||
+      deal?.start_date ||
+      ""
+    );
   }
 
   if (paymentFrequency === "One-Time") {
@@ -1073,6 +1087,22 @@ const editButtonStyle = {
   textDecoration: "none",
   fontWeight: "900",
   boxShadow: "0 6px 16px rgba(15, 23, 42, 0.18)",
+};
+
+const printContractButton = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#7c3aed",
+  color: "white",
+  border: "none",
+  borderRadius: "999px",
+  padding: "10px 14px",
+  cursor: "pointer",
+  fontWeight: "900",
+  fontFamily: "inherit",
+  fontSize: "14px",
+  boxShadow: "0 6px 16px rgba(124, 58, 237, 0.22)",
 };
 
 const reminderDropdownWrapper = {
@@ -1535,30 +1565,6 @@ const accountNotesContent = {
   wordBreak: "break-word",
   minHeight: "70px",
 };
-
-// const notesPanel = {
-//   background: "linear-gradient(180deg, #fffbeb 0%, #ffffff 100%)",
-//   border: "1px solid #fde68a",
-//   borderRadius: "22px",
-//   padding: "18px",
-//   marginTop: "0",
-//   boxShadow: "0 10px 26px rgba(15, 23, 42, 0.07)",
-// };
-
-// const notesHeader = {
-//   marginBottom: "12px",
-// };
-
-// const notesContent = {
-//   background: "#ffffff",
-//   padding: "15px",
-//   borderRadius: "14px",
-//   border: "1px solid #fed7aa",
-//   whiteSpace: "pre-wrap",
-//   color: "#78350f",
-//   lineHeight: "1.5",
-//   wordBreak: "break-word",
-// };
 
 const sectionStack = {
   display: "grid",

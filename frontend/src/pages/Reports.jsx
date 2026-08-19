@@ -175,6 +175,20 @@ function Reports() {
   const paidOffDeals = deals.filter((deal) => deal.status === "Paid Off");
   const defaultedDeals = deals.filter((deal) => deal.status === "Defaulted");
 
+  const activeDealBreakdown = buildDealStatusBreakdown({
+    deals,
+    activePayments,
+    status: "Active",
+    getDealBalanceInfo,
+  });
+  
+  const defaultedDealBreakdown = buildDealStatusBreakdown({
+    deals,
+    activePayments,
+    status: "Defaulted",
+    getDealBalanceInfo,
+  });
+
   const monthlyDealCount = deals.filter(
     (deal) => getPaymentFrequency(deal) === "Monthly"
   ).length;
@@ -1153,6 +1167,22 @@ function Reports() {
         <SummaryCard title="Defaulted" value={defaultedDeals.length} tone="dark" />
       </div>
 
+      <div style={dealBreakdownGrid}>
+        <DealStatusBreakdownCard
+          title="Active Deal Balances"
+          description="Only deals currently marked Active. Shows total count and how much customers still owe."
+          data={activeDealBreakdown}
+          tone="active"
+        />
+
+        <DealStatusBreakdownCard
+          title="Defaulted Deal Balances"
+          description="Only deals currently marked Defaulted. Shows total count and how much customers still owe."
+          data={defaultedDealBreakdown}
+          tone="defaulted"
+        />
+      </div>
+
       <div style={attentionGrid}>
         <InsightCard
           title="Collection Priority"
@@ -1349,6 +1379,76 @@ function InsightCard({ title, value, description, tone = "default" }) {
       <span style={insightLabel}>{title}</span>
       <strong style={insightValue}>{value}</strong>
       <p style={insightDescription}>{description}</p>
+    </div>
+  );
+}
+
+function DealStatusBreakdownCard({ title, description, data, tone }) {
+  return (
+    <div
+      style={{
+        ...dealBreakdownCard,
+        ...(tone === "defaulted"
+          ? dealBreakdownDefaultedCard
+          : dealBreakdownActiveCard),
+      }}
+    >
+      <div style={dealBreakdownHeader}>
+        <div>
+          <h2 style={dealBreakdownTitle}>{title}</h2>
+          <p style={dealBreakdownDescription}>{description}</p>
+        </div>
+
+        <span
+          style={{
+            ...dealBreakdownStatusBadge,
+            ...(tone === "defaulted"
+              ? dealBreakdownDefaultedBadge
+              : dealBreakdownActiveBadge),
+          }}
+        >
+          {tone === "defaulted" ? "Defaulted" : "Active"}
+        </span>
+      </div>
+
+      <div style={dealBreakdownRows}>
+        <DealStatusBreakdownRow
+          label="All Deals"
+          count={data.total.count}
+          balance={data.total.balance}
+          strong
+        />
+
+        <DealStatusBreakdownRow
+          label="Down Finance"
+          count={data.downFinance.count}
+          balance={data.downFinance.balance}
+        />
+
+        <DealStatusBreakdownRow
+          label="In-house"
+          count={data.inHouse.count}
+          balance={data.inHouse.balance}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DealStatusBreakdownRow({ label, count, balance, strong = false }) {
+  return (
+    <div style={strong ? dealBreakdownTotalRow : dealBreakdownRow}>
+      <div>
+        <span style={dealBreakdownRowLabel}>{label}</span>
+        <strong style={dealBreakdownRowCount}>
+          {count} {count === 1 ? "deal" : "deals"}
+        </strong>
+      </div>
+
+      <div style={dealBreakdownAmountBox}>
+        <span style={dealBreakdownAmountLabel}>Total Owed</span>
+        <strong style={dealBreakdownAmount}>{formatMoney(balance)}</strong>
+      </div>
     </div>
   );
 }
@@ -1735,6 +1835,52 @@ function getPaymentFrequencyLabel(frequency) {
 
 function getScheduledDaysPastDue(item) {
   return item?.daysPastDue ?? item?.daysLate ?? "";
+}
+
+function buildDealStatusBreakdown({
+  deals,
+  activePayments,
+  status,
+  getDealBalanceInfo,
+}) {
+  const matchingDeals = (deals || []).filter(
+    (deal) => getDealStatusForBreakdown(deal) === status
+  );
+
+  const summarizeDeals = (dealList) => {
+    return dealList.reduce(
+      (summary, deal) => {
+        const { balance } = getDealBalanceInfo(deal, activePayments);
+
+        return {
+          count: summary.count + 1,
+          balance: summary.balance + Number(balance || 0),
+        };
+      },
+      {
+        count: 0,
+        balance: 0,
+      }
+    );
+  };
+
+  return {
+    total: summarizeDeals(matchingDeals),
+    downFinance: summarizeDeals(
+      matchingDeals.filter((deal) => getDealTypeForBreakdown(deal) === "down finance")
+    ),
+    inHouse: summarizeDeals(
+      matchingDeals.filter((deal) => getDealTypeForBreakdown(deal) === "in-house")
+    ),
+  };
+}
+
+function getDealStatusForBreakdown(deal) {
+  return deal?.status || "Active";
+}
+
+function getDealTypeForBreakdown(deal) {
+  return String(deal?.deal_type || "").trim().toLowerCase();
 }
 
 function buildCustomerBalanceRows(
@@ -2451,6 +2597,125 @@ const errorBox = {
   padding: "12px",
   borderRadius: "14px",
   fontWeight: "900",
+};
+
+const dealBreakdownGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gap: "14px",
+};
+
+const dealBreakdownCard = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "18px",
+  padding: "18px",
+  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.07)",
+};
+
+const dealBreakdownActiveCard = {
+  borderTop: "5px solid #2563eb",
+};
+
+const dealBreakdownDefaultedCard = {
+  borderTop: "5px solid #111827",
+};
+
+const dealBreakdownHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "14px",
+  marginBottom: "14px",
+  flexWrap: "wrap",
+};
+
+const dealBreakdownTitle = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "18px",
+};
+
+const dealBreakdownDescription = {
+  margin: "6px 0 0",
+  color: "#667085",
+  fontSize: "13px",
+  lineHeight: "1.45",
+};
+
+const dealBreakdownStatusBadge = {
+  borderRadius: "999px",
+  padding: "6px 10px",
+  fontSize: "12px",
+  fontWeight: "900",
+  whiteSpace: "nowrap",
+};
+
+const dealBreakdownActiveBadge = {
+  background: "#dbeafe",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+};
+
+const dealBreakdownDefaultedBadge = {
+  background: "#111827",
+  color: "white",
+  border: "1px solid #111827",
+};
+
+const dealBreakdownRows = {
+  display: "grid",
+  gap: "10px",
+};
+
+const dealBreakdownRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "14px",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "14px",
+  padding: "12px",
+  flexWrap: "wrap",
+};
+
+const dealBreakdownTotalRow = {
+  ...dealBreakdownRow,
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+};
+
+const dealBreakdownRowLabel = {
+  display: "block",
+  color: "#667085",
+  fontSize: "12px",
+  fontWeight: "900",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  marginBottom: "4px",
+};
+
+const dealBreakdownRowCount = {
+  color: "#111827",
+  fontSize: "18px",
+};
+
+const dealBreakdownAmountBox = {
+  textAlign: "right",
+};
+
+const dealBreakdownAmountLabel = {
+  display: "block",
+  color: "#667085",
+  fontSize: "12px",
+  fontWeight: "900",
+  marginBottom: "4px",
+};
+
+const dealBreakdownAmount = {
+  color: "#991b1b",
+  fontSize: "18px",
 };
 
 export default Reports;

@@ -19,10 +19,12 @@
     "build:win": "npm run build && npx electron-builder --win"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.6.1",
     "@supabase/supabase-js": "^2.45.4",
     "iceberg-js": "^0.8.1",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
+    "jspdf": "^4.2.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "react-router-dom": "^7.15.0"
   },
   "devDependencies": {

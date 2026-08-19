@@ -28,6 +28,7 @@ const initialFormData = {
   year: "",
   vin: "",
   totalAmount: "",
+  principalAmount: "",
   monthlyPayment: "",
   paymentFrequency: "Monthly",
   firstPaymentDate: "",
@@ -393,6 +394,7 @@ function DealForm() {
       email: formData.email.trim(),
       address: formData.address.trim(),
       dealTag: formData.dealTag.trim(),
+      principalAmount: formData.principalAmount,
       paymentFrequency: formData.paymentFrequency || "Monthly",
       firstPaymentDate: formData.firstPaymentDate || "",
       truck: formData.truck.trim(),
@@ -439,6 +441,10 @@ function DealForm() {
 
     if (!data.totalAmount || Number(data.totalAmount) <= 0) {
       return "Total amount must be greater than 0.";
+    }
+
+    if (data.principalAmount && Number(data.principalAmount) < 0) {
+      return "Principal amount cannot be negative.";
     }
 
     if (data.referralAmountPaid && Number(data.referralAmountPaid) < 0) {
@@ -600,6 +606,9 @@ function DealForm() {
         year: data.year,
         vin: data.vin,
         totalAmount: Number(data.totalAmount || 0),
+        principalAmount: data.principalAmount
+          ? Number(data.principalAmount || 0)
+          : null,
         monthlyPayment: savedPaymentAmount,
         paymentFrequency: savedPaymentFrequency,
         firstPaymentDate: savedFirstPaymentDate,
@@ -641,6 +650,9 @@ function DealForm() {
           year: data.year,
           vin: data.vin,
           total_amount: Number(data.totalAmount || 0),
+          principal_amount: data.principalAmount
+            ? Number(data.principalAmount || 0)
+            : null,
           monthly_payment: savedPaymentAmount,
           payment_frequency: savedPaymentFrequency,
           first_payment_date: savedFirstPaymentDate,
@@ -932,7 +944,17 @@ function DealForm() {
             onChange={handleChange}
             required
             placeholder="Example: 25000"
-            helperText="Total financed or deal amount."
+            helperText="Total amount customer must pay after interest."
+          />
+
+          <Input
+            label="Principal Amount"
+            name="principalAmount"
+            type="number"
+            value={formData.principalAmount}
+            onChange={handleChange}
+            placeholder="Example: 33000"
+            helperText="Optional. Amount before interest is added."
           />
         </div>
       </Section>

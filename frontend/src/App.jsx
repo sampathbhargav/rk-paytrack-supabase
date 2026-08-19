@@ -31,6 +31,7 @@ import ConnectionStatus from "./components/ConnectionStatus";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import UserMenu from "./components/UserMenu";
+import BusinessInsights from "./pages/BusinessInsights";
 
 import logo from "./assets/rk-paytrack-logo.png";
 
@@ -133,6 +134,7 @@ const showMobileSearchRow = isMobile && showFullSearch;
     { label: "Promises", path: "/promises" },
     { label: "Maintenance", path: "/maintenance" },
     { label: "Reports", path: "/reports" },
+    { label: "Business Insights", path: "/business-insights" },
     { label: "AI Assistant", path: "/ai-assistant" },
     { label: "Help Center", path: "/help-center" },
     { label: "Policy Center", path: "/legal-policies" },
@@ -357,6 +359,7 @@ const showMobileSearchRow = isMobile && showFullSearch;
             <Route path="/customers" element={<Customers />} />
             <Route path="/customers/:customerId" element={<CustomerProfile />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/business-insights" element={<BusinessInsights />} />
             <Route path="/ai-assistant" element={<AIAssistant />} />
             <Route path="/help-center" element={<HelpCenter />} />
             <Route path="/legal-policies" element={<LegalPolicies />} />
@@ -400,6 +403,7 @@ function getIcon(label) {
     Maintenance: "🔧",
     Customers: "👥",
     Reports: "📈",
+    "Business Insights": "💡",
     "AI Assistant": "🤖",
     "Help Center": "📚",
     "Policy Center": "📘",

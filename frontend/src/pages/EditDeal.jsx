@@ -23,6 +23,7 @@ const initialFormData = {
   year: "",
   vin: "",
   totalAmount: "",
+  principalAmount: "",
   monthlyPayment: "",
   dueDay: "",
   term: "",
@@ -132,6 +133,7 @@ function EditDeal() {
         year: deal.year || "",
         vin: deal.vin || "",
         totalAmount: deal.total_amount || "",
+        principalAmount: deal.principal_amount || "",
         monthlyPayment: deal.monthly_payment || "",
         dueDay: deal.due_day || "",
         term: deal.term || "",
@@ -430,6 +432,10 @@ function EditDeal() {
       return "Total amount is required and cannot be negative.";
     }
 
+    if (data.principalAmount && Number(data.principalAmount) < 0) {
+      return "Principal amount cannot be negative.";
+    }
+
     if (data.referralAmountPaid && Number(data.referralAmountPaid) < 0) {
       return "Referral amount paid cannot be negative.";
     }
@@ -501,6 +507,7 @@ function EditDeal() {
 
     const scheduleFields = [
       "totalAmount",
+      "principalAmount",
       "monthlyPayment",
       "paymentFrequency",
       "firstPaymentDate",
@@ -622,6 +629,9 @@ function EditDeal() {
         year: data.year,
         vin: data.vin,
         totalAmount: Number(data.totalAmount || 0),
+        principalAmount: data.principalAmount
+          ? Number(data.principalAmount || 0)
+          : null,
         monthlyPayment: finalMonthlyPayment,
         dueDay: finalDueDay,
         term: finalTerm,
@@ -825,6 +835,15 @@ function EditDeal() {
               value={formData.vin}
               onChange={handleChange}
               maxLength={17}
+            />
+
+            <Input
+              label="Principal Amount"
+              name="principalAmount"
+              type="number"
+              value={formData.principalAmount}
+              onChange={handleChange}
+              helperText="Optional original sale/principal amount before down payment."
             />
 
             <Input

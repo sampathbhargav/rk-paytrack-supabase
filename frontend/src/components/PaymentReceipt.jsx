@@ -390,38 +390,56 @@ function buildReceiptPrintHtml({
         <style>
           @page {
             size: letter;
-            margin: 0.25in;
+            margin: 0.35in;
           }
 
           * {
             box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
 
+          html,
           body {
-            font-family: Arial, Helvetica, sans-serif;
-            color: #111827;
-            background: white;
-            font-size: 11px;
+            width: 100%;
+            height: 100%;
             margin: 0;
             padding: 0;
+            background: white;
+            color: #111827;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
+            line-height: 1.25;
+            overflow: hidden;
           }
 
           .receipt {
             width: 100%;
-            max-width: 760px;
-            margin: 0 auto;
-            border: 1px solid #d1d5db;
+            height: 10.3in;
+            max-height: 10.3in;
+            border: 1.5px solid #111827;
             border-radius: 8px;
-            padding: 14px;
+            padding: 0.22in;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+          }
+
+          .receipt-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
           }
 
           .header {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
+            display: grid;
+            grid-template-columns: 1.4fr 1fr;
+            gap: 18px;
+            align-items: start;
             border-bottom: 3px solid #0A1A2F;
-            padding-bottom: 9px;
-            margin-bottom: 10px;
+            padding-bottom: 10px;
           }
 
           .brand-badge {
@@ -429,152 +447,165 @@ function buildReceiptPrintHtml({
             background: #0A1A2F;
             color: white;
             border-radius: 999px;
-            padding: 4px 8px;
-            font-size: 9px;
-            font-weight: bold;
+            padding: 5px 10px;
+            font-size: 10px;
+            font-weight: 800;
             letter-spacing: 0.06em;
-            margin-bottom: 5px;
+            margin-bottom: 6px;
           }
 
-          h1, h2, h3, p {
+          h1,
+          h2,
+          p {
             margin-top: 0;
           }
 
           .company h1 {
             color: #0A1A2F;
-            margin: 0 0 3px;
-            font-size: 20px;
+            margin: 0 0 4px;
+            font-size: 23px;
+            line-height: 1.05;
           }
 
           .muted {
-            color: #6b7280;
-            font-size: 10.5px;
+            color: #374151;
+            font-size: 11.5px;
             margin: 2px 0;
           }
 
           .receipt-title {
             text-align: right;
-            min-width: 190px;
           }
 
           .status {
             display: inline-block;
             background: #dcfce7;
             color: #166534;
-            border: 1px solid #bbf7d0;
+            border: 1px solid #86efac;
             border-radius: 999px;
-            padding: 4px 8px;
-            font-size: 10px;
-            font-weight: bold;
-            margin-bottom: 5px;
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 800;
+            margin-bottom: 6px;
           }
 
           .receipt-title h2 {
             color: #166534;
-            margin: 0 0 4px;
-            font-size: 19px;
+            margin: 0 0 6px;
+            font-size: 21px;
+            line-height: 1.05;
           }
 
           .small-line {
             margin: 3px 0;
-            font-size: 10.5px;
+            font-size: 11.5px;
           }
 
           .amount-box {
             background: #ecfdf5;
-            border: 1px solid #bbf7d0;
-            border-radius: 9px;
-            padding: 10px;
+            border: 1.5px solid #86efac;
+            border-radius: 10px;
+            padding: 13px 12px;
             text-align: center;
-            margin-bottom: 10px;
           }
 
           .amount-label {
             color: #166534;
-            font-size: 10px;
-            font-weight: bold;
+            font-size: 11px;
+            font-weight: 800;
             text-transform: uppercase;
+            letter-spacing: 0.04em;
           }
 
           .amount {
             color: #166534;
-            font-size: 27px;
-            font-weight: bold;
+            font-size: 32px;
+            font-weight: 900;
             margin-top: 2px;
+            line-height: 1.05;
           }
 
           .amount-sub {
             color: #166534;
-            font-size: 10px;
-            margin-top: 2px;
+            font-size: 11px;
+            margin-top: 4px;
           }
 
           .summary-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 6px;
-            margin-bottom: 10px;
+            gap: 8px;
           }
 
           .summary-box {
-            border: 1px solid #e5e7eb;
+            border: 1px solid #cbd5e1;
             background: #f8fafc;
             border-radius: 8px;
-            padding: 7px;
+            padding: 8px;
+            min-height: 50px;
           }
 
           .summary-box span {
             display: block;
-            color: #64748b;
-            font-size: 9px;
-            font-weight: bold;
+            color: #475569;
+            font-size: 10px;
+            font-weight: 800;
             text-transform: uppercase;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
           }
 
           .summary-box strong {
             color: #111827;
-            font-size: 10.5px;
+            font-size: 12px;
+            line-height: 1.2;
           }
 
           .two-column {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            gap: 12px;
           }
 
           .section {
-            margin-top: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 9px;
+            break-inside: avoid;
+            page-break-inside: avoid;
           }
 
           .section-title {
-            font-weight: bold;
+            font-weight: 900;
             color: #0A1A2F;
-            margin-bottom: 5px;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 4px;
-            font-size: 12px;
+            margin-bottom: 7px;
+            border-bottom: 1px solid #d1d5db;
+            padding-bottom: 5px;
+            font-size: 13px;
           }
 
           .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 6px 12px;
+            gap: 7px 14px;
           }
 
           .field {
-            font-size: 11px;
+            font-size: 12px;
+            min-width: 0;
           }
 
           .label {
             display: block;
-            color: #6b7280;
-            font-size: 9.5px;
-            margin-bottom: 1px;
+            color: #4b5563;
+            font-size: 10.5px;
+            margin-bottom: 2px;
           }
 
           .value {
-            font-weight: bold;
+            display: block;
+            font-weight: 800;
+            color: #111827;
+            word-break: break-word;
           }
 
           table {
@@ -583,68 +614,74 @@ function buildReceiptPrintHtml({
           }
 
           td {
-            border: 1px solid #e5e7eb;
-            padding: 6px;
-            font-size: 10.5px;
+            border: 1px solid #cbd5e1;
+            padding: 7px 8px;
+            font-size: 12px;
+            vertical-align: top;
           }
 
           .td-label {
             background: #f8fafc;
-            color: #475569;
-            width: 36%;
-            font-weight: bold;
+            color: #334155;
+            width: 34%;
+            font-weight: 800;
           }
 
           .td-value {
-            font-weight: bold;
+            font-weight: 800;
           }
 
           .notes {
             margin: 0;
-            color: #374151;
-            line-height: 1.3;
+            color: #111827;
+            line-height: 1.25;
             white-space: pre-wrap;
-            font-size: 10.5px;
-            max-height: 44px;
+            font-size: 11.5px;
+            max-height: 0.65in;
             overflow: hidden;
           }
 
           .important {
-            margin-top: 9px;
             background: #fffbeb;
-            border: 1px solid #fde68a;
-            color: #92400e;
+            border: 1px solid #f59e0b;
+            color: #78350f;
             border-radius: 8px;
-            padding: 7px;
+            padding: 8px;
             line-height: 1.25;
-            font-size: 10px;
+            font-size: 11.5px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          .receipt-footer {
+            padding-top: 18px;
           }
 
           .footer {
-            margin-top: 24px;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 34px;
+            gap: 44px;
+            margin-top: 18px;
           }
 
           .signature-line {
-            border-top: 1px solid #111827;
-            padding-top: 5px;
-            font-size: 10.5px;
-            color: #374151;
+            border-top: 1.5px solid #111827;
+            padding-top: 7px;
+            font-size: 12px;
+            color: #111827;
           }
 
           .bottom {
-            margin-top: 10px;
+            margin: 18px 0 0;
             text-align: center;
-            color: #6b7280;
-            font-size: 10px;
+            color: #374151;
+            font-size: 11.5px;
           }
 
           .generated {
-            margin-top: 3px;
-            color: #94a3b8;
-            font-size: 9px;
+            margin: 5px 0 0;
+            color: #64748b;
+            font-size: 10.5px;
             text-align: center;
           }
         </style>
@@ -652,112 +689,116 @@ function buildReceiptPrintHtml({
 
       <body>
         <div class="receipt">
-          <div class="header">
-            <div class="company">
-              <div class="brand-badge">RK PAYTRACK</div>
-              <h1>RK Truck & Trailer Sales</h1>
-              <p class="muted">2727 Willowbrook Rd, Dallas, TX 75220</p>
-              <p class="muted">Phone: 469-880-2222</p>
-            </div>
+          <div class="receipt-main">
+            <div class="header">
+              <div class="company">
+                <div class="brand-badge">RK PAYTRACK</div>
+                <h1>RK Truck & Trailer Sales</h1>
+                <p class="muted">2727 Willowbrook Rd, Dallas, TX 75220</p>
+                <p class="muted">Phone: 469-880-2222</p>
+              </div>
 
-            <div class="receipt-title">
-              <div class="status">${escapeHtml(status)}</div>
-              <h2>PAYMENT RECEIPT</h2>
-              <p class="small-line"><strong>No:</strong> ${escapeHtml(receiptNumber)}</p>
-              <p class="small-line"><strong>Date:</strong> ${escapeHtml(paymentDate)}</p>
-            </div>
-          </div>
-
-          <div class="amount-box">
-            <div class="amount-label">Amount Paid</div>
-            <div class="amount">${formatMoney(amountPaid)}</div>
-            <div class="amount-sub">
-              Paid by ${escapeHtml(receipt.paymentMethod || "Other")} on ${escapeHtml(paymentDate)}
-            </div>
-          </div>
-
-          <div class="summary-grid">
-            <div class="summary-box">
-              <span>Remaining Balance</span>
-              <strong>${formatMoney(remainingBalance)}</strong>
-            </div>
-            <div class="summary-box">
-              <span>Payment Method</span>
-              <strong>${escapeHtml(receipt.paymentMethod || "—")}</strong>
-            </div>
-            <div class="summary-box">
-              <span>Payment Type</span>
-              <strong>${escapeHtml(receipt.paymentType || "Payment")}</strong>
-            </div>
-            <div class="summary-box">
-              <span>Due Date</span>
-              <strong>${escapeHtml(dueDate)}</strong>
-            </div>
-          </div>
-
-          <div class="two-column">
-            <div class="section">
-              <div class="section-title">Customer Information</div>
-              <div class="grid">
-                ${printField("Customer", receipt.customerName)}
-                ${printField("Phone", receipt.phone)}
-                ${printField("Deal Tag", receipt.dealTag)}
-                ${printField("Deal Type", receipt.dealType)}
+              <div class="receipt-title">
+                <div class="status">${escapeHtml(status)}</div>
+                <h2>PAYMENT RECEIPT</h2>
+                <p class="small-line"><strong>No:</strong> ${escapeHtml(receiptNumber)}</p>
+                <p class="small-line"><strong>Date:</strong> ${escapeHtml(paymentDate)}</p>
               </div>
             </div>
 
-            <div class="section">
-              <div class="section-title">Vehicle / Deal</div>
-              <div class="grid">
-                ${printField("Truck", receipt.truck)}
-                ${printField("VIN", receipt.vin)}
-                ${printField("Status", status)}
-                ${printField("Due Date", dueDate)}
+            <div class="amount-box">
+              <div class="amount-label">Amount Paid</div>
+              <div class="amount">${formatMoney(amountPaid)}</div>
+              <div class="amount-sub">
+                Paid by ${escapeHtml(receipt.paymentMethod || "Other")} on ${escapeHtml(paymentDate)}
               </div>
             </div>
-          </div>
 
-          <div class="section">
-            <div class="section-title">Payment Details</div>
-            <table>
-              <tbody>
-                ${printRow("Receipt Number", receiptNumber)}
-                ${printRow("Amount Paid", formatMoney(amountPaid))}
-                ${printRow("Payment Method", receipt.paymentMethod)}
-                ${printRow("Payment Date", paymentDate)}
-                ${printRow("Applied Due Date", dueDate)}
-                ${printRow("Remaining Balance", formatMoney(remainingBalance))}
-              </tbody>
-            </table>
-          </div>
+            <div class="summary-grid">
+              <div class="summary-box">
+                <span>Remaining Balance</span>
+                <strong>${formatMoney(remainingBalance)}</strong>
+              </div>
+              <div class="summary-box">
+                <span>Payment Method</span>
+                <strong>${escapeHtml(receipt.paymentMethod || "—")}</strong>
+              </div>
+              <div class="summary-box">
+                <span>Payment Type</span>
+                <strong>${escapeHtml(receipt.paymentType || "Payment")}</strong>
+              </div>
+              <div class="summary-box">
+                <span>Due Date</span>
+                <strong>${escapeHtml(dueDate)}</strong>
+              </div>
+            </div>
 
-          ${
-            receipt.notes
-              ? `
-                <div class="section">
-                  <div class="section-title">Notes</div>
-                  <p class="notes">${escapeHtml(receipt.notes)}</p>
+            <div class="two-column">
+              <div class="section">
+                <div class="section-title">Customer Information</div>
+                <div class="grid">
+                  ${printField("Customer", receipt.customerName)}
+                  ${printField("Phone", receipt.phone)}
+                  ${printField("Deal Tag", receipt.dealTag)}
+                  ${printField("Deal Type", receipt.dealType)}
                 </div>
-              `
-              : ""
-          }
+              </div>
 
-          <div class="important">
-            <strong>Important:</strong> This receipt confirms the payment recorded above.
-            Remaining balance, if any, is still due according to customer agreement
-            and company records.
+              <div class="section">
+                <div class="section-title">Vehicle / Deal</div>
+                <div class="grid">
+                  ${printField("Truck", receipt.truck)}
+                  ${printField("VIN", receipt.vin)}
+                  ${printField("Status", status)}
+                  ${printField("Due Date", dueDate)}
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Payment Details</div>
+              <table>
+                <tbody>
+                  ${printRow("Receipt Number", receiptNumber)}
+                  ${printRow("Amount Paid", formatMoney(amountPaid))}
+                  ${printRow("Payment Method", receipt.paymentMethod)}
+                  ${printRow("Payment Date", paymentDate)}
+                  ${printRow("Applied Due Date", dueDate)}
+                  ${printRow("Remaining Balance", formatMoney(remainingBalance))}
+                </tbody>
+              </table>
+            </div>
+
+            ${
+              receipt.notes
+                ? `
+                  <div class="section">
+                    <div class="section-title">Notes</div>
+                    <p class="notes">${escapeHtml(receipt.notes)}</p>
+                  </div>
+                `
+                : ""
+            }
+
+            <div class="important">
+              <strong>Important:</strong> This receipt confirms the payment recorded above.
+              Remaining balance, if any, is still due according to customer agreement
+              and company records.
+            </div>
           </div>
 
-          <div class="footer">
-            <div class="signature-line">Customer Signature</div>
-            <div class="signature-line">Authorized Signature</div>
+          <div class="receipt-footer">
+            <div class="footer">
+              <div class="signature-line">Customer Signature</div>
+              <div class="signature-line">Authorized Signature</div>
+            </div>
+
+            <p class="bottom">
+              Thank you for your payment. Please keep this receipt for your records.
+            </p>
+
+            <p class="generated">Generated from RK PayTrack · ${escapeHtml(generatedAt)}</p>
           </div>
-
-          <p class="bottom">
-            Thank you for your payment. Please keep this receipt for your records.
-          </p>
-
-          <p class="generated">Generated from RK PayTrack · ${escapeHtml(generatedAt)}</p>
         </div>
       </body>
     </html>

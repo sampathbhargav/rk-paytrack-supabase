@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import {
   addMaintenancePayment,
   addMaintenancePromise,
-  calculateMaintenanceTotals,
   createMaintenanceJob,
   getCustomerSuggestions,
   getMaintenanceJobs,
@@ -25,20 +24,24 @@ const emptyForm = {
   phone: "",
   email: "",
   address: "",
-  truck: "",
   year: "",
+  make: "",
+  model: "",
+  truck: "",
   vin: "",
+  miles: "",
   technician: "",
-  job_title: "",
+  job_title: "Maintenance",
   job_description: "",
   work_status: "Open",
+  total_amount: "",
   labor_amount: "",
   parts_amount: "",
   tax_amount: "",
   discount_amount: "",
   start_date: todayString,
   completed_date: "",
-  due_date: "",
+  due_date: todayString,
   notes: "",
 };
 
@@ -54,6 +57,84 @@ const quickFilters = [
 ];
 
 const workStatuses = ["Open", "In Progress", "Completed", "Closed", "Cancelled"];
+
+
+function generateMaintenanceInvoiceNo(existingJobs = []) {
+  const usedNumbers = (existingJobs || [])
+    .map((job) => String(job?.invoice_no || "").trim())
+    .map((invoiceNo) => invoiceNo.match(/^MNT-(\d{4,6})$/i))
+    .filter(Boolean)
+    .map((match) => Number(match[1]))
+    .filter((number) => Number.isFinite(number) && number >= 1000 && number <= 999999);
+
+  const highestNumber = usedNumbers.length > 0 ? Math.max(...usedNumbers) : 999;
+  const nextNumber = Math.max(highestNumber + 1, 1000);
+
+  return `MNT-${nextNumber}`;
+}
+
+function getSimpleTruckName(formOrJob) {
+  const make = String(formOrJob?.make || "").trim();
+  const model = String(formOrJob?.model || "").trim();
+  const truck = String(formOrJob?.truck || "").trim();
+
+  return [make, model].filter(Boolean).join(" ") || truck;
+}
+
+function getShortWorkTitle(description) {
+  const cleanText = String(description || "").replace(/\s+/g, " ").trim();
+
+  if (!cleanText) return "Maintenance";
+
+  return cleanText.length > 45 ? `${cleanText.slice(0, 45)}...` : cleanText;
+}
+
+function calculateMaintenanceTotals(job) {
+  const directTotal = Number(job?.total_amount || 0);
+  const legacyTotal =
+    Number(job?.labor_amount || 0) +
+    Number(job?.parts_amount || 0) +
+    Number(job?.tax_amount || 0) -
+    Number(job?.discount_amount || 0);
+
+  const totalAmount = Math.max(directTotal > 0 ? directTotal : legacyTotal, 0);
+
+  const activePayments = (job?.maintenance_payments || []).filter(
+    (payment) => String(payment?.payment_status || "").toLowerCase() !== "voided"
+  );
+
+  const totalPaid = activePayments.reduce(
+    (sum, payment) => sum + Number(payment.amount_paid || 0),
+    0
+  );
+
+  const balance = Math.max(totalAmount - totalPaid, 0);
+
+  let balanceStatus = "Unpaid";
+
+  if (totalAmount <= 0) balanceStatus = "No Charge";
+  else if (balance <= 0) balanceStatus = "Paid";
+  else if (totalPaid > 0) balanceStatus = "Partial";
+
+  const activePromise = getActiveMaintenancePromises(job || {})[0];
+
+  if (balance > 0 && activePromise) {
+    balanceStatus = "Promised";
+  }
+
+  if (balance > 0 && (job?.maintenance_promises || []).some((promise) => promise.promise_status === "Broken")) {
+    balanceStatus = "Broken Promise";
+  } else if (balance > 0 && job?.due_date && String(job.due_date) < todayString) {
+    balanceStatus = "Overdue";
+  }
+
+  return {
+    totalAmount,
+    totalPaid,
+    balance,
+    balanceStatus,
+  };
+}
 
 function Maintenance() {
   const [jobs, setJobs] = useState([]);
@@ -188,7 +269,6 @@ function Maintenance() {
           job.job_title,
           job.job_description,
           job.work_status,
-          job.customer_type,
           job.notes,
           job.totals.balanceStatus,
         ]
@@ -268,12 +348,14 @@ function Maintenance() {
         Phone: job.phone || "",
         Email: job.email || "",
         Address: job.address || "",
-        Customer_Type: job.customer_type || "",
         Work_Status: job.work_status || "",
         Balance_Status: job.totals.balanceStatus || "",
         Job_Title: job.job_title || "",
         Technician: job.technician || "",
-        Truck: `${job.year || ""} ${job.truck || ""}`.trim(),
+        Vehicle: `${job.year || ""} ${job.truck || ""}`.trim(),
+        Make: job.make || "",
+        Model: job.model || "",
+        Miles: job.miles || "",
         VIN: job.vin || "",
         Start_Date: job.start_date || "",
         Due_Date: job.due_date || "",
@@ -543,9 +625,7 @@ function Maintenance() {
                   <th style={thStyle}>Invoice</th>
                   <th style={thStyle}>Customer</th>
                   <th style={thStyle}>Truck</th>
-                  <th style={thStyle}>Work</th>
-                  <th style={thStyle}>Technician</th>
-                  <th style={thStyle}>Work Status</th>
+                  <th style={workThStyle}>Work</th>
                   <th style={thStyle}>Balance Status</th>
                   <th style={thStyle}>Total</th>
                   <th style={thStyle}>Paid</th>
@@ -558,7 +638,7 @@ function Maintenance() {
               <tbody>
                 {paginatedJobs.length === 0 ? (
                   <tr>
-                    <td style={emptyCell} colSpan="12">
+                    <td style={emptyCell} colSpan="10">
                       No maintenance records found.
                     </td>
                   </tr>
@@ -588,12 +668,7 @@ function Maintenance() {
                             title="Open maintenance details"
                           >
                             {job.invoice_no || "View Invoice"}
-                          </button>
-
-                          <div style={smallText}>
-                            {job.customer_type || "Maintenance Only"}
-                          </div>
-                        </td>
+                          </button>                        </td>
 
                         <td style={tdStyle}>
                           {job.customer_id ? (
@@ -621,19 +696,11 @@ function Maintenance() {
                           <div style={smallText}>{job.vin || ""}</div>
                         </td>
 
-                        <td style={tdStyle}>
+                        <td style={workTdStyle}>
                           <strong>{job.job_title || "—"}</strong>
-                          <div style={smallText}>
-                            {truncateText(job.job_description || "", 82)}
+                          <div style={workDescriptionPreview}>
+                            {truncateText(job.job_description || "", 105)}
                           </div>
-                        </td>
-
-                        <td style={tdStyle}>{job.technician || "—"}</td>
-
-                        <td style={tdStyle}>
-                          <span style={getStatusBadge(job.work_status)}>
-                            {job.work_status || "Open"}
-                          </span>
                         </td>
 
                         <td style={tdStyle}>
@@ -754,6 +821,7 @@ function Maintenance() {
         <MaintenanceFormModal
           title="Add Maintenance Record"
           initialData={emptyForm}
+          existingJobs={jobs}
           onClose={() => setShowAddModal(false)}
           onSubmit={async (form) => {
             const cleanedForm = cleanMaintenanceForm(form);
@@ -787,10 +855,8 @@ function Maintenance() {
                 technician: cleanedForm.technician || "",
                 job_title: cleanedForm.job_title || "",
                 work_status: cleanedForm.work_status || "",
-                labor_amount: Number(cleanedForm.labor_amount || 0),
-                parts_amount: Number(cleanedForm.parts_amount || 0),
-                tax_amount: Number(cleanedForm.tax_amount || 0),
-                discount_amount: Number(cleanedForm.discount_amount || 0),
+                total_amount: Number(cleanedForm.total_amount || 0),
+                miles: cleanedForm.miles || null,
                 start_date: cleanedForm.start_date || "",
                 due_date: cleanedForm.due_date || "",
               },
@@ -807,6 +873,7 @@ function Maintenance() {
         <MaintenanceFormModal
           title="Edit Maintenance Record"
           initialData={editingJob}
+          existingJobs={jobs}
           onClose={() => setEditingJob(null)}
           onSubmit={async (form) => {
             const cleanedForm = cleanMaintenanceForm(form);
@@ -992,19 +1059,42 @@ function Maintenance() {
   );
 }
 
-function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
+function MaintenanceFormModal({
+  title,
+  initialData,
+  existingJobs = [],
+  onClose,
+  onSubmit,
+}) {
+  const isEditing = Boolean(initialData?.id);
+
   const [form, setForm] = useState({
     ...emptyForm,
     ...initialData,
+    invoice_no: initialData.invoice_no || generateMaintenanceInvoiceNo(existingJobs),
     customer_id: initialData.customer_id || null,
+    customer_type: initialData.customer_id ? "Deal Customer" : "Maintenance Only",
     start_date: initialData.start_date || todayString,
     completed_date: initialData.completed_date || "",
-    due_date: initialData.due_date || "",
+    due_date: initialData.due_date || todayString,
+    make: initialData.make || "",
+    model: initialData.model || "",
+    truck: initialData.truck || "",
+    miles: initialData.miles || "",
+    total_amount:
+      initialData.total_amount ||
+      getLegacyMaintenanceTotal(initialData) ||
+      "",
+    job_title: initialData.job_title || "Maintenance",
+    job_description: initialData.job_description || "",
+    labor_amount: initialData.labor_amount || "",
+    parts_amount: initialData.parts_amount || "",
+    tax_amount: initialData.tax_amount || "",
+    discount_amount: initialData.discount_amount || "",
   });
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
   const [customerLoading, setCustomerLoading] = useState(false);
@@ -1018,12 +1108,8 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
         [field]: value,
       };
 
-      if (
-        field === "work_status" &&
-        (value === "Completed" || value === "Closed") &&
-        !prev.completed_date
-      ) {
-        next.completed_date = todayString;
+      if (field === "customer_name") {
+        next.customer_id = null;
       }
 
       return next;
@@ -1033,11 +1119,6 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
   const searchCustomers = async (value) => {
     updateField("customer_name", value);
 
-    setForm((prev) => ({
-      ...prev,
-      customer_id: null,
-    }));
-
     if (!value || value.trim().length < 2) {
       setCustomerSuggestions([]);
       setShowCustomerSuggestions(false);
@@ -1046,9 +1127,7 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
 
     try {
       setCustomerLoading(true);
-
       const results = await getCustomerSuggestions(value);
-
       setCustomerSuggestions(results || []);
       setShowCustomerSuggestions(true);
     } catch (error) {
@@ -1066,18 +1145,29 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
       phone: customer.phone || "",
       email: customer.email || "",
       address: customer.address || "",
-      customer_type: prev.customer_type || "Maintenance Only",
+      year: customer.year || customer.latest_year || prev.year || "",
+      make: customer.make || prev.make || "",
+      model: customer.model || prev.model || "",
+      truck: customer.truck || customer.latest_truck || prev.truck || "",
+      vin: customer.vin || customer.latest_vin || prev.vin || "",
+      miles: customer.miles || prev.miles || "",
+      customer_type: "Deal Customer",
     }));
 
     setCustomerSuggestions([]);
     setShowCustomerSuggestions(false);
   };
 
-  const calculatedTotal =
-    Number(form.labor_amount || 0) +
-    Number(form.parts_amount || 0) +
-    Number(form.tax_amount || 0) -
-    Number(form.discount_amount || 0);
+  const useTypedNameAsNewCustomer = () => {
+    setForm((prev) => ({
+      ...prev,
+      customer_id: null,
+      customer_type: "Maintenance Only",
+    }));
+
+    setCustomerSuggestions([]);
+    setShowCustomerSuggestions(false);
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -1105,182 +1195,226 @@ function MaintenanceFormModal({ title, initialData, onClose, onSubmit }) {
       <form onSubmit={handleSubmit}>
         {error && <div style={errorBox}>{error}</div>}
 
-        <div style={formGrid}>
-          <Input
-            label="Invoice No"
-            value={form.invoice_no}
-            onChange={(v) => updateField("invoice_no", v)}
-            placeholder="Auto generated if empty"
-          />
+        <div style={simpleFormIntroBox}>
+          <strong>{isEditing ? "Edit maintenance record" : "Simple maintenance entry"}</strong>
+          <span>
+            Invoice number is auto-generated in a simple format like MNT-1000. Start typing a customer name to pick an existing customer,
+            or ignore the suggestions and save it as a new maintenance customer.
+          </span>
+        </div>
 
-          <Select
-            label="Customer Type"
-            value={form.customer_type}
-            onChange={(v) => updateField("customer_type", v)}
-            options={["Deal Customer", "Maintenance Only", "Outside Customer"]}
-          />
-
-          <div style={{ position: "relative" }}>
+        <MaintenanceFormSection
+          title="Customer Details"
+          description="Invoice number, customer name, phone, email, and address. Pick a matching customer or keep the typed name as a new maintenance customer."
+        >
+          <div style={formGrid}>
             <Input
-              label="Customer Name"
-              value={form.customer_name}
-              onChange={searchCustomers}
+              label="Invoice No"
+              value={form.invoice_no}
+              onChange={(v) => updateField("invoice_no", v)}
               required
-              placeholder="Start typing customer name..."
+              placeholder="MNT-1000"
             />
 
-            {showCustomerSuggestions && (
-              <div style={suggestionBox}>
-                {customerLoading ? (
-                  <div style={suggestionItem}>Searching...</div>
-                ) : customerSuggestions.length > 0 ? (
-                  customerSuggestions.map((customer) => (
-                    <button
-                      key={customer.id}
-                      type="button"
-                      onClick={() => selectCustomer(customer)}
-                      style={suggestionButton}
-                    >
-                      <strong>{customer.customer_name}</strong>
-                      <span>
-                        {customer.company_name ? `${customer.company_name} · ` : ""}
-                        {customer.phone || "No phone"}
-                        {customer.email ? ` · ${customer.email}` : ""}
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <div style={suggestionItem}>
-                    No existing customer found. This will be saved as a new
-                    maintenance customer.
-                  </div>
-                )}
-              </div>
-            )}
+
+            <div style={{ position: "relative" }}>
+              <Input
+                label="Customer Name"
+                value={form.customer_name}
+                onChange={searchCustomers}
+                required
+                placeholder="Start typing customer name..."
+              />
+
+              {form.customer_id && (
+                <div style={selectedCustomerMiniBox}>
+                  <strong>Existing customer selected</strong>
+                  <button
+                    type="button"
+                    onClick={useTypedNameAsNewCustomer}
+                    style={smallPlainButton}
+                  >
+                    Use as new customer instead
+                  </button>
+                </div>
+              )}
+
+              {showCustomerSuggestions && (
+                <div style={suggestionBox}>
+                  {customerLoading ? (
+                    <div style={suggestionItem}>Searching...</div>
+                  ) : customerSuggestions.length > 0 ? (
+                    <>
+                      {customerSuggestions.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => selectCustomer(customer)}
+                          style={suggestionButton}
+                        >
+                          <strong>{customer.customer_name}</strong>
+                          <span>
+                            {customer.company_name
+                              ? `${customer.company_name} · `
+                              : ""}
+                            {customer.phone || "No phone"}
+                            {customer.email ? ` · ${customer.email}` : ""}
+                          </span>
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={useTypedNameAsNewCustomer}
+                        style={suggestionNewButton}
+                      >
+                        Use typed name as a new maintenance customer
+                      </button>
+                    </>
+                  ) : (
+                    <div style={suggestionItem}>
+                      No existing customer found. This will be saved as a new
+                      maintenance customer.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <Input
+              label="Phone"
+              value={form.phone}
+              onChange={(v) => updateField("phone", v)}
+              placeholder="Customer phone"
+            />
+
+            <Input
+              label="Email"
+              value={form.email}
+              onChange={(v) => updateField("email", v)}
+              placeholder="Customer email"
+            />
+
+            <Input
+              label="Address"
+              value={form.address}
+              onChange={(v) => updateField("address", v)}
+              placeholder="Customer address"
+            />
+          </div>
+        </MaintenanceFormSection>
+
+        <MaintenanceFormSection
+          title="Vehicle Details"
+          description="Truck information connected to this maintenance job."
+        >
+          <div style={formGrid}>
+            <Input
+              label="Year"
+              value={form.year}
+              onChange={(v) => updateField("year", v)}
+              placeholder="Example: 2020"
+            />
+
+            <Input
+              label="Make"
+              value={form.make}
+              onChange={(v) => updateField("make", v)}
+              placeholder="Example: Freightliner"
+            />
+
+            <Input
+              label="Model"
+              value={form.model}
+              onChange={(v) => updateField("model", v)}
+              placeholder="Example: M2"
+            />
+
+            <Input
+              label="VIN"
+              value={form.vin}
+              onChange={(v) => updateField("vin", v)}
+              placeholder="VIN"
+            />
+
+            <Input
+              label="Miles"
+              type="number"
+              value={form.miles}
+              onChange={(v) => updateField("miles", v)}
+              placeholder="Current miles"
+            />
+          </div>
+        </MaintenanceFormSection>
+
+        <MaintenanceFormSection
+          title="Work Details"
+          description="Who worked on the truck, service dates, and a detailed description of work completed."
+        >
+          <div style={formGrid}>
+            <Input
+              label="Technician"
+              value={form.technician}
+              onChange={(v) => updateField("technician", v)}
+              placeholder="Technician name"
+            />
+
+            <Input
+              label="Start Date"
+              type="date"
+              value={form.start_date}
+              onChange={(v) => updateField("start_date", v)}
+            />
+
+            <Input
+              label="Due Date"
+              type="date"
+              value={form.due_date}
+              onChange={(v) => updateField("due_date", v)}
+            />
           </div>
 
-          <Input
-            label="Phone"
-            value={form.phone}
-            onChange={(v) => updateField("phone", v)}
+          <TextArea
+            label="Work Done"
+            value={form.job_description}
+            onChange={(v) => updateField("job_description", v)}
+            rows={8}
+            placeholder="Write everything that was done, parts replaced, labor performed, and any customer instructions..."
           />
+        </MaintenanceFormSection>
 
-          <Input
-            label="Email"
-            value={form.email}
-            onChange={(v) => updateField("email", v)}
+        <MaintenanceFormSection
+          title="Total Amount"
+          description="Enter one final maintenance total. No labor, parts, tax, or discount breakdown is required."
+        >
+          <div style={formGridTwo}>
+            <Input
+              label="Total Amount"
+              type="number"
+              value={form.total_amount}
+              onChange={(v) => updateField("total_amount", v)}
+              required
+              placeholder="Example: 1100"
+            />
+          </div>
+
+          <div style={simpleTotalPreview}>
+            Total Amount: <strong>{formatMoney(Number(form.total_amount || 0))}</strong>
+          </div>
+        </MaintenanceFormSection>
+
+        <MaintenanceFormSection
+          title="Extra Notes"
+          description="Internal notes, warranty notes, follow-up notes, or anything else."
+        >
+          <TextArea
+            label="Notes"
+            value={form.notes}
+            onChange={(v) => updateField("notes", v)}
+            rows={4}
+            placeholder="Internal notes, warranty notes, follow-up notes, or anything else..."
           />
-
-          <Input
-            label="Address"
-            value={form.address}
-            onChange={(v) => updateField("address", v)}
-          />
-
-          <Input
-            label="Year"
-            value={form.year}
-            onChange={(v) => updateField("year", v)}
-          />
-
-          <Input
-            label="Truck"
-            value={form.truck}
-            onChange={(v) => updateField("truck", v)}
-          />
-
-          <Input
-            label="VIN"
-            value={form.vin}
-            onChange={(v) => updateField("vin", v)}
-          />
-
-          <Input
-            label="Technician"
-            value={form.technician}
-            onChange={(v) => updateField("technician", v)}
-          />
-
-          <Input
-            label="Work Title"
-            value={form.job_title}
-            onChange={(v) => updateField("job_title", v)}
-            required
-          />
-
-          <Select
-            label="Work Status"
-            value={form.work_status}
-            onChange={(v) => updateField("work_status", v)}
-            options={workStatuses}
-          />
-
-          <Input
-            label="Start Date"
-            type="date"
-            value={form.start_date}
-            onChange={(v) => updateField("start_date", v)}
-          />
-
-          <Input
-            label="Due Date"
-            type="date"
-            value={form.due_date}
-            onChange={(v) => updateField("due_date", v)}
-          />
-
-          <Input
-            label="Completed Date"
-            type="date"
-            value={form.completed_date}
-            onChange={(v) => updateField("completed_date", v)}
-          />
-
-          <Input
-            label="Labor Amount"
-            type="number"
-            value={form.labor_amount}
-            onChange={(v) => updateField("labor_amount", v)}
-          />
-
-          <Input
-            label="Parts Amount"
-            type="number"
-            value={form.parts_amount}
-            onChange={(v) => updateField("parts_amount", v)}
-          />
-
-          <Input
-            label="Tax Amount"
-            type="number"
-            value={form.tax_amount}
-            onChange={(v) => updateField("tax_amount", v)}
-          />
-
-          <Input
-            label="Discount Amount"
-            type="number"
-            value={form.discount_amount}
-            onChange={(v) => updateField("discount_amount", v)}
-          />
-        </div>
-
-        <div style={totalPreview}>
-          Calculated Total:{" "}
-          <strong>{formatMoney(Math.max(calculatedTotal, 0))}</strong>
-        </div>
-
-        <TextArea
-          label="Work Description"
-          value={form.job_description}
-          onChange={(v) => updateField("job_description", v)}
-        />
-
-        <TextArea
-          label="Notes"
-          value={form.notes}
-          onChange={(v) => updateField("notes", v)}
-        />
+        </MaintenanceFormSection>
 
         <div style={modalActions}>
           <button type="button" onClick={onClose} style={cancelButton}>
@@ -1588,12 +1722,12 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
       </div>
 
       <div style={detailGrid}>
-        <DetailItem label="Customer Type" value={job.customer_type} />
         <DetailItem
           label="Truck"
           value={`${job.year || ""} ${job.truck || ""}`.trim()}
         />
         <DetailItem label="VIN" value={job.vin} />
+        <DetailItem label="Miles" value={job.miles ? `${job.miles} miles` : ""} />
         <DetailItem label="Technician" value={job.technician} />
         <DetailItem label="Work Status" value={job.work_status} />
         <DetailItem label="Start Date" value={formatDate(job.start_date)} />
@@ -1602,11 +1736,7 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
           label="Completed Date"
           value={formatDate(job.completed_date)}
         />
-        <DetailItem label="Labor" value={formatMoney(job.labor_amount)} />
-        <DetailItem label="Parts" value={formatMoney(job.parts_amount)} />
-        <DetailItem label="Tax" value={formatMoney(job.tax_amount)} />
-        <DetailItem label="Discount" value={formatMoney(job.discount_amount)} />
-        <DetailItem label="Total" value={formatMoney(totals.totalAmount)} />
+        <DetailItem label="Total Amount" value={formatMoney(totals.totalAmount)} />
         <DetailItem label="Paid" value={formatMoney(totals.totalPaid)} />
       </div>
 
@@ -1845,6 +1975,21 @@ function MetricCard({ label, value, tone = "default" }) {
   );
 }
 
+function MaintenanceFormSection({ title, description, children }) {
+  return (
+    <section style={maintenanceFormSectionCard}>
+      <div style={maintenanceFormSectionHeader}>
+        <h3 style={maintenanceFormSectionTitle}>{title}</h3>
+        {description && (
+          <p style={maintenanceFormSectionDescription}>{description}</p>
+        )}
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
 function Input({
   label,
   value,
@@ -1891,14 +2036,15 @@ function Select({ label, value, onChange, options }) {
   );
 }
 
-function TextArea({ label, value, onChange }) {
+function TextArea({ label, value, onChange, rows = 3, placeholder = "" }) {
   return (
     <label style={{ ...fieldWrapper, marginTop: "14px" }}>
       <span style={labelStyle}>{label}</span>
       <textarea
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
-        rows="3"
+        rows={rows}
+        placeholder={placeholder}
         style={{ ...inputStyle, resize: "vertical", lineHeight: "1.45" }}
       />
     </label>
@@ -1953,65 +2099,72 @@ function MiniTable({ columns, rows, empty }) {
 }
 
 function cleanMaintenanceForm(form) {
+  const totalAmount = Number(form.total_amount || 0);
+  const make = String(form.make || "").trim();
+  const model = String(form.model || "").trim();
+  const truck = [make, model].filter(Boolean).join(" ") || String(form.truck || "").trim();
+  const workDescription = String(form.job_description || "").trim();
+
   return {
     ...form,
-    invoice_no: String(form.invoice_no || "").trim(),
+    invoice_no: String(form.invoice_no || "MNT-1000").trim(),
     customer_id: form.customer_id || null,
-    customer_type: String(form.customer_type || "Maintenance Only").trim(),
+    customer_type: form.customer_id ? "Deal Customer" : "Maintenance Only",
     customer_name: String(form.customer_name || "").trim(),
     phone: String(form.phone || "").trim(),
     email: String(form.email || "").trim(),
     address: String(form.address || "").trim(),
-    truck: String(form.truck || "").trim(),
     year: String(form.year || "").trim(),
-    vin: String(form.vin || "").trim(),
+    make,
+    model,
+    truck,
+    vin: String(form.vin || "").trim().toUpperCase(),
+    miles: form.miles ? Number(form.miles || 0) : null,
     technician: String(form.technician || "").trim(),
-    job_title: String(form.job_title || "").trim(),
-    job_description: String(form.job_description || "").trim(),
+    job_title: String(form.job_title || "").trim() || getShortWorkTitle(workDescription),
+    job_description: workDescription,
     work_status: String(form.work_status || "Open").trim(),
-    labor_amount: Number(form.labor_amount || 0),
-    parts_amount: Number(form.parts_amount || 0),
-    tax_amount: Number(form.tax_amount || 0),
-    discount_amount: Number(form.discount_amount || 0),
+    total_amount: totalAmount,
+
+    // Compatibility with the old maintenance total logic and older reports.
+    // We store the single total amount in labor_amount and keep parts/tax/discount zero.
+    labor_amount: totalAmount,
+    parts_amount: 0,
+    tax_amount: 0,
+    discount_amount: 0,
+
     start_date: form.start_date || todayString,
     completed_date: form.completed_date || null,
-    due_date: form.due_date || null,
+    due_date: form.due_date || form.start_date || todayString,
     notes: String(form.notes || "").trim(),
   };
 }
 
 function validateMaintenanceForm(form) {
+  const invoiceNo = String(form.invoice_no || "").trim();
+
+  if (!invoiceNo) {
+    return "Invoice number is required.";
+  }
+
+  if (!/^MNT-\d+$/i.test(invoiceNo)) {
+    return "Invoice number must look like MNT-1000.";
+  }
+
   if (!String(form.customer_name || "").trim()) {
     return "Customer name is required.";
   }
 
-  if (!String(form.job_title || "").trim()) {
-    return "Work title is required.";
+  if (!String(form.job_description || "").trim()) {
+    return "Work done description is required.";
   }
 
-  const moneyFields = [
-    "labor_amount",
-    "parts_amount",
-    "tax_amount",
-    "discount_amount",
-  ];
-
-  const hasNegativeAmount = moneyFields.some(
-    (field) => Number(form[field] || 0) < 0
-  );
-
-  if (hasNegativeAmount) {
-    return "Amounts cannot be negative.";
+  if (Number(form.total_amount || 0) < 0) {
+    return "Total amount cannot be negative.";
   }
 
-  const total =
-    Number(form.labor_amount || 0) +
-    Number(form.parts_amount || 0) +
-    Number(form.tax_amount || 0) -
-    Number(form.discount_amount || 0);
-
-  if (total < 0) {
-    return "Discount cannot be greater than labor, parts, and tax combined.";
+  if (form.miles && Number(form.miles || 0) < 0) {
+    return "Miles cannot be negative.";
   }
 
   if (
@@ -2023,6 +2176,16 @@ function validateMaintenanceForm(form) {
   }
 
   return "";
+}
+
+function getLegacyMaintenanceTotal(job) {
+  const total =
+    Number(job?.labor_amount || 0) +
+    Number(job?.parts_amount || 0) +
+    Number(job?.tax_amount || 0) -
+    Number(job?.discount_amount || 0);
+
+  return Math.max(total, 0);
 }
 
 function applyQuickFilter(job, filter) {
@@ -2340,9 +2503,6 @@ function buildMaintenanceInvoiceHtml(job, totals) {
           <h1>RK Truck & Trailer Sales</h1>
           <p>2727 Willowbrook Rd, Dallas, TX 75220</p>
           <p>Phone: 469-880-2222</p>
-          <span class="badge">${escapeHtml(
-            job.customer_type || "Maintenance Only"
-          )}</span>
         </div>
 
         <div class="meta">
@@ -2367,14 +2527,16 @@ function buildMaintenanceInvoiceHtml(job, totals) {
           <div class="value">${escapeHtml(job.phone || "—")}</div>
         </div>
         <div class="box">
-          <div class="label">Truck</div>
+          <div class="label">Vehicle</div>
           <div class="value">${escapeHtml(
             `${job.year || ""} ${job.truck || ""}`.trim() || "—"
           )}</div>
         </div>
         <div class="box">
-          <div class="label">VIN</div>
-          <div class="value">${escapeHtml(job.vin || "—")}</div>
+          <div class="label">VIN / Miles</div>
+          <div class="value">${escapeHtml(
+            `${job.vin || "—"}${job.miles ? ` · ${job.miles} miles` : ""}`
+          )}</div>
         </div>
         <div class="box">
           <div class="label">Technician</div>
@@ -2404,11 +2566,7 @@ function buildMaintenanceInvoiceHtml(job, totals) {
           </tr>
         </thead>
         <tbody>
-          <tr><td>Labor</td><td>${formatMoney(job.labor_amount)}</td></tr>
-          <tr><td>Parts</td><td>${formatMoney(job.parts_amount)}</td></tr>
-          <tr><td>Tax</td><td>${formatMoney(job.tax_amount)}</td></tr>
-          <tr><td>Discount</td><td>-${formatMoney(job.discount_amount)}</td></tr>
-          <tr class="total"><td>Total</td><td>${formatMoney(
+          <tr class="total"><td>Total Amount</td><td>${formatMoney(
             totals.totalAmount
           )}</td></tr>
           <tr><td>Paid</td><td>${formatMoney(totals.totalPaid)}</td></tr>
@@ -2930,7 +3088,7 @@ const tableStyle = {
   width: "100%",
   borderCollapse: "separate",
   borderSpacing: 0,
-  minWidth: "1500px",
+  minWidth: "1320px",
 };
 
 const thStyle = {
@@ -2948,6 +3106,12 @@ const thStyle = {
   letterSpacing: "0.04em",
 };
 
+const workThStyle = {
+  ...thStyle,
+  width: "24%",
+  minWidth: "260px",
+};
+
 const tdStyle = {
   padding: "13px 12px",
   borderBottom: "1px solid #f1f5f9",
@@ -2955,6 +3119,20 @@ const tdStyle = {
   verticalAlign: "top",
   fontSize: "13px",
   background: "transparent",
+};
+
+const workTdStyle = {
+  ...tdStyle,
+  width: "24%",
+  minWidth: "260px",
+};
+
+const workDescriptionPreview = {
+  marginTop: "5px",
+  color: "#667085",
+  fontSize: "12px",
+  lineHeight: "1.45",
+  whiteSpace: "normal",
 };
 
 const emptyCell = {
@@ -3148,6 +3326,32 @@ const modalCloseButton = {
   fontWeight: "900",
 };
 
+const maintenanceFormSectionCard = {
+  border: "1px solid #e5e7eb",
+  borderRadius: "16px",
+  padding: "16px",
+  marginTop: "16px",
+  background: "#ffffff",
+  boxShadow: "0 6px 16px rgba(15, 23, 42, 0.04)",
+};
+
+const maintenanceFormSectionHeader = {
+  marginBottom: "14px",
+};
+
+const maintenanceFormSectionTitle = {
+  margin: 0,
+  color: "#111827",
+  fontSize: "17px",
+};
+
+const maintenanceFormSectionDescription = {
+  margin: "5px 0 0",
+  color: "#667085",
+  fontSize: "13px",
+  lineHeight: "1.45",
+};
+
 const formGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
@@ -3193,6 +3397,64 @@ const totalPreview = {
   padding: "12px",
   marginTop: "14px",
   color: "#111827",
+};
+
+const simpleFormIntroBox = {
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  color: "#1d4ed8",
+  borderRadius: "12px",
+  padding: "12px",
+  marginBottom: "16px",
+  display: "grid",
+  gap: "4px",
+  fontSize: "13px",
+};
+
+const selectedCustomerMiniBox = {
+  marginTop: "7px",
+  background: "#ecfdf5",
+  border: "1px solid #bbf7d0",
+  color: "#166534",
+  borderRadius: "10px",
+  padding: "8px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: "12px",
+};
+
+const smallPlainButton = {
+  border: "none",
+  background: "#0A1A2F",
+  color: "white",
+  borderRadius: "999px",
+  padding: "6px 9px",
+  cursor: "pointer",
+  fontWeight: "900",
+  fontSize: "11px",
+};
+
+const suggestionNewButton = {
+  width: "100%",
+  border: "none",
+  background: "#fffbeb",
+  color: "#92400e",
+  padding: "11px",
+  cursor: "pointer",
+  textAlign: "left",
+  fontWeight: "900",
+};
+
+const simpleTotalPreview = {
+  marginTop: "14px",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "13px",
+  color: "#111827",
+  fontSize: "16px",
 };
 
 const modalActions = {

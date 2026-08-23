@@ -81,49 +81,49 @@ export async function createMaintenanceJob(job) {
     return data;
   }
 
-function buildMaintenancePayload(job) {
-  const totalAmount =
-    Number(job.labor_amount || 0) +
-    Number(job.parts_amount || 0) +
-    Number(job.tax_amount || 0) -
-    Number(job.discount_amount || 0);
-
-  return {
-    customer_id: job.customer_id || null,
-    deal_id: job.deal_id || null,
-
-    invoice_no: job.invoice_no || null,
-    customer_type: job.customer_type || "Maintenance Only",
-
-    customer_name: job.customer_name || "",
-    phone: job.phone || "",
-    email: job.email || "",
-    address: job.address || "",
-
-    truck: job.truck || "",
-    year: job.year || "",
-    vin: job.vin || "",
-
-    technician: job.technician || "",
-
-    job_title: job.job_title || "",
-    job_description: job.job_description || "",
-
-    work_status: job.work_status || "Open",
-
-    labor_amount: Number(job.labor_amount || 0),
-    parts_amount: Number(job.parts_amount || 0),
-    tax_amount: Number(job.tax_amount || 0),
-    discount_amount: Number(job.discount_amount || 0),
-    total_amount: Math.max(totalAmount, 0),
-
-    start_date: job.start_date || new Date().toISOString().split("T")[0],
-    completed_date: job.completed_date || null,
-    due_date: job.due_date || null,
-
-    notes: job.notes || "",
-  };
-}
+  function buildMaintenancePayload(job) {
+    const totalAmount = Number(
+      job.total_amount || job.totalAmount || job.labor_amount || 0
+    );
+  
+    return {
+      customer_id: job.customer_id || null,
+  
+      invoice_no: job.invoice_no || null,
+      customer_type: job.customer_id ? "Deal Customer" : "Maintenance Only",
+  
+      customer_name: job.customer_name || "",
+      phone: job.phone || "",
+      email: job.email || "",
+      address: job.address || "",
+  
+      year: job.year || "",
+      make: job.make || "",
+      model: job.model || "",
+      truck: job.truck || "",
+      vin: job.vin || "",
+      miles: job.miles ? Number(job.miles) : null,
+  
+      technician: job.technician || "",
+  
+      job_title: job.job_title || "Maintenance",
+      job_description: job.job_description || "",
+  
+      work_status: job.work_status || "Open",
+  
+      total_amount: totalAmount,
+      labor_amount: totalAmount,
+      parts_amount: 0,
+      tax_amount: 0,
+      discount_amount: 0,
+  
+      start_date: job.start_date || new Date().toISOString().split("T")[0],
+      completed_date: job.completed_date || null,
+      due_date: job.due_date || null,
+  
+      notes: job.notes || "",
+    };
+  }
 
 export async function addMaintenancePayment(payment) {
   const payload = {
@@ -239,7 +239,7 @@ export function calculateMaintenanceTotals(job) {
     0
   );
 
-  const totalAmount = Number(job.total_amount || 0);
+  const totalAmount = Number(job.total_amount || job.labor_amount || 0);
   const balance = Math.max(totalAmount - totalPaid, 0);
 
   const activePromises = promises.filter(

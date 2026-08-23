@@ -8,6 +8,8 @@ import {
   getMaintenanceJobs,
   updateBrokenMaintenancePromises,
   updateMaintenanceJob,
+  updateMaintenancePayment,
+  voidMaintenancePayment,
 } from "../api/maintenanceApi";
 import { logActivity } from "../api/activityLogsApi";
 import { exportToCsv } from "../utils/exportUtils";
@@ -153,6 +155,7 @@ function Maintenance() {
   const [editingJob, setEditingJob] = useState(null);
   const [viewJob, setViewJob] = useState(null);
   const [paymentJob, setPaymentJob] = useState(null);
+  const [editingPayment, setEditingPayment] = useState(null);
   const [promiseJob, setPromiseJob] = useState(null);
   const [receiptData, setReceiptData] = useState(null);
 
@@ -414,6 +417,60 @@ function Maintenance() {
         balance_status: totals.balanceStatus,
       },
     });
+  };
+
+  const handleVoidMaintenancePayment = async (job, payment) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to void this payment of ${formatMoney(
+        Number(payment?.amount_paid || 0)
+      )}? This will reopen the maintenance balance.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const voidedPayment = await voidMaintenancePayment(payment.id, {
+        notes: payment.notes || "",
+      });
+
+      await logActivity({
+        action: "VOID",
+        module: "Maintenance",
+        entity_type: "maintenance_payment",
+        entity_id: payment?.id,
+        entity_label: job?.invoice_no || job?.customer_name || "Maintenance Payment",
+        description: `Maintenance payment of ${formatMoney(
+          Number(payment?.amount_paid || 0)
+        )} voided for ${job?.customer_name || "customer"} on invoice ${
+          job?.invoice_no || "—"
+        }.`,
+        metadata: {
+          payment_id: payment?.id || null,
+          maintenance_job_id: job?.id || null,
+          invoice_no: job?.invoice_no || "",
+          customer_id: job?.customer_id || null,
+          customer_name: job?.customer_name || "",
+          amount_paid: Number(payment?.amount_paid || 0),
+          payment_date: payment?.payment_date || "",
+          payment_method: payment?.payment_method || "",
+          payment_status_before: payment?.payment_status || "",
+          payment_status_after: voidedPayment?.payment_status || "Voided",
+        },
+      });
+
+      setViewJob(null);
+      await loadMaintenance();
+
+      showSuccess("Maintenance payment voided.");
+      showFloatingSuccess(
+        `Payment of ${formatMoney(Number(payment?.amount_paid || 0))} voided for ${
+          job?.invoice_no || job?.customer_name || "maintenance record"
+        }.`
+      );
+    } catch (error) {
+      setMessage(error.message || "Unable to void maintenance payment.");
+      setMessageType("error");
+    }
   };
 
   return (
@@ -1072,6 +1129,64 @@ function Maintenance() {
         />
       )}
 
+      {editingPayment && (
+        <EditPaymentModal
+          job={editingPayment.job}
+          payment={editingPayment.payment}
+          onClose={() => setEditingPayment(null)}
+          onSubmit={async (updatedPayment) => {
+            const previousAmount = Number(editingPayment.payment?.amount_paid || 0);
+            const updatedAmount = Number(updatedPayment.amount_paid || 0);
+
+            const savedPayment = await updateMaintenancePayment(
+              editingPayment.payment.id,
+              updatedPayment
+            );
+
+            await logActivity({
+              action: "UPDATE",
+              module: "Maintenance",
+              entity_type: "maintenance_payment",
+              entity_id: editingPayment.payment?.id,
+              entity_label:
+                editingPayment.job?.invoice_no ||
+                editingPayment.job?.customer_name ||
+                "Maintenance Payment",
+              description: `Maintenance payment updated for ${
+                editingPayment.job?.customer_name || "customer"
+              } on invoice ${editingPayment.job?.invoice_no || "—"}.`,
+              metadata: {
+                payment_id: editingPayment.payment?.id || null,
+                maintenance_job_id: editingPayment.job?.id || null,
+                invoice_no: editingPayment.job?.invoice_no || "",
+                customer_id: editingPayment.job?.customer_id || null,
+                customer_name: editingPayment.job?.customer_name || "",
+                amount_before: previousAmount,
+                amount_after: updatedAmount,
+                payment_date_before: editingPayment.payment?.payment_date || "",
+                payment_date_after: updatedPayment.payment_date || "",
+                payment_method_before: editingPayment.payment?.payment_method || "",
+                payment_method_after: updatedPayment.payment_method || "",
+                payment_status_before: editingPayment.payment?.payment_status || "",
+                payment_status_after: savedPayment?.payment_status || updatedPayment.payment_status || "",
+              },
+            });
+
+            setEditingPayment(null);
+            await loadMaintenance();
+
+            showSuccess("Maintenance payment updated.");
+            showFloatingSuccess(
+              `Payment updated for ${
+                editingPayment.job?.invoice_no ||
+                editingPayment.job?.customer_name ||
+                "maintenance record"
+              }.`
+            );
+          }}
+        />
+      )}
+
       {promiseJob && (
         <PromiseModal
           job={promiseJob}
@@ -1137,6 +1252,11 @@ function Maintenance() {
             setViewJob(null);
           }}
           onPrintInvoice={() => handlePrintMaintenanceInvoice(viewJob)}
+          onEditPayment={(payment) => {
+            setEditingPayment({ job: viewJob, payment });
+            setViewJob(null);
+          }}
+          onVoidPayment={(payment) => handleVoidMaintenancePayment(viewJob, payment)}
         />
       )}
 
@@ -1648,6 +1768,144 @@ function PaymentModal({ job, onClose, onSubmit }) {
   );
 }
 
+
+function EditPaymentModal({ job, payment, onClose, onSubmit }) {
+  const totals = calculateMaintenanceTotals(job);
+  const otherPaymentsTotal = (job.maintenance_payments || [])
+    .filter(
+      (item) =>
+        item.id !== payment.id &&
+        String(item.payment_status || "").toLowerCase() !== "voided"
+    )
+    .reduce((sum, item) => sum + Number(item.amount_paid || 0), 0);
+
+  const maxAllowedAmount = Math.max(
+    Number(totals.totalAmount || 0) - otherPaymentsTotal,
+    0
+  );
+
+  const [form, setForm] = useState({
+    maintenance_job_id: payment.maintenance_job_id || job.id,
+    customer_id: payment.customer_id || job.customer_id || null,
+    payment_date: payment.payment_date || todayString,
+    amount_paid: payment.amount_paid || "",
+    payment_method: payment.payment_method || "Cash",
+    payment_status: payment.payment_status || "Paid",
+    notes: payment.notes || "",
+  });
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const amountPaid = Number(form.amount_paid || 0);
+  const remainingAfterPayment = Math.max(maxAllowedAmount - amountPaid, 0);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!form.payment_date) {
+      setError("Payment date is required.");
+      return;
+    }
+
+    if (amountPaid <= 0) {
+      setError("Payment amount must be greater than 0.");
+      return;
+    }
+
+    if (amountPaid > maxAllowedAmount) {
+      setError(
+        `Payment amount cannot be more than ${formatMoney(maxAllowedAmount)}.`
+      );
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+      await onSubmit(form);
+    } catch (error) {
+      setError(error.message || "Unable to update maintenance payment.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title="Edit Maintenance Payment" onClose={onClose} width="620px">
+      <form onSubmit={handleSubmit}>
+        {error && <div style={errorBox}>{error}</div>}
+
+        <div style={customerSummaryBox}>
+          <strong>
+            {job.invoice_no || "—"} · {job.customer_name}
+          </strong>
+          {getCompanyName(job) && <span>{getCompanyName(job)}</span>}
+          <span>{job.job_title}</span>
+          <span>
+            Maximum Allowed For This Payment: {formatMoney(maxAllowedAmount)}
+          </span>
+          {amountPaid > 0 && (
+            <span>
+              Balance After Edited Payment: {formatMoney(remainingAfterPayment)}
+            </span>
+          )}
+        </div>
+
+        <div style={formGridTwo}>
+          <Input
+            label="Payment Date"
+            type="date"
+            value={form.payment_date}
+            onChange={(v) => setForm((prev) => ({ ...prev, payment_date: v }))}
+          />
+
+          <Input
+            label="Amount Paid"
+            type="number"
+            value={form.amount_paid}
+            onChange={(v) => setForm((prev) => ({ ...prev, amount_paid: v }))}
+          />
+
+          <Select
+            label="Payment Method"
+            value={form.payment_method}
+            onChange={(v) =>
+              setForm((prev) => ({ ...prev, payment_method: v }))
+            }
+            options={["Cash", "Card", "Check", "Zelle", "ACH", "Wire", "Other"]}
+          />
+
+          <Select
+            label="Payment Status"
+            value={form.payment_status}
+            onChange={(v) =>
+              setForm((prev) => ({ ...prev, payment_status: v }))
+            }
+            options={["Paid", "Partial"]}
+          />
+        </div>
+
+        <TextArea
+          label="Payment Notes"
+          value={form.notes}
+          onChange={(v) => setForm((prev) => ({ ...prev, notes: v }))}
+        />
+
+        <div style={modalActions}>
+          <button type="button" onClick={onClose} style={cancelButton}>
+            Cancel
+          </button>
+
+          <button type="submit" disabled={saving} style={saveButton}>
+            {saving ? "Saving..." : "Save Payment Changes"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function PromiseModal({ job, onClose, onSubmit }) {
   const totals = calculateMaintenanceTotals(job);
 
@@ -1762,7 +2020,15 @@ function PromiseModal({ job, onClose, onSubmit }) {
   );
 }
 
-function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
+function DetailModal({
+  job,
+  onClose,
+  onPayment,
+  onSchedule,
+  onPrintInvoice,
+  onEditPayment,
+  onVoidPayment,
+}) {
   const totals = calculateMaintenanceTotals(job);
   const balance = Number(totals.balance || 0);
 
@@ -1853,7 +2119,7 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
       <div style={detailSection}>
         <h3 style={detailTitle}>Payment History</h3>
         <MiniTable
-          columns={["Date", "Amount", "Method", "Status", "Notes"]}
+          columns={["Date", "Amount", "Method", "Status", "Notes", "Actions"]}
           rows={(job.maintenance_payments || [])
             .slice()
             .sort((a, b) =>
@@ -1861,13 +2127,39 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
                 String(a.payment_date || "")
               )
             )
-            .map((payment) => [
-              formatDate(payment.payment_date),
-              formatMoney(payment.amount_paid),
-              payment.payment_method || "—",
-              payment.payment_status || "Paid",
-              payment.notes || "—",
-            ])}
+            .map((payment) => {
+              const isVoided =
+                String(payment.payment_status || "").toLowerCase() === "voided";
+
+              return [
+                formatDate(payment.payment_date),
+                formatMoney(payment.amount_paid),
+                payment.payment_method || "—",
+                payment.payment_status || "Paid",
+                payment.notes || "—",
+                isVoided ? (
+                  <span style={smallText}>No actions</span>
+                ) : (
+                  <div style={paymentHistoryActions}>
+                    <button
+                      type="button"
+                      onClick={() => onEditPayment?.(payment)}
+                      style={miniEditButton}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onVoidPayment?.(payment)}
+                      style={miniVoidButton}
+                    >
+                      Void
+                    </button>
+                  </div>
+                ),
+              ];
+            })}
           empty="No maintenance payments recorded."
         />
       </div>
@@ -3404,6 +3696,30 @@ const printButtonLarge = {
   padding: "10px 14px",
   cursor: "pointer",
   fontWeight: "900",
+};
+
+const paymentHistoryActions = {
+  display: "flex",
+  gap: "6px",
+  flexWrap: "wrap",
+};
+
+const miniEditButton = {
+  ...smallActionButton,
+  background: "#dbeafe",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+  padding: "5px 8px",
+  fontSize: "11px",
+};
+
+const miniVoidButton = {
+  ...smallActionButton,
+  background: "#fee2e2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+  padding: "5px 8px",
+  fontSize: "11px",
 };
 
 const disabledButton = {

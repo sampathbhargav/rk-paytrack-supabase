@@ -146,9 +146,15 @@ export async function addMaintenancePayment(payment) {
     throw new Error(error.message);
   }
 
+  await fulfillMaintenancePromisesAfterPayment(
+    payment.maintenance_job_id,
+    payment.amount_paid
+  );
+  
   await updateMaintenanceStatusAfterPayment(payment.maintenance_job_id);
-
+  
   return data;
+
 }
 
 export async function addMaintenancePromise(promise) {
@@ -451,8 +457,132 @@ export async function findOrCreateCustomerFromMaintenance(form) {
 
   if (paymentsError) throw new Error(paymentsError.message);
 
+  for (const item of paymentRows) {
+    await fulfillMaintenancePromisesAfterPayment(
+      item.maintenance_job_id,
+      item.amount_paid
+    );
+  }
+
   return {
     batch: batchData,
     payments: paymentsData || [],
   };
+}
+
+export async function updateMaintenancePayment(id, payment) {
+  const payload = {
+    customer_id: payment.customer_id || null,
+    payment_date: payment.payment_date || new Date().toISOString().split("T")[0],
+    amount_paid: Number(payment.amount_paid || 0),
+    payment_method: payment.payment_method || "Other",
+    payment_status: payment.payment_status || "Paid",
+    notes: payment.notes || "",
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("maintenance_payments")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+export async function voidMaintenancePayment(id, payment = {}) {
+  const notes = payment.notes
+    ? `${payment.notes}\n\nVoided on ${new Date().toLocaleString()}`
+    : `Voided on ${new Date().toLocaleString()}`;
+
+  const { data, error } = await supabase
+    .from("maintenance_payments")
+    .update({
+      payment_status: "Voided",
+      notes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+async function fulfillMaintenancePromisesAfterPayment(maintenanceJobId, amountPaid) {
+  const paymentAmount = Number(amountPaid || 0);
+
+  if (!maintenanceJobId || paymentAmount <= 0) {
+    return true;
+  }
+
+  const { data: promises, error } = await supabase
+    .from("maintenance_promises")
+    .select("*")
+    .eq("maintenance_job_id", maintenanceJobId)
+    .in("promise_status", ["Pending", "Broken", "Partial Paid"])
+    .order("promised_date", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  let remainingPayment = paymentAmount;
+
+  for (const promise of promises || []) {
+    if (remainingPayment <= 0) break;
+
+    const promisedAmount = Number(promise.promised_amount || 0);
+
+    if (remainingPayment >= promisedAmount) {
+      const { error: updateError } = await supabase
+        .from("maintenance_promises")
+        .update({
+          promise_status: "Paid",
+          notes: promise.notes
+            ? `${promise.notes}\n\nFulfilled by maintenance payment.`
+            : "Fulfilled by maintenance payment.",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", promise.id);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      remainingPayment -= promisedAmount;
+    } else {
+      const { error: updateError } = await supabase
+        .from("maintenance_promises")
+        .update({
+          promise_status: "Partial Paid",
+          notes: promise.notes
+            ? `${promise.notes}\n\nPartially fulfilled by maintenance payment of $${remainingPayment.toFixed(
+                2
+              )}.`
+            : `Partially fulfilled by maintenance payment of $${remainingPayment.toFixed(
+                2
+              )}.`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", promise.id);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      remainingPayment = 0;
+    }
+  }
+
+  return true;
 }

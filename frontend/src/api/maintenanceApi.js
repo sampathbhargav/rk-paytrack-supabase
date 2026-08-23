@@ -335,86 +335,77 @@ export async function deleteMaintenanceJob(id) {
 }
 
 export async function getCustomerSuggestions(searchText) {
-    const text = String(searchText || "").trim();
-  
-    if (!text) return [];
-  
-    const { data, error } = await supabase
-      .from("customers")
-      .select("*")
-      .or(
-        `customer_name.ilike.%${text}%,phone.ilike.%${text}%,email.ilike.%${text}%`
-      )
-      .order("customer_name", { ascending: true })
-      .limit(8);
-  
-    if (error) {
-      throw new Error(error.message);
-    }
-  
-    return data || [];
+  const text = String(searchText || "").trim();
+
+  if (!text) return [];
+
+  const safeText = text.replaceAll(",", "").replaceAll("%", "");
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .or(
+      [
+        `customer_name.ilike.%${safeText}%`,
+        `company_name.ilike.%${safeText}%`,
+        `phone.ilike.%${safeText}%`,
+        `email.ilike.%${safeText}%`,
+      ].join(",")
+    )
+    .order("customer_name", { ascending: true })
+    .limit(10);
+
+  if (error) {
+    throw new Error(error.message);
   }
+
+  return data || [];
+}
   
-  export async function findOrCreateCustomerFromMaintenance(form) {
-    const customerName = String(form.customer_name || "").trim();
-    const phone = String(form.phone || "").trim();
-  
-    if (!customerName) return null;
-  
-    let query = supabase.from("customers").select("*").limit(1);
-  
-    if (phone) {
-      query = query.or(`phone.eq.${phone},customer_name.ilike.${customerName}`);
-    } else {
-      query = query.ilike("customer_name", customerName);
-    }
-  
-    const { data: existingCustomers, error: findError } = await query;
-  
-    if (findError) {
-      throw new Error(findError.message);
-    }
-  
-    if (existingCustomers && existingCustomers.length > 0) {
-      const existing = existingCustomers[0];
-  
-      const { data, error } = await supabase
-        .from("customers")
-        .update({
-          customer_name: customerName,
-          phone: phone || existing.phone || "",
-          email: form.email || existing.email || "",
-          address: form.address || existing.address || "",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id)
-        .select()
-        .single();
-  
-      if (error) {
-        throw new Error(error.message);
-      }
-  
-      return data;
-    }
-  
+export async function findOrCreateCustomerFromMaintenance(form) {
+  const customerName = String(form.customer_name || "").trim();
+  const phone = String(form.phone || "").trim();
+
+  if (!customerName) return null;
+
+  if (form.customer_id) {
     const { data, error } = await supabase
       .from("customers")
-      .insert({
+      .update({
         customer_name: customerName,
         phone: phone || "",
         email: form.email || "",
         address: form.address || "",
+        updated_at: new Date().toISOString(),
       })
+      .eq("id", form.customer_id)
       .select()
       .single();
-  
+
     if (error) {
       throw new Error(error.message);
     }
-  
+
     return data;
   }
+
+  const { data, error } = await supabase
+    .from("customers")
+    .insert({
+      customer_name: customerName,
+      phone: phone || "",
+      email: form.email || "",
+      address: form.address || "",
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
 
   export async function addMaintenancePaymentBatch(batch, allocations) {
   const receiptNo =

@@ -149,6 +149,7 @@ function Maintenance() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
   const [loading, setLoading] = useState(false);
+  const [floatingAlert, setFloatingAlert] = useState(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
@@ -337,6 +338,17 @@ function Maintenance() {
     setMessageType("success");
   };
 
+  const showFloatingSuccess = (text) => {
+    setFloatingAlert({
+      type: "success",
+      text,
+    });
+
+    setTimeout(() => {
+      setFloatingAlert(null);
+    }, 3500);
+  };
+
   const exportFilteredMaintenance = () => {
     const rows = filteredJobs.map((job) => {
       const latestPromise = getLatestPromise(job);
@@ -413,6 +425,41 @@ function Maintenance() {
 
   return (
     <div style={pageWrapper}>
+      <style>
+        {`
+          @keyframes rkSlideInAlert {
+            from {
+              opacity: 0;
+              transform: translateX(24px);
+            }
+
+            to {
+              opacity: 1;
+              transform: translateX(0);
+            }
+          }
+        `}
+      </style>
+
+      {floatingAlert && (
+        <div style={floatingAlertStyle}>
+          <div style={floatingAlertIcon}>✓</div>
+
+          <div>
+            <strong style={floatingAlertTitle}>Success</strong>
+            <div style={floatingAlertText}>{floatingAlert.text}</div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setFloatingAlert(null)}
+            style={floatingAlertClose}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div style={heroCard}>
         <div>
           <div style={eyebrow}>Service & Repair Ledger</div>
@@ -864,7 +911,13 @@ function Maintenance() {
 
             setShowAddModal(false);
             await loadMaintenance();
+
             showSuccess("Maintenance record created.");
+            showFloatingSuccess(
+              `Maintenance record ${
+                savedJob?.invoice_no || cleanedForm.invoice_no || ""
+              } created successfully.`
+            );
           }}
         />
       )}
@@ -922,7 +975,16 @@ function Maintenance() {
 
             setEditingJob(null);
             await loadMaintenance();
+
             showSuccess("Maintenance record updated.");
+            showFloatingSuccess(
+              `Maintenance record ${
+                updatedJob?.invoice_no ||
+                cleanedForm.invoice_no ||
+                previousJob?.invoice_no ||
+                ""
+              } updated successfully.`
+            );
           }}
         />
       )}
@@ -984,7 +1046,15 @@ function Maintenance() {
 
             setPaymentJob(null);
             await loadMaintenance();
+
             showSuccess("Maintenance payment recorded.");
+            showFloatingSuccess(
+              `Payment of ${formatMoney(paidAmount)} recorded for ${
+                paymentJob?.invoice_no ||
+                paymentJob?.customer_name ||
+                "maintenance record"
+              }.`
+            );
           }}
         />
       )}
@@ -1028,7 +1098,15 @@ function Maintenance() {
 
             setPromiseJob(null);
             await loadMaintenance();
+
             showSuccess("Maintenance promise scheduled.");
+            showFloatingSuccess(
+              `Payment promise scheduled for ${
+                promiseJob?.invoice_no ||
+                promiseJob?.customer_name ||
+                "maintenance record"
+              }.`
+            );
           }}
         />
       )}
@@ -2912,6 +2990,61 @@ const secondaryButton = {
   padding: "12px 16px",
   cursor: "pointer",
   fontWeight: "900",
+};
+
+const floatingAlertStyle = {
+  position: "fixed",
+  top: "22px",
+  right: "22px",
+  zIndex: 10000,
+  display: "flex",
+  alignItems: "flex-start",
+  gap: "12px",
+  width: "min(420px, calc(100vw - 32px))",
+  background: "#ecfdf5",
+  color: "#064e3b",
+  border: "1px solid #86efac",
+  borderLeft: "6px solid #16a34a",
+  borderRadius: "16px",
+  padding: "14px 16px",
+  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.22)",
+  animation: "rkSlideInAlert 0.25s ease-out",
+};
+
+const floatingAlertIcon = {
+  width: "28px",
+  height: "28px",
+  borderRadius: "999px",
+  background: "#16a34a",
+  color: "white",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: "900",
+  flexShrink: 0,
+};
+
+const floatingAlertTitle = {
+  display: "block",
+  fontSize: "14px",
+  marginBottom: "3px",
+};
+
+const floatingAlertText = {
+  fontSize: "13px",
+  lineHeight: "1.4",
+  color: "#065f46",
+};
+
+const floatingAlertClose = {
+  marginLeft: "auto",
+  border: "none",
+  background: "transparent",
+  color: "#065f46",
+  fontSize: "22px",
+  fontWeight: "900",
+  cursor: "pointer",
+  lineHeight: 1,
 };
 
 const messageBox = {

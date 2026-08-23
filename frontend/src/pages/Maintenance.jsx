@@ -21,6 +21,7 @@ const emptyForm = {
   customer_id: null,
   customer_type: "Maintenance Only",
   customer_name: "",
+  company_name: "",
   phone: "",
   email: "",
   address: "",
@@ -31,7 +32,7 @@ const emptyForm = {
   vin: "",
   miles: "",
   technician: "",
-  job_title: "Maintenance",
+  job_title: "",
   job_description: "",
   work_status: "Open",
   total_amount: "",
@@ -55,8 +56,6 @@ const quickFilters = [
   "Completed Not Paid",
   "Closed/Paid",
 ];
-
-const workStatuses = ["Open", "In Progress", "Completed", "Closed", "Cancelled"];
 
 
 function generateMaintenanceInvoiceNo(existingJobs = []) {
@@ -139,7 +138,6 @@ function calculateMaintenanceTotals(job) {
 function Maintenance() {
   const [jobs, setJobs] = useState([]);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
   const [quickFilter, setQuickFilter] = useState("All");
   const [sortBy, setSortBy] = useState("due_date");
   const [sortDirection, setSortDirection] = useState("asc");
@@ -165,7 +163,7 @@ function Maintenance() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter, quickFilter, sortBy, sortDirection, pageSize]);
+  }, [search, quickFilter, sortBy, sortDirection, pageSize]);
 
   const loadMaintenance = async () => {
     try {
@@ -223,7 +221,7 @@ function Maintenance() {
 
     const completedNotPaid = enrichedJobs.filter(
       (job) =>
-        job.work_status === "Completed" && Number(job.totals.balance || 0) > 0
+        job.completed_date && Number(job.totals.balance || 0) > 0
     );
 
     return {
@@ -264,8 +262,11 @@ function Maintenance() {
           job.email,
           job.address,
           job.truck,
+          job.make,
+          job.model,
           job.year,
           job.vin,
+          job.miles,
           job.technician,
           job.job_title,
           job.job_description,
@@ -277,16 +278,13 @@ function Maintenance() {
           .toLowerCase()
           .includes(text);
 
-      const matchesStatus =
-        statusFilter === "All" || job.work_status === statusFilter;
-
       const matchesQuickFilter = applyQuickFilter(job, quickFilter);
 
-      return matchesSearch && matchesStatus && matchesQuickFilter;
+      return matchesSearch && matchesQuickFilter;
     });
 
     return sortMaintenanceJobs(filtered, sortBy, sortDirection);
-  }, [enrichedJobs, search, statusFilter, quickFilter, sortBy, sortDirection]);
+  }, [enrichedJobs, search, quickFilter, sortBy, sortDirection]);
 
   const filteredStats = useMemo(() => {
     return {
@@ -326,7 +324,6 @@ function Maintenance() {
 
   const clearFilters = () => {
     setSearch("");
-    setStatusFilter("All");
     setQuickFilter("All");
     setSortBy("due_date");
     setSortDirection("asc");
@@ -338,15 +335,16 @@ function Maintenance() {
     setMessageType("success");
   };
 
-  const showFloatingSuccess = (text) => {
+  const showFloatingSuccess = (text, actions = []) => {
     setFloatingAlert({
       type: "success",
       text,
+      actions,
     });
 
     setTimeout(() => {
       setFloatingAlert(null);
-    }, 3500);
+    }, actions.length > 0 ? 7000 : 3500);
   };
 
   const exportFilteredMaintenance = () => {
@@ -360,7 +358,6 @@ function Maintenance() {
         Phone: job.phone || "",
         Email: job.email || "",
         Address: job.address || "",
-        Work_Status: job.work_status || "",
         Balance_Status: job.totals.balanceStatus || "",
         Job_Title: job.job_title || "",
         Technician: job.technician || "",
@@ -370,12 +367,8 @@ function Maintenance() {
         Miles: job.miles || "",
         VIN: job.vin || "",
         Start_Date: job.start_date || "",
-        Due_Date: job.due_date || "",
+        Payment_Due_Date: job.due_date || "",
         Completed_Date: job.completed_date || "",
-        Labor: Number(job.labor_amount || 0),
-        Parts: Number(job.parts_amount || 0),
-        Tax: Number(job.tax_amount || 0),
-        Discount: Number(job.discount_amount || 0),
         Total_Amount: Number(job.totals.totalAmount || 0),
         Total_Paid: Number(job.totals.totalPaid || 0),
         Balance: Number(job.totals.balance || 0),
@@ -445,9 +438,27 @@ function Maintenance() {
         <div style={floatingAlertStyle}>
           <div style={floatingAlertIcon}>✓</div>
 
-          <div>
+          <div style={{ flex: 1 }}>
             <strong style={floatingAlertTitle}>Success</strong>
             <div style={floatingAlertText}>{floatingAlert.text}</div>
+
+            {floatingAlert.actions?.length > 0 && (
+              <div style={floatingAlertActions}>
+                {floatingAlert.actions.map((action) => (
+                  <button
+                    key={action.label}
+                    type="button"
+                    onClick={() => {
+                      action.onClick?.();
+                      setFloatingAlert(null);
+                    }}
+                    style={floatingAlertActionButton}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <button
@@ -583,35 +594,21 @@ function Maintenance() {
         <input
           value={search}
           onChange={(e) => updateFilter(setSearch, e.target.value)}
-          placeholder="Search invoice, customer, company, phone, truck, VIN, technician, work title..."
+          placeholder="Search invoice, customer, company, phone, vehicle/truck, VIN, technician, work title..."
           style={searchInput}
         />
-
-        <select
-          value={statusFilter}
-          onChange={(e) => updateFilter(setStatusFilter, e.target.value)}
-          style={selectStyle}
-        >
-          <option value="All">All Work Statuses</option>
-          {workStatuses.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </select>
 
         <select
           value={sortBy}
           onChange={(e) => updateFilter(setSortBy, e.target.value)}
           style={selectStyle}
         >
-          <option value="due_date">Sort by Due Date</option>
+          <option value="due_date">Sort by Payment Due Date</option>
           <option value="invoice_no">Sort by Invoice</option>
           <option value="customer_name">Sort by Customer</option>
           <option value="balance">Sort by Balance</option>
           <option value="total">Sort by Total</option>
           <option value="created_at">Sort by Created Date</option>
-          <option value="work_status">Sort by Work Status</option>
         </select>
 
         <select
@@ -671,13 +668,13 @@ function Maintenance() {
                 <tr>
                   <th style={thStyle}>Invoice</th>
                   <th style={thStyle}>Customer</th>
-                  <th style={thStyle}>Truck</th>
+                  <th style={thStyle}>Vehicle / Truck</th>
                   <th style={workThStyle}>Work</th>
                   <th style={thStyle}>Balance Status</th>
                   <th style={thStyle}>Total</th>
                   <th style={thStyle}>Paid</th>
                   <th style={thStyle}>Balance</th>
-                  <th style={thStyle}>Due / Promise</th>
+                  <th style={thStyle}>Payment Due / Promise</th>
                   <th style={thStyle}>Actions</th>
                 </tr>
               </thead>
@@ -739,7 +736,7 @@ function Maintenance() {
                         </td>
 
                         <td style={tdStyle}>
-                          {`${job.year || ""} ${job.truck || ""}`.trim() || "—"}
+                          {`${job.year || ""} ${getSimpleTruckName(job) || ""}`.trim() || "—"}
                           <div style={smallText}>{job.vin || ""}</div>
                         </td>
 
@@ -873,6 +870,12 @@ function Maintenance() {
           onSubmit={async (form) => {
             const cleanedForm = cleanMaintenanceForm(form);
             const savedJob = await createMaintenanceJob(cleanedForm);
+            const createdJobForInvoice = {
+              ...cleanedForm,
+              ...savedJob,
+              maintenance_payments: savedJob?.maintenance_payments || [],
+              maintenance_promises: savedJob?.maintenance_promises || [],
+            };
 
             await logActivity({
               action: "CREATE",
@@ -916,7 +919,17 @@ function Maintenance() {
             showFloatingSuccess(
               `Maintenance record ${
                 savedJob?.invoice_no || cleanedForm.invoice_no || ""
-              } created successfully.`
+              } created successfully.`,
+              [
+                {
+                  label: "View Invoice",
+                  onClick: () => setViewJob(createdJobForInvoice),
+                },
+                {
+                  label: "Print Invoice",
+                  onClick: () => handlePrintMaintenanceInvoice(createdJobForInvoice),
+                },
+              ]
             );
           }}
         />
@@ -1163,7 +1176,7 @@ function MaintenanceFormModal({
       initialData.total_amount ||
       getLegacyMaintenanceTotal(initialData) ||
       "",
-    job_title: initialData.job_title || "Maintenance",
+    job_title: initialData.job_title || "",
     job_description: initialData.job_description || "",
     labor_amount: initialData.labor_amount || "",
     parts_amount: initialData.parts_amount || "",
@@ -1220,6 +1233,7 @@ function MaintenanceFormModal({
       ...prev,
       customer_id: customer.id,
       customer_name: customer.customer_name || "",
+      company_name: customer.company_name || "",
       phone: customer.phone || "",
       email: customer.email || "",
       address: customer.address || "",
@@ -1240,6 +1254,7 @@ function MaintenanceFormModal({
     setForm((prev) => ({
       ...prev,
       customer_id: null,
+      company_name: "",
       customer_type: "Maintenance Only",
     }));
 
@@ -1276,14 +1291,14 @@ function MaintenanceFormModal({
         <div style={simpleFormIntroBox}>
           <strong>{isEditing ? "Edit maintenance record" : "Simple maintenance entry"}</strong>
           <span>
-            Invoice number is auto-generated in a simple format like MNT-1000. Start typing a customer name to pick an existing customer,
+            Invoice number is auto-generated in a simple format like MNT-1000. Start typing a customer name, company name, phone, or email to pick an existing customer,
             or ignore the suggestions and save it as a new maintenance customer.
           </span>
         </div>
 
         <MaintenanceFormSection
           title="Customer Details"
-          description="Invoice number, customer name, phone, email, and address. Pick a matching customer or keep the typed name as a new maintenance customer."
+          description="Invoice number, customer name, phone, email, and address. Search by customer name, company name, phone, or email."
         >
           <div style={formGrid}>
             <Input
@@ -1307,6 +1322,7 @@ function MaintenanceFormModal({
               {form.customer_id && (
                 <div style={selectedCustomerMiniBox}>
                   <strong>Existing customer selected</strong>
+                  {form.company_name && <span>{form.company_name}</span>}
                   <button
                     type="button"
                     onClick={useTypedNameAsNewCustomer}
@@ -1384,7 +1400,7 @@ function MaintenanceFormModal({
 
         <MaintenanceFormSection
           title="Vehicle Details"
-          description="Truck information connected to this maintenance job."
+          description="Vehicle / truck information connected to this maintenance job."
         >
           <div style={formGrid}>
             <Input
@@ -1431,6 +1447,13 @@ function MaintenanceFormModal({
         >
           <div style={formGrid}>
             <Input
+              label="Title"
+              value={form.job_title}
+              onChange={(v) => updateField("job_title", v)}
+              placeholder="Optional, example: Oil change, brake repair, inspection"
+            />
+
+            <Input
               label="Technician"
               value={form.technician}
               onChange={(v) => updateField("technician", v)}
@@ -1445,7 +1468,7 @@ function MaintenanceFormModal({
             />
 
             <Input
-              label="Due Date"
+              label="Payment Due Date"
               type="date"
               value={form.due_date}
               onChange={(v) => updateField("due_date", v)}
@@ -1801,15 +1824,14 @@ function DetailModal({ job, onClose, onPayment, onSchedule, onPrintInvoice }) {
 
       <div style={detailGrid}>
         <DetailItem
-          label="Truck"
-          value={`${job.year || ""} ${job.truck || ""}`.trim()}
+          label="Vehicle / Truck"
+          value={`${job.year || ""} ${getSimpleTruckName(job) || ""}`.trim()}
         />
         <DetailItem label="VIN" value={job.vin} />
         <DetailItem label="Miles" value={job.miles ? `${job.miles} miles` : ""} />
         <DetailItem label="Technician" value={job.technician} />
-        <DetailItem label="Work Status" value={job.work_status} />
         <DetailItem label="Start Date" value={formatDate(job.start_date)} />
-        <DetailItem label="Due Date" value={formatDate(job.due_date)} />
+        <DetailItem label="Payment Due Date" value={formatDate(job.due_date)} />
         <DetailItem
           label="Completed Date"
           value={formatDate(job.completed_date)}
@@ -2189,6 +2211,7 @@ function cleanMaintenanceForm(form) {
     customer_id: form.customer_id || null,
     customer_type: form.customer_id ? "Deal Customer" : "Maintenance Only",
     customer_name: String(form.customer_name || "").trim(),
+    company_name: String(form.company_name || "").trim(),
     phone: String(form.phone || "").trim(),
     email: String(form.email || "").trim(),
     address: String(form.address || "").trim(),
@@ -2199,7 +2222,11 @@ function cleanMaintenanceForm(form) {
     vin: String(form.vin || "").trim().toUpperCase(),
     miles: form.miles ? Number(form.miles || 0) : null,
     technician: String(form.technician || "").trim(),
-    job_title: String(form.job_title || "").trim() || getShortWorkTitle(workDescription),
+    // job_title: String(form.job_title || "").trim() || getShortWorkTitle(workDescription),
+    job_title:
+        form.job_title && form.job_title.trim()
+          ? form.job_title.trim()
+          : getShortWorkTitle(form.job_description),
     job_description: workDescription,
     work_status: String(form.work_status || "Open").trim(),
     total_amount: totalAmount,
@@ -2285,7 +2312,7 @@ function applyQuickFilter(job, filter) {
   if (filter === "Promises") return hasPendingPromise;
   if (filter === "Broken Promises") return hasBrokenPromise;
   if (filter === "Completed Not Paid") {
-    return job.work_status === "Completed" && balance > 0;
+    return Boolean(job.completed_date) && balance > 0;
   }
   if (filter === "Closed/Paid") {
     return job.work_status === "Closed" || balance <= 0;
@@ -2619,10 +2646,6 @@ function buildMaintenanceInvoiceHtml(job, totals) {
         <div class="box">
           <div class="label">Technician</div>
           <div class="value">${escapeHtml(job.technician || "—")}</div>
-        </div>
-        <div class="box">
-          <div class="label">Work Status</div>
-          <div class="value">${escapeHtml(job.work_status || "Open")}</div>
         </div>
         <div class="box">
           <div class="label">Completed Date</div>
@@ -3034,6 +3057,24 @@ const floatingAlertText = {
   fontSize: "13px",
   lineHeight: "1.4",
   color: "#065f46",
+};
+
+const floatingAlertActions = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  marginTop: "10px",
+};
+
+const floatingAlertActionButton = {
+  background: "#16a34a",
+  color: "white",
+  border: "none",
+  borderRadius: "999px",
+  padding: "7px 10px",
+  fontSize: "12px",
+  fontWeight: "900",
+  cursor: "pointer",
 };
 
 const floatingAlertClose = {

@@ -138,6 +138,7 @@ function CustomerDetail() {
   const scheduleStartDate = getScheduleStartDate(deal);
   const isCashSchedule = paymentFrequency === "Cash";
   const isBiweeklySchedule = paymentFrequency === "Biweekly";
+  const isSemiMonthlySchedule = paymentFrequency === "Semi-Monthly";
   const isMonthlySchedule = paymentFrequency === "Monthly";
 
   const activePayments = payments.filter(
@@ -415,7 +416,13 @@ function CustomerDetail() {
               />
 
               <InfoLine
-                label={isBiweeklySchedule ? "Number of Payments" : "Term"}
+                label={
+                  isBiweeklySchedule
+                    ? "Number of Biweekly Payments"
+                    : isSemiMonthlySchedule
+                    ? "Number of Semi-Monthly Payments"
+                    : "Term"
+                }
                 value={deal.term || "—"}
               />
 
@@ -426,6 +433,16 @@ function CustomerDetail() {
 
               {isMonthlySchedule && (
                 <InfoLine label="Due Day" value={deal.due_day || "—"} />
+              )}
+
+              {isSemiMonthlySchedule && (
+                <>
+                  <InfoLine label="First Due Day" value={deal.due_day || "—"} />
+                  <InfoLine
+                    label="Second Due Day"
+                    value={deal.second_due_day || "—"}
+                  />
+                </>
               )}
 
               <InfoLine
@@ -722,6 +739,7 @@ function getPaymentAmountLabel(deal) {
   const paymentFrequency = getPaymentFrequency(deal);
 
   if (paymentFrequency === "Biweekly") return "Biweekly Payment";
+  if (paymentFrequency === "Semi-Monthly") return "Semi-Monthly Payment";
   if (paymentFrequency === "One-Time") return "One-Time Amount";
   if (paymentFrequency === "Cash") return "Payment Amount";
 
@@ -732,6 +750,7 @@ function getScheduleStartLabel(deal) {
   const paymentFrequency = getPaymentFrequency(deal);
 
   if (paymentFrequency === "Biweekly") return "First Payment Date";
+  if (paymentFrequency === "Semi-Monthly") return "First Payment Date";
   if (paymentFrequency === "One-Time") return "Tentative Due Date";
 
   return "Start Date";
@@ -740,7 +759,7 @@ function getScheduleStartLabel(deal) {
 function getScheduleStartDate(deal) {
   const paymentFrequency = getPaymentFrequency(deal);
 
-  if (paymentFrequency === "Biweekly") {
+  if (paymentFrequency === "Biweekly" || paymentFrequency === "Semi-Monthly") {
     return (
       deal?.first_payment_date ||
       deal?.firstPaymentDate ||
@@ -834,6 +853,15 @@ function getPaymentFrequencyBadgeStyle(paymentFrequency) {
       background: "#fef3c7",
       color: "#92400e",
       borderColor: "#fde68a",
+    };
+  }
+
+  if (normalized === "semi-monthly") {
+    return {
+      ...base,
+      background: "#ede9fe",
+      color: "#6d28d9",
+      borderColor: "#ddd6fe",
     };
   }
 

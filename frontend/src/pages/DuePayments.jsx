@@ -148,7 +148,7 @@ function DuePayments() {
               These deals will not show in due payments until the required
               schedule fields are completed. Monthly deals need Start Date, Due
               Day, Payment Amount, and Term. Biweekly deals need First Payment
-              Date, Payment Amount, and Term.
+              Date, Payment Amount, and Term. Semi-monthly deals need First Payment Date, Second Due Day, Payment Amount, and Term.
             </p>
           </div>
         </div>
@@ -285,6 +285,7 @@ function DuePayments() {
                   <th style={{ ...th, width: "115px" }}>Start Date</th>
                   <th style={{ ...th, width: "130px" }}>First Payment</th>
                   <th style={{ ...th, width: "90px" }}>Due Day</th>
+                  <th style={{ ...th, width: "115px" }}>Second Due Day</th>
                   <th style={{ ...th, width: "130px" }}>Payment Amount</th>
                   <th style={{ ...th, width: "90px" }}>Term</th>
                   <th style={{ ...th, width: "260px" }}>Missing Fields</th>
@@ -326,12 +327,17 @@ function DuePayments() {
                       <td style={td}>{deal.deal_type || "—"}</td>
                       <td style={td}>{formatDisplayDate(deal.start_date)}</td>
                       <td style={td}>
-                        {frequency === "Biweekly"
+                        {frequency === "Biweekly" || frequency === "Semi-Monthly"
                           ? formatDisplayDate(getFirstPaymentDate(deal))
                           : "—"}
                       </td>
                       <td style={td}>
-                        {frequency === "Monthly" ? deal.due_day || "—" : "—"}
+                        {frequency === "Monthly" || frequency === "Semi-Monthly"
+                          ? deal.due_day || "—"
+                          : "—"}
+                      </td>
+                      <td style={td}>
+                        {frequency === "Semi-Monthly" ? getSecondDueDay(deal) || "—" : "—"}
                       </td>
                       <td style={moneyCell}>
                         {formatMoney(getPaymentAmount(deal))}
@@ -349,7 +355,7 @@ function DuePayments() {
 
       <DashboardSection
         title="Scheduled Payments Due"
-        description="Monthly or biweekly scheduled installments due on the selected date that are still unpaid or partially paid."
+        description="Monthly, biweekly, semi-monthly, or one-time scheduled installments due on the selected date that are still unpaid or partially paid."
         count={scheduledUnpaidOrPartial.length}
         tone="warning"
       >
@@ -569,6 +575,7 @@ function getPaymentFrequency(deal) {
 
 function getPaymentFrequencyLabel(frequency) {
   if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "Semi-Monthly") return "Semi-Monthly";
   if (frequency === "One-Time") return "One-Time";
   if (frequency === "Cash") return "Cash";
   return "Monthly";
@@ -580,6 +587,10 @@ function getPaymentAmount(deal) {
 
 function getFirstPaymentDate(deal) {
   return deal?.first_payment_date || deal?.firstPaymentDate || deal?.start_date || "";
+}
+
+function getSecondDueDay(deal) {
+  return deal?.second_due_day || deal?.secondDueDay || "";
 }
 
 function isScheduleMissing(deal) {
@@ -598,6 +609,10 @@ function isScheduleMissing(deal) {
 
   if (frequency === "Biweekly") {
     return !getFirstPaymentDate(deal);
+  }
+
+  if (frequency === "Semi-Monthly") {
+    return !getFirstPaymentDate(deal) || !getSecondDueDay(deal);
   }
 
   return !deal.start_date || !deal.due_day;
@@ -624,6 +639,22 @@ function getMissingScheduleText(deal) {
 
     if (getPaymentAmount(deal) <= 0) {
       missing.push("Biweekly Payment");
+    }
+
+    if (!deal.term || Number(deal.term || 0) <= 0) {
+      missing.push("Term");
+    }
+
+    return missing.join(", ");
+  }
+
+  if (frequency === "Semi-Monthly") {
+    if (!getFirstPaymentDate(deal)) missing.push("First Payment Date");
+    if (!deal.due_day) missing.push("First Due Day");
+    if (!getSecondDueDay(deal)) missing.push("Second Due Day");
+
+    if (getPaymentAmount(deal) <= 0) {
+      missing.push("Semi-Monthly Payment");
     }
 
     if (!deal.term || Number(deal.term || 0) <= 0) {
@@ -749,6 +780,15 @@ function getFrequencyBadgeStyle(frequency) {
       background: "#ede9fe",
       color: "#6d28d9",
       border: "1px solid #ddd6fe",
+    };
+  }
+
+  if (frequency === "Semi-Monthly") {
+    return {
+      ...base,
+      background: "#dcfce7",
+      color: "#166534",
+      border: "1px solid #bbf7d0",
     };
   }
 
@@ -1197,7 +1237,7 @@ const promiseTableStyle = {
 
 const missingScheduleTableStyle = {
   width: "100%",
-  minWidth: "1320px",
+  minWidth: "1435px",
   tableLayout: "fixed",
   borderCollapse: "separate",
   borderSpacing: 0,

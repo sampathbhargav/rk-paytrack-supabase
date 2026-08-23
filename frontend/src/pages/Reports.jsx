@@ -197,6 +197,10 @@ function Reports() {
     (deal) => getPaymentFrequency(deal) === "Biweekly"
   ).length;
 
+  const semiMonthlyDealCount = deals.filter(
+    (deal) => getPaymentFrequency(deal) === "Semi-Monthly"
+  ).length;
+
   const pastDueScheduled = getPastDueScheduledPayments(
     deals,
     activePayments,
@@ -402,6 +406,7 @@ function Reports() {
           Start_Date: deal.start_date || "",
           First_Payment_Date: deal.first_payment_date || "",
           Due_Day: deal.due_day || "",
+          Second_Due_Day: deal.second_due_day || "",
           Payment_Amount: deal.monthly_payment || 0,
           Monthly_Payment: deal.monthly_payment || 0,
           Term: deal.term || "",
@@ -603,6 +608,7 @@ function Reports() {
             Payment_Amount: deal.monthly_payment || 0,
             First_Payment_Date: deal.first_payment_date || "",
             Due_Day: deal.due_day || "",
+            Second_Due_Day: deal.second_due_day || "",
             Truck: `${deal.year || ""} ${deal.truck || ""}`,
             VIN: deal.vin || "",
             Total_Amount: totalAmount,
@@ -668,6 +674,7 @@ function Reports() {
             Start_Date: deal.start_date || "",
             First_Payment_Date: deal.first_payment_date || "",
             Due_Day: deal.due_day || "",
+            Second_Due_Day: deal.second_due_day || "",
             Term: deal.term || "",
             Maturity_Date: deal.maturity_date || "",
             Referred_By_Name: deal.referred_by_name || "",
@@ -1144,6 +1151,11 @@ function Reports() {
         <SummaryCard title="Active Deals" value={activeDeals.length} />
         <SummaryCard title="Monthly Deals" value={monthlyDealCount} tone="info" />
         <SummaryCard title="Biweekly Deals" value={biweeklyDealCount} tone="warning" />
+        <SummaryCard
+          title="Semi-Monthly Deals"
+          value={semiMonthlyDealCount}
+          tone="info"
+        />
         <SummaryCard title="Paid Off" value={paidOffDeals.length} tone="success" />
 
         <SummaryCard
@@ -1828,6 +1840,7 @@ function getPaymentFrequency(deal) {
 
 function getPaymentFrequencyLabel(frequency) {
   if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "Semi-Monthly") return "Semi-Monthly";
   if (frequency === "One-Time") return "One-Time";
   if (frequency === "Cash") return "Cash";
   return "Monthly";

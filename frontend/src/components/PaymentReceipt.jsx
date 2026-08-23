@@ -43,6 +43,8 @@ function PaymentReceipt({ receipt, onClose }) {
   const status = receipt.paymentStatus || "Paid";
   const remainingBalance = Number(receipt.remainingBalance || 0);
   const amountPaid = Number(receipt.amountPaid || 0);
+  const paymentFrequency = getPaymentFrequency(receipt);
+  const paymentType = getReceiptPaymentType(receipt, paymentFrequency);
 
   const handlePrint = () => {
     const html = buildReceiptPrintHtml({
@@ -54,6 +56,8 @@ function PaymentReceipt({ receipt, onClose }) {
       remainingBalance,
       amountPaid,
       status,
+      paymentFrequency,
+      paymentType,
     });
 
     printHtmlWithIframe(html, "Payment Receipt");
@@ -69,6 +73,7 @@ function PaymentReceipt({ receipt, onClose }) {
       `Amount Paid: ${formatMoney(amountPaid)}`,
       `Payment Date: ${paymentDate}`,
       `Payment Method: ${receipt.paymentMethod || "-"}`,
+      `Payment Frequency: ${paymentFrequency}`,
       `Due Date: ${dueDate}`,
       `Remaining Balance: ${formatMoney(remainingBalance)}`,
       `Status: ${status}`,
@@ -141,7 +146,9 @@ function PaymentReceipt({ receipt, onClose }) {
 
               <SummaryBox label="Payment Method" value={receipt.paymentMethod || "—"} />
 
-              <SummaryBox label="Payment Type" value={receipt.paymentType || "Payment"} />
+              <SummaryBox label="Payment Frequency" value={paymentFrequency} />
+
+              <SummaryBox label="Payment Type" value={paymentType} />
 
               <SummaryBox label="Due Date" value={dueDate} />
             </div>
@@ -164,6 +171,7 @@ function PaymentReceipt({ receipt, onClose }) {
                 <Field label="Truck" value={receipt.truck || ""} />
                 <Field label="VIN" value={receipt.vin || ""} />
                 <Field label="Payment Date" value={paymentDate} />
+                <Field label="Payment Frequency" value={paymentFrequency} />
                 <Field label="Payment Status" value={status} />
               </div>
             </div>
@@ -179,6 +187,8 @@ function PaymentReceipt({ receipt, onClose }) {
                     label="Payment Method"
                     value={receipt.paymentMethod || "—"}
                   />
+                  <ReceiptRow label="Payment Frequency" value={paymentFrequency} />
+                  <ReceiptRow label="Payment Type" value={paymentType} />
                   <ReceiptRow label="Payment Date" value={paymentDate} />
                   <ReceiptRow label="Applied Due Date" value={dueDate} />
                   <ReceiptRow
@@ -270,6 +280,38 @@ function ReceiptRow({ label, value, highlight }) {
       </td>
     </tr>
   );
+}
+
+function getPaymentFrequency(receipt) {
+  return (
+    receipt?.paymentFrequency ||
+    receipt?.payment_frequency ||
+    receipt?.frequency ||
+    "Monthly"
+  );
+}
+
+function getReceiptPaymentType(receipt, paymentFrequency) {
+  if (receipt?.paymentType) return receipt.paymentType;
+  if (receipt?.payment_type) return receipt.payment_type;
+
+  if (paymentFrequency === "Semi-Monthly") {
+    return "Semi-Monthly Payment";
+  }
+
+  if (paymentFrequency === "Biweekly") {
+    return "Biweekly Payment";
+  }
+
+  if (paymentFrequency === "One-Time") {
+    return "One-Time Payment";
+  }
+
+  if (paymentFrequency === "Cash") {
+    return "Cash Payment";
+  }
+
+  return "Monthly Payment";
 }
 
 function formatDisplayDate(dateString) {
@@ -382,6 +424,8 @@ function buildReceiptPrintHtml({
   remainingBalance,
   amountPaid,
   status,
+  paymentFrequency,
+  paymentType,
 }) {
   return `
     <html>
@@ -724,8 +768,12 @@ function buildReceiptPrintHtml({
                 <strong>${escapeHtml(receipt.paymentMethod || "—")}</strong>
               </div>
               <div class="summary-box">
+                <span>Payment Frequency</span>
+                <strong>${escapeHtml(paymentFrequency)}</strong>
+              </div>
+              <div class="summary-box">
                 <span>Payment Type</span>
-                <strong>${escapeHtml(receipt.paymentType || "Payment")}</strong>
+                <strong>${escapeHtml(paymentType)}</strong>
               </div>
               <div class="summary-box">
                 <span>Due Date</span>
@@ -749,8 +797,8 @@ function buildReceiptPrintHtml({
                 <div class="grid">
                   ${printField("Truck", receipt.truck)}
                   ${printField("VIN", receipt.vin)}
+                  ${printField("Payment Frequency", paymentFrequency)}
                   ${printField("Status", status)}
-                  ${printField("Due Date", dueDate)}
                 </div>
               </div>
             </div>
@@ -762,6 +810,8 @@ function buildReceiptPrintHtml({
                   ${printRow("Receipt Number", receiptNumber)}
                   ${printRow("Amount Paid", formatMoney(amountPaid))}
                   ${printRow("Payment Method", receipt.paymentMethod)}
+                  ${printRow("Payment Frequency", paymentFrequency)}
+                  ${printRow("Payment Type", paymentType)}
                   ${printRow("Payment Date", paymentDate)}
                   ${printRow("Applied Due Date", dueDate)}
                   ${printRow("Remaining Balance", formatMoney(remainingBalance))}

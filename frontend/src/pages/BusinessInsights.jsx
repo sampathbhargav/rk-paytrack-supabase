@@ -7,6 +7,11 @@ const FILTER_OPTIONS = [
   { value: "inhouse", label: "In-house Deals", shortLabel: "In-house" },
   { value: "down_finance", label: "Down Finance Deals", shortLabel: "Down Finance" },
   {
+    value: "semi_monthly",
+    label: "Semi-Monthly Deals",
+    shortLabel: "Semi-Monthly",
+  },
+  {
     value: "registration",
     label: "Registration Money Deals",
     shortLabel: "Registration",
@@ -164,8 +169,8 @@ function BusinessInsights() {
           <div style={panelLabel}>Filter</div>
           <h2 style={panelTitle}>Select Deal Group</h2>
           <p style={filterDescription}>
-            Choose All, In-house, Down Finance, Registration, Defaulted, Active,
-            or Paid Off to compare financing performance.
+            Choose All, In-house, Down Finance, Semi-Monthly, Registration,
+            Defaulted, Active, or Paid Off to compare financing performance.
           </p>
         </div>
 
@@ -1083,6 +1088,10 @@ function shouldIncludeDeal(deal, selectedFilter) {
     return isRegistrationMoneyDeal(deal);
   }
 
+  if (selectedFilter === "semi_monthly") {
+    return isSemiMonthlyDeal(deal);
+  }
+
   if (selectedFilter === "defaulted") {
     return normalizeStatus(deal.status) === "defaulted";
   }
@@ -1185,6 +1194,16 @@ function isDownFinanceDeal(deal) {
 
 function isRegistrationMoneyDeal(deal) {
   return normalizeDealType(deal?.deal_type).includes("registration");
+}
+
+function getPaymentFrequency(deal) {
+  return String(deal?.payment_frequency || deal?.paymentFrequency || "Monthly")
+    .trim()
+    .toLowerCase();
+}
+
+function isSemiMonthlyDeal(deal) {
+  return getPaymentFrequency(deal) === "semi-monthly";
 }
 
 function isCashDeal(deal) {

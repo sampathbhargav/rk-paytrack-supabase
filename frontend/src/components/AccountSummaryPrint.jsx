@@ -696,16 +696,36 @@ function AccountSummaryPrint({ deal, payments = [], promises = [], totalPaid, ba
                 />
                 <InfoItem
                   label={
-                    paymentFrequency === "Biweekly"
+                    paymentFrequency === "Biweekly" ||
+                    paymentFrequency === "Semi-Monthly"
                       ? "First Payment"
                       : "Start Date"
                   }
                   value={formatDisplayDate(
-                    paymentFrequency === "Biweekly"
+                    paymentFrequency === "Biweekly" ||
+                      paymentFrequency === "Semi-Monthly"
                       ? deal?.first_payment_date || deal?.start_date
                       : deal?.start_date
                   )}
                 />
+
+                {paymentFrequency === "Semi-Monthly" && (
+                  <>
+                    <InfoItem
+                      label="First Due Day"
+                      value={getSemiMonthlyFirstDueDay(deal)}
+                    />
+                    <InfoItem
+                      label="Second Due Day"
+                      value={deal?.second_due_day || deal?.secondDueDay || "—"}
+                    />
+                  </>
+                )}
+
+                {paymentFrequency === "Monthly" && (
+                  <InfoItem label="Due Day" value={deal?.due_day || "—"} />
+                )}
+
                 <InfoItem
                   label="Maturity"
                   value={formatDisplayDate(deal?.maturity_date)}
@@ -721,6 +741,7 @@ function AccountSummaryPrint({ deal, payments = [], promises = [], totalPaid, ba
                 <thead>
                   <tr>
                     <th>#</th>
+                    <th>Frequency</th>
                     <th>Due Date</th>
                     <th>Due</th>
                     <th>Remaining</th>
@@ -731,12 +752,13 @@ function AccountSummaryPrint({ deal, payments = [], promises = [], totalPaid, ba
                 <tbody>
                   {upcomingInstallments.length === 0 ? (
                     <tr>
-                      <td colSpan="5">No open installments.</td>
+                      <td colSpan="6">No open installments.</td>
                     </tr>
                   ) : (
                     upcomingInstallments.map((item) => (
                       <tr key={`${item.installmentNumber}-${item.dueDate}`}>
                         <td>{item.installmentNumber}</td>
+                        <td>{item.paymentFrequency || paymentFrequency}</td>
                         <td>{formatDisplayDate(item.dueDate)}</td>
                         <td className="money">{formatMoney(item.amountDue)}</td>
                         <td className="money">{formatMoney(item.remaining)}</td>
@@ -894,9 +916,23 @@ function getPaymentFrequency(deal) {
 
 function getPaymentAmountLabel(paymentFrequency) {
   if (paymentFrequency === "Biweekly") return "Biweekly Payment";
+  if (paymentFrequency === "Semi-Monthly") return "Semi-Monthly Payment";
   if (paymentFrequency === "One-Time") return "One-Time Amount";
   if (paymentFrequency === "Cash") return "Cash Amount";
   return "Monthly Payment";
+}
+
+function getSemiMonthlyFirstDueDay(deal) {
+  const firstPaymentDate =
+    deal?.first_payment_date || deal?.firstPaymentDate || deal?.start_date || "";
+
+  if (!firstPaymentDate) {
+    return deal?.due_day || deal?.dueDay || "—";
+  }
+
+  const [, , day] = String(firstPaymentDate).split("-");
+
+  return day ? Number(day) : deal?.due_day || deal?.dueDay || "—";
 }
 
 function getPrintStatusClass(status) {

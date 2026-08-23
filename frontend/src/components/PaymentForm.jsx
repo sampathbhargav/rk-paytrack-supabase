@@ -818,7 +818,8 @@ function PaymentForm() {
 
             <InfoItem
               label={
-                getPaymentFrequency(selectedDeal) === "Biweekly"
+                getPaymentFrequency(selectedDeal) === "Biweekly" ||
+                getPaymentFrequency(selectedDeal) === "Semi-Monthly"
                   ? "First Payment Date"
                   : "Start Date"
               }
@@ -829,10 +830,30 @@ function PaymentForm() {
               <InfoItem label="Due Day" value={selectedDeal.due_day || "—"} />
             )}
 
+            {getPaymentFrequency(selectedDeal) === "Semi-Monthly" && (
+              <>
+                <InfoItem
+                  label="First Due Day"
+                  value={getFirstDueDay(selectedDeal) || "—"}
+                />
+
+                <InfoItem
+                  label="Second Due Day"
+                  value={
+                    selectedDeal.second_due_day ||
+                    selectedDeal.secondDueDay ||
+                    "—"
+                  }
+                />
+              </>
+            )}
+
             <InfoItem
               label={
                 getPaymentFrequency(selectedDeal) === "Biweekly"
                   ? "Biweekly Payments"
+                  : getPaymentFrequency(selectedDeal) === "Semi-Monthly"
+                  ? "Semi-Monthly Payments"
                   : "Term"
               }
               value={selectedDeal.term || "—"}
@@ -847,6 +868,8 @@ function PaymentForm() {
           <div style={scheduleInfoBox}>
             {getPaymentFrequency(selectedDeal) === "Biweekly"
               ? "This is a biweekly deal. Due installments are generated every 14 days from the first payment date."
+              : getPaymentFrequency(selectedDeal) === "Semi-Monthly"
+              ? "This is a semi-monthly deal. Due installments are generated twice per month from the first payment date and second due day."
               : getPaymentFrequency(selectedDeal) === "Monthly"
               ? "This is a monthly deal. Due installments are generated from the start date, due day, and term."
               : "This deal uses its saved payment schedule."}
@@ -1384,6 +1407,7 @@ function getPaymentAmountLabel(deal) {
   const frequency = getPaymentFrequency(deal);
 
   if (frequency === "Biweekly") return "Biweekly Payment";
+  if (frequency === "Semi-Monthly") return "Semi-Monthly Payment";
   if (frequency === "One-Time") return "One-Time Amount";
   if (frequency === "Cash") return "Cash Amount";
 
@@ -1393,11 +1417,26 @@ function getPaymentAmountLabel(deal) {
 function getScheduleStartDate(deal) {
   const frequency = getPaymentFrequency(deal);
 
-  if (frequency === "Biweekly") {
+  if (frequency === "Biweekly" || frequency === "Semi-Monthly") {
     return deal?.first_payment_date || deal?.firstPaymentDate || deal?.start_date;
   }
 
   return deal?.start_date;
+}
+
+function getFirstDueDay(deal) {
+  const firstPaymentDate =
+    deal?.first_payment_date || deal?.firstPaymentDate || deal?.start_date || "";
+
+  if (firstPaymentDate) {
+    const firstDate = new Date(`${firstPaymentDate}T00:00:00`);
+
+    if (!Number.isNaN(firstDate.getTime())) {
+      return firstDate.getDate();
+    }
+  }
+
+  return deal?.due_day || deal?.dueDay || "";
 }
 
 function getReceiptPaymentType({ amountDue, amountPaid, paymentFrequency }) {
@@ -1408,6 +1447,12 @@ function getReceiptPaymentType({ amountDue, amountPaid, paymentFrequency }) {
     return !isMoneyGreaterThan(due, paid)
       ? "Full Biweekly Payment"
       : "Partial Biweekly Payment";
+  }
+
+  if (paymentFrequency === "Semi-Monthly") {
+    return !isMoneyGreaterThan(due, paid)
+      ? "Full Semi-Monthly Payment"
+      : "Partial Semi-Monthly Payment";
   }
 
   if (paymentFrequency === "One-Time") {

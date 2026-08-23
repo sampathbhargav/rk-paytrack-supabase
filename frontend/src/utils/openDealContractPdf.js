@@ -67,16 +67,16 @@ function buildDownFinanceContract(doc, deal) {
   doc.text("RK TRUCK AND TRAILER SALES", page.pageWidth / 2, page.y, {
     align: "center",
   });
-  
+
   page.move(18);
-  
+
   doc.setFont("times", "normal");
   doc.text("2727 WILLOWBROOK RD", page.pageWidth / 2, page.y, {
     align: "center",
   });
-  
+
   page.move(18);
-  
+
   doc.text("DALLAS, TX 75220", page.pageWidth / 2, page.y, {
     align: "center",
   });
@@ -159,12 +159,14 @@ function buildInHouseFinanceContract(doc, deal) {
     downPayment
   );
 
-  const monthlyPayment =
+  const paymentAmount =
     Number(deal.monthly_payment || 0) ||
     (schedule.length > 0 ? Number(schedule[0].amountDue || 0) : 0);
 
   const term = Number(deal.term || schedule.length || 0);
   const firstPayment = schedule[0] || null;
+  const frequency = getPaymentFrequencyLabel(deal);
+  const paymentWording = getPaymentWording(frequency);
 
   const page = createPageWriter(doc, {
     marginLeft: 58,
@@ -180,16 +182,16 @@ function buildInHouseFinanceContract(doc, deal) {
   doc.text("RK TRUCK AND TRAILER SALES", page.pageWidth / 2, page.y, {
     align: "center",
   });
-  
+
   page.move(18);
-  
+
   doc.setFont("times", "normal");
   doc.text("2727 WILLOWBROOK RD", page.pageWidth / 2, page.y, {
     align: "center",
   });
-  
+
   page.move(18);
-  
+
   doc.text("DALLAS, TX 75220", page.pageWidth / 2, page.y, {
     align: "center",
   });
@@ -209,11 +211,12 @@ function buildInHouseFinanceContract(doc, deal) {
       downPayment > 0
         ? ` and the customer paid ${formatMoney(downPayment)} down`
         : ""
-    }. The rest customer opted for in-house financing for ${
-      term || schedule.length || "the agreed"
-    } months at 0% interest rate. The amount is ${formatMoney(
+    }. The rest customer opted for in-house financing for ${getTermText(
+      deal,
+      schedule
+    )} at 0% interest rate. The amount is ${formatMoney(
       financedBalance
-    )} the customer will pay ${formatMoney(monthlyPayment)} monthly${
+    )}. The customer will pay ${formatMoney(paymentAmount)} ${paymentWording}${
       firstPayment ? ` from ${formatLongDate(firstPayment.dueDate)}.` : "."
     }`
   );
@@ -241,7 +244,7 @@ function buildInHouseFinanceContract(doc, deal) {
   page.paragraph(
     `If the amount of ${formatMoney(financedBalance)} is paid in ${String(
       term || schedule.length || ""
-    ).padStart(2, "0")} months, then there will be no interest charged.`
+    ).padStart(2, "0")} payments, then there will be no interest charged.`
   );
 
   page.paragraph(
@@ -512,6 +515,11 @@ function getScheduleFromDeal(deal) {
   if (!term || !paymentAmount) return [];
 
   const frequency = getPaymentFrequencyLabel(deal);
+
+  if (frequency === "Semi-Monthly") {
+    return getSemiMonthlyScheduleFromDeal(deal, term, paymentAmount);
+  }
+
   const firstDueDate = getFirstDueDate(deal, frequency);
 
   if (!firstDueDate) return [];
@@ -534,10 +542,59 @@ function getScheduleFromDeal(deal) {
   return schedule;
 }
 
+function getSemiMonthlyScheduleFromDeal(deal, term, paymentAmount) {
+  const firstPaymentDate =
+    deal?.first_payment_date || deal?.firstPaymentDate || deal?.start_date || "";
+
+  const secondDueDay = Number(deal?.second_due_day || deal?.secondDueDay || 0);
+
+  if (!firstPaymentDate || !secondDueDay) return [];
+
+  const firstParts = parseDateParts(firstPaymentDate);
+
+  if (!firstParts) return [];
+
+  const firstDueDay = Number(deal?.due_day || deal?.dueDay || firstParts.day);
+
+  if (!firstDueDay || !secondDueDay) return [];
+
+  const schedule = [];
+  let year = firstParts.year;
+  let month = firstParts.month;
+
+  while (schedule.length < term) {
+    const firstDate = makeDateString(year, month, firstDueDay);
+    const secondDate = makeDateString(year, month, secondDueDay);
+
+    const candidates = [firstDate, secondDate]
+      .filter((date) => date >= firstPaymentDate)
+      .sort((a, b) => String(a).localeCompare(String(b)));
+
+    candidates.forEach((dueDate) => {
+      if (schedule.length < term) {
+        schedule.push({
+          installmentNumber: schedule.length + 1,
+          dueDate,
+          amountDue: paymentAmount,
+        });
+      }
+    });
+
+    month += 1;
+
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+
+  return schedule;
+}
+
 function getFirstDueDate(deal, frequency) {
   if (deal?.first_payment_date) return deal.first_payment_date;
 
-  if (frequency === "Biweekly" && deal?.start_date) {
+  if ((frequency === "Biweekly" || frequency === "Semi-Monthly") && deal?.start_date) {
     return deal.start_date;
   }
 
@@ -691,8 +748,16 @@ function getPaymentFrequencyLabel(deal) {
   if (deal?.deal_type === "Cash") return "Cash";
   if (deal?.deal_type === "Registration Money") return "One-Time";
   if (deal?.payment_frequency === "Biweekly") return "Biweekly";
+  if (deal?.payment_frequency === "Semi-Monthly") return "Semi-Monthly";
 
   return "Monthly";
+}
+
+function getPaymentWording(frequency) {
+  if (frequency === "Biweekly") return "biweekly";
+  if (frequency === "Semi-Monthly") return "semi-monthly";
+  if (frequency === "One-Time") return "one-time";
+  return "monthly";
 }
 
 function getTermText(deal, schedule) {
@@ -704,6 +769,10 @@ function getTermText(deal, schedule) {
 
   if (frequency === "Biweekly") {
     return `${term} biweekly payments`;
+  }
+
+  if (frequency === "Semi-Monthly") {
+    return `${term} semi-monthly payments`;
   }
 
   if (frequency === "Monthly") {

@@ -104,8 +104,9 @@ function DueSchedule({ deal, payments, promises = [] }) {
         <div>
           <h2 style={sectionTitle}>Due Schedule</h2>
           <p style={sectionDescription}>
-            Monthly, biweekly, or one-time installment schedule with paid,
-            partial, due, past-due, promise status, and calendar reminders.
+            Monthly, biweekly, semi-monthly, or one-time installment schedule
+            with paid, partial, due, past-due, promise status, and calendar
+            reminders.
           </p>
         </div>
 
@@ -130,6 +131,23 @@ function DueSchedule({ deal, payments, promises = [] }) {
             <span style={summaryLabel}>First Payment Date</span>
             <strong>{formatDisplayDate(deal.first_payment_date)}</strong>
           </div>
+        ) : dealPaymentFrequency === "Semi-Monthly" ? (
+          <>
+            <div>
+              <span style={summaryLabel}>First Payment Date</span>
+              <strong>{formatDisplayDate(deal.first_payment_date)}</strong>
+            </div>
+
+            <div>
+              <span style={summaryLabel}>First Due Day</span>
+              <strong>{deal.due_day || getDayFromDate(deal.first_payment_date) || "—"}</strong>
+            </div>
+
+            <div>
+              <span style={summaryLabel}>Second Due Day</span>
+              <strong>{deal.second_due_day || "—"}</strong>
+            </div>
+          </>
         ) : dealPaymentFrequency === "Monthly" ? (
           <div>
             <span style={summaryLabel}>Due Day</span>
@@ -152,8 +170,9 @@ function DueSchedule({ deal, payments, promises = [] }) {
         <div style={emptyState}>
           <strong>No due schedule available.</strong>
           <p>
-            Check the deal payment frequency, start date, due day or first
-            payment date, term, and payment amount to generate the schedule.
+            Check the deal payment frequency, start date, due day, second due
+            day, first payment date, term, and payment amount to generate the
+            schedule.
           </p>
         </div>
       ) : (
@@ -252,6 +271,7 @@ function getPaymentFrequency(deal) {
 
 function getPaymentFrequencyLabel(frequency) {
   if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "Semi-Monthly") return "Semi-Monthly";
   if (frequency === "One-Time") return "One-Time";
   if (frequency === "Cash") return "Cash";
   return "Monthly";
@@ -261,9 +281,18 @@ function getPaymentAmountLabel(deal) {
   const frequency = getPaymentFrequency(deal);
 
   if (frequency === "Biweekly") return "Biweekly Payment";
+  if (frequency === "Semi-Monthly") return "Semi-Monthly Payment";
   if (frequency === "One-Time") return "One-Time Amount";
   if (frequency === "Cash") return "Cash Amount";
   return "Monthly Payment";
+}
+
+function getDayFromDate(dateString) {
+  if (!dateString) return "";
+
+  const [, , day] = String(dateString).split("-");
+
+  return day ? Number(day) : "";
 }
 
 function formatDisplayDate(dateString) {
@@ -295,6 +324,15 @@ function getFrequencyBadgeStyle(frequency) {
       background: "#ede9fe",
       color: "#6d28d9",
       borderColor: "#ddd6fe",
+    };
+  }
+
+  if (frequency === "Semi-Monthly") {
+    return {
+      ...base,
+      background: "#fef3c7",
+      color: "#92400e",
+      borderColor: "#fde68a",
     };
   }
 

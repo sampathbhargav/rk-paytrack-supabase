@@ -36,6 +36,13 @@ function createBiweeklyDueDate(firstPaymentDate, installmentIndex) {
   return dueDate;
 }
 
+function createSafeDate(year, monthIndex, dueDay) {
+  const lastDay = getLastDayOfMonth(year, monthIndex);
+  const safeDueDay = Math.min(Number(dueDay), lastDay);
+
+  return new Date(year, monthIndex, safeDueDay);
+}
+
 function normalizePaymentFrequency(deal) {
   if (deal?.deal_type === "Cash") return "Cash";
 
@@ -65,12 +72,34 @@ function isBiweeklyDeal(deal) {
   return normalizePaymentFrequency(deal) === "Biweekly";
 }
 
+function isSemiMonthlyDeal(deal) {
+  return normalizePaymentFrequency(deal) === "Semi-Monthly";
+}
+
 function isMonthlyDeal(deal) {
   return normalizePaymentFrequency(deal) === "Monthly";
 }
 
 function getFirstPaymentDate(deal) {
   return deal?.first_payment_date || deal?.firstPaymentDate || deal?.start_date || "";
+}
+
+function getSecondDueDay(deal) {
+  return deal?.second_due_day || deal?.secondDueDay || "";
+}
+
+function getFirstDueDayForSemiMonthly(deal) {
+  const firstPaymentDate = getFirstPaymentDate(deal);
+
+  if (firstPaymentDate) {
+    const firstDate = new Date(`${firstPaymentDate}T00:00:00`);
+
+    if (!Number.isNaN(firstDate.getTime())) {
+      return firstDate.getDate();
+    }
+  }
+
+  return deal?.due_day || deal?.dueDay || "";
 }
 
 function isScheduledDealReady(deal) {
@@ -92,11 +121,69 @@ function isScheduledDealReady(deal) {
     return Boolean(getFirstPaymentDate(deal));
   }
 
+  if (isSemiMonthlyDeal(deal)) {
+    return Boolean(getFirstPaymentDate(deal) && getSecondDueDay(deal));
+  }
+
   if (isMonthlyDeal(deal)) {
     return Boolean(deal.start_date && deal.due_day);
   }
 
   return Boolean(deal.start_date && deal.due_day);
+}
+
+function getSemiMonthlyDueSchedule(deal, term, paymentAmount) {
+  const firstPaymentDate = getFirstPaymentDate(deal);
+  const secondDueDay = Number(getSecondDueDay(deal));
+  const firstDueDay = Number(getFirstDueDayForSemiMonthly(deal));
+
+  if (!firstPaymentDate || !firstDueDay || !secondDueDay) {
+    return [];
+  }
+
+  if (secondDueDay < 1 || secondDueDay > 31) {
+    return [];
+  }
+
+  const firstDate = new Date(`${firstPaymentDate}T00:00:00`);
+
+  if (Number.isNaN(firstDate.getTime())) {
+    return [];
+  }
+
+  let year = firstDate.getFullYear();
+  let month = firstDate.getMonth();
+
+  const dueDates = [];
+
+  while (dueDates.length < term) {
+    const firstMonthDate = createSafeDate(year, month, firstDueDay);
+    const secondMonthDate = createSafeDate(year, month, secondDueDay);
+
+    const monthDates = [firstMonthDate, secondMonthDate]
+      .filter((date) => date >= firstDate)
+      .sort((a, b) => a - b);
+
+    monthDates.forEach((dueDate) => {
+      if (dueDates.length < term) {
+        dueDates.push({
+          installmentNumber: dueDates.length + 1,
+          dueDate: formatDateLocal(dueDate),
+          amountDue: paymentAmount,
+          paymentFrequency: "Semi-Monthly",
+        });
+      }
+    });
+
+    month += 1;
+
+    if (month > 11) {
+      month = 0;
+      year += 1;
+    }
+  }
+
+  return dueDates;
 }
 
 export function getDealDueSchedule(deal) {
@@ -154,6 +241,10 @@ export function getDealDueSchedule(deal) {
     }
 
     return dueDates;
+  }
+
+  if (isSemiMonthlyDeal(deal)) {
+    return getSemiMonthlyDueSchedule(deal, term, paymentAmount);
   }
 
   if (!deal.start_date || !deal.due_day) {

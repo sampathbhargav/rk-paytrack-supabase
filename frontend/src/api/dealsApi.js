@@ -39,7 +39,9 @@ function normalizePaymentFrequency(dealData) {
 function normalizeFirstPaymentDate(dealData) {
   const paymentFrequency = normalizePaymentFrequency(dealData);
 
-  if (paymentFrequency !== "Biweekly") return null;
+  if (paymentFrequency !== "Biweekly" && paymentFrequency !== "Semi-Monthly") {
+    return null;
+  }
 
   return (
     dealData.firstPaymentDate ||
@@ -47,6 +49,123 @@ function normalizeFirstPaymentDate(dealData) {
     dealData.startDate ||
     null
   );
+}
+
+function normalizeSecondDueDay(dealData) {
+  const paymentFrequency = normalizePaymentFrequency(dealData);
+
+  if (paymentFrequency !== "Semi-Monthly") {
+    return null;
+  }
+
+  const secondDueDay = dealData.secondDueDay ?? dealData.second_due_day;
+
+  if (secondDueDay === "" || secondDueDay === null || secondDueDay === undefined) {
+    return null;
+  }
+
+  return Number(secondDueDay);
+}
+
+function normalizePrincipalAmount(dealData) {
+  const principalAmount = dealData.principalAmount ?? dealData.principal_amount;
+
+  if (
+    principalAmount === "" ||
+    principalAmount === null ||
+    principalAmount === undefined
+  ) {
+    return null;
+  }
+
+  return Number(principalAmount || 0);
+}
+
+function normalizeDueDay(dealData) {
+  const isCashDeal = dealData.dealType === "Cash";
+  const isRegistrationMoneyDeal = dealData.dealType === "Registration Money";
+  const paymentFrequency = normalizePaymentFrequency(dealData);
+
+  if (isCashDeal) return null;
+
+  if (isRegistrationMoneyDeal) {
+    return dealData.dueDay ? Number(dealData.dueDay) : null;
+  }
+
+  if (paymentFrequency === "Biweekly") return null;
+
+  if (paymentFrequency === "Semi-Monthly") {
+    return dealData.dueDay ? Number(dealData.dueDay) : null;
+  }
+
+  return dealData.dueDay ? Number(dealData.dueDay) : null;
+}
+
+function normalizeTerm(dealData) {
+  if (dealData.dealType === "Cash") return null;
+
+  if (dealData.dealType === "Registration Money") {
+    return 1;
+  }
+
+  return dealData.term ? Number(dealData.term) : null;
+}
+
+function normalizeMonthlyPayment(dealData) {
+  if (dealData.dealType === "Cash") return 0;
+
+  if (dealData.dealType === "Registration Money") {
+    return Number(dealData.totalAmount || 0);
+  }
+
+  return Number(dealData.monthlyPayment || 0);
+}
+
+function buildDealPayload(dealData) {
+  const isCashDeal = dealData.dealType === "Cash";
+
+  const referralMoneyPaid = normalizeReferralPaid(dealData.referralMoneyPaid);
+  const paymentFrequency = normalizePaymentFrequency(dealData);
+  const firstPaymentDate = normalizeFirstPaymentDate(dealData);
+  const secondDueDay = normalizeSecondDueDay(dealData);
+
+  return {
+    deal_tag: dealData.dealTag,
+    customer_id: dealData.customerId,
+
+    deal_type: dealData.dealType,
+    deal_subtype:
+      dealData.dealType === "In-house" ? dealData.dealSubtype || null : null,
+
+    start_date: dealData.startDate || null,
+
+    payment_frequency: paymentFrequency,
+    first_payment_date: firstPaymentDate,
+    second_due_day: secondDueDay,
+
+    truck: dealData.truck || "",
+    year: dealData.year || "",
+    vin: dealData.vin || "",
+
+    total_amount: Number(dealData.totalAmount || 0),
+    principal_amount: normalizePrincipalAmount(dealData),
+
+    monthly_payment: normalizeMonthlyPayment(dealData),
+
+    due_day: normalizeDueDay(dealData),
+
+    term: normalizeTerm(dealData),
+
+    maturity_date: isCashDeal ? null : dealData.maturityDate || null,
+
+    referred_by_name: dealData.referredByName || "",
+    referred_by_phone: dealData.referredByPhone || "",
+    referral_money_paid: referralMoneyPaid,
+    referral_amount_paid: normalizeReferralAmount(dealData),
+
+    status: dealData.status || "Active",
+    notes: dealData.notes || "",
+  };
 }
 
 export async function getDeals() {
@@ -100,64 +219,11 @@ export async function getDealByTag(dealTag) {
 }
 
 export async function createDeal(dealData) {
-  const isCashDeal = dealData.dealType === "Cash";
-  const isRegistrationMoneyDeal = dealData.dealType === "Registration Money";
-
-  const referralMoneyPaid = normalizeReferralPaid(dealData.referralMoneyPaid);
-  const paymentFrequency = normalizePaymentFrequency(dealData);
-  const firstPaymentDate = normalizeFirstPaymentDate(dealData);
+  const payload = buildDealPayload(dealData);
 
   const { data, error } = await supabase
     .from("deals")
-    .insert({
-      deal_tag: dealData.dealTag,
-      customer_id: dealData.customerId,
-
-      deal_type: dealData.dealType,
-      deal_subtype:
-        dealData.dealType === "In-house" ? dealData.dealSubtype || null : null,
-
-      start_date: dealData.startDate || null,
-
-      payment_frequency: paymentFrequency,
-      first_payment_date: firstPaymentDate,
-
-      truck: dealData.truck || "",
-      year: dealData.year || "",
-      vin: dealData.vin || "",
-
-      total_amount: Number(dealData.totalAmount || 0),
-
-      monthly_payment: isCashDeal
-        ? 0
-        : isRegistrationMoneyDeal
-        ? Number(dealData.totalAmount || 0)
-        : Number(dealData.monthlyPayment || 0),
-
-      due_day: isCashDeal
-        ? null
-        : isRegistrationMoneyDeal
-        ? dealData.dueDay
-          ? Number(dealData.dueDay)
-          : null
-        : paymentFrequency === "Biweekly"
-        ? null
-        : dealData.dueDay
-        ? Number(dealData.dueDay)
-        : null,
-
-      term: isCashDeal ? null : dealData.term ? Number(dealData.term) : null,
-
-      maturity_date: isCashDeal ? null : dealData.maturityDate || null,
-
-      referred_by_name: dealData.referredByName || "",
-      referred_by_phone: dealData.referredByPhone || "",
-      referral_money_paid: referralMoneyPaid,
-      referral_amount_paid: normalizeReferralAmount(dealData),
-
-      status: dealData.status || "Active",
-      notes: dealData.notes || "",
-    })
+    .insert(payload)
     .select(`
       *,
       customers (
@@ -172,64 +238,16 @@ export async function createDeal(dealData) {
 }
 
 export async function updateDeal(dealId, dealData) {
-  const isCashDeal = dealData.dealType === "Cash";
-  const isRegistrationMoneyDeal = dealData.dealType === "Registration Money";
+  const payload = {
+    ...buildDealPayload(dealData),
+    updated_at: new Date().toISOString(),
+  };
 
-  const referralMoneyPaid = normalizeReferralPaid(dealData.referralMoneyPaid);
-  const paymentFrequency = normalizePaymentFrequency(dealData);
-  const firstPaymentDate = normalizeFirstPaymentDate(dealData);
+  delete payload.customer_id;
 
   const { data, error } = await supabase
     .from("deals")
-    .update({
-      deal_tag: dealData.dealTag,
-
-      deal_type: dealData.dealType,
-      deal_subtype:
-        dealData.dealType === "In-house" ? dealData.dealSubtype || null : null,
-
-      start_date: dealData.startDate || null,
-
-      payment_frequency: paymentFrequency,
-      first_payment_date: firstPaymentDate,
-
-      truck: dealData.truck || "",
-      year: dealData.year || "",
-      vin: dealData.vin || "",
-
-      total_amount: Number(dealData.totalAmount || 0),
-
-      monthly_payment: isCashDeal
-        ? 0
-        : isRegistrationMoneyDeal
-        ? Number(dealData.totalAmount || 0)
-        : Number(dealData.monthlyPayment || 0),
-
-      due_day: isCashDeal
-        ? null
-        : isRegistrationMoneyDeal
-        ? dealData.dueDay
-          ? Number(dealData.dueDay)
-          : null
-        : paymentFrequency === "Biweekly"
-        ? null
-        : dealData.dueDay
-        ? Number(dealData.dueDay)
-        : null,
-
-      term: isCashDeal ? null : dealData.term ? Number(dealData.term) : null,
-
-      maturity_date: isCashDeal ? null : dealData.maturityDate || null,
-
-      referred_by_name: dealData.referredByName || "",
-      referred_by_phone: dealData.referredByPhone || "",
-      referral_money_paid: referralMoneyPaid,
-      referral_amount_paid: normalizeReferralAmount(dealData),
-
-      status: dealData.status || "Active",
-      notes: dealData.notes || "",
-      updated_at: new Date().toISOString(),
-    })
+    .update(payload)
     .eq("id", dealId)
     .select(`
       *,

@@ -56,6 +56,7 @@ function Deals() {
       String(deal.start_date || "").toLowerCase().includes(text) ||
       String(deal.first_payment_date || "").toLowerCase().includes(text) ||
       String(deal.due_day || "").toLowerCase().includes(text) ||
+      String(deal.second_due_day || "").toLowerCase().includes(text) ||
       String(deal.maturity_date || "").toLowerCase().includes(text);
 
     const matchesStatus =
@@ -76,6 +77,9 @@ function Deals() {
 
   const monthlyDeals = deals.filter((deal) => getPaymentFrequency(deal) === "Monthly");
   const biweeklyDeals = deals.filter((deal) => getPaymentFrequency(deal) === "Biweekly");
+  const semiMonthlyDeals = deals.filter(
+    (deal) => getPaymentFrequency(deal) === "Semi-Monthly"
+  );
   const oneTimeDeals = deals.filter((deal) => getPaymentFrequency(deal) === "One-Time");
   const cashDeals = deals.filter((deal) => getPaymentFrequency(deal) === "Cash");
 
@@ -173,6 +177,7 @@ function Deals() {
 
           Start_Date: deal.start_date || "",
           Due_Day: deal.due_day || "",
+          Second_Due_Day: deal.second_due_day || "",
           First_Payment_Date: deal.first_payment_date || "",
           Payment_Amount: deal.monthly_payment || 0,
           Payment_Amount_Label: getPaymentAmountLabel(paymentFrequency),
@@ -302,6 +307,14 @@ function Deals() {
         />
 
         <MetricCard
+          icon="🗓️"
+          title="Semi-Monthly"
+          value={semiMonthlyDeals.length}
+          subtitle="Twice per month"
+          tone="orange"
+        />
+
+        <MetricCard
           icon="🧾"
           title="One-Time"
           value={oneTimeDeals.length}
@@ -401,6 +414,7 @@ function Deals() {
               <option>All</option>
               <option>Monthly</option>
               <option>Biweekly</option>
+              <option>Semi-Monthly</option>
               <option>One-Time</option>
               <option>Cash</option>
             </select>
@@ -450,6 +464,7 @@ function getPaymentFrequency(deal) {
 
 function getPaymentFrequencyLabel(frequency) {
   if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "Semi-Monthly") return "Semi-Monthly";
   if (frequency === "One-Time") return "One-Time";
   if (frequency === "Cash") return "Cash";
   return "Monthly";
@@ -457,6 +472,7 @@ function getPaymentFrequencyLabel(frequency) {
 
 function getPaymentAmountLabel(frequency) {
   if (frequency === "Biweekly") return "Biweekly Payment";
+  if (frequency === "Semi-Monthly") return "Semi-Monthly Payment";
   if (frequency === "One-Time") return "One-Time Amount";
   if (frequency === "Cash") return "Cash Amount";
   return "Monthly Payment";
@@ -525,6 +541,12 @@ function getCardToneStyle(tone) {
   if (tone === "teal") {
     return {
       borderTop: "4px solid #0f766e",
+    };
+  }
+
+  if (tone === "orange") {
+    return {
+      borderTop: "4px solid #f59e0b",
     };
   }
 

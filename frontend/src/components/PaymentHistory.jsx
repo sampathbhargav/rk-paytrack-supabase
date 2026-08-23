@@ -556,6 +556,16 @@ function getPaymentFrequency(payment) {
   }
 
   if (
+    payment?.payment_frequency === "Semi-Monthly" ||
+    payment?.paymentFrequency === "Semi-Monthly" ||
+    payment?.deals?.payment_frequency === "Semi-Monthly" ||
+    paymentType.includes("semi-monthly") ||
+    paymentType.includes("semimonthly")
+  ) {
+    return "Semi-Monthly";
+  }
+
+  if (
     payment?.payment_frequency === "One-Time" ||
     payment?.paymentFrequency === "One-Time" ||
     payment?.deals?.deal_type === "Registration Money" ||
@@ -577,6 +587,7 @@ function getPaymentFrequency(payment) {
 
 function getPaymentFrequencyLabel(frequency) {
   if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "Semi-Monthly") return "Semi-Monthly";
   if (frequency === "One-Time") return "One-Time";
   if (frequency === "Cash") return "Cash";
   return "Monthly";
@@ -626,6 +637,15 @@ function getFrequencyBadgeStyle(frequency) {
       background: "#ede9fe",
       color: "#6d28d9",
       borderColor: "#ddd6fe",
+    };
+  }
+
+  if (frequency === "Semi-Monthly") {
+    return {
+      ...base,
+      background: "#fef3c7",
+      color: "#92400e",
+      borderColor: "#fde68a",
     };
   }
 

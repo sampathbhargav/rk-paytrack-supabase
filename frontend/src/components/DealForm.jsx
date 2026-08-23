@@ -30,8 +30,10 @@ const initialFormData = {
   totalAmount: "",
   principalAmount: "",
   monthlyPayment: "",
+  eachMonthPayment: "",
   paymentFrequency: "Monthly",
   firstPaymentDate: "",
+  secondDueDay: "",
   dueDay: "",
   term: "",
   maturityDate: "",
@@ -68,6 +70,7 @@ function DealForm() {
   const isRegistrationMoneyDeal = formData.dealType === "Registration Money";
   const isMonthlyPayment = formData.paymentFrequency === "Monthly";
   const isBiweeklyPayment = formData.paymentFrequency === "Biweekly";
+  const isSemiMonthlyPayment = formData.paymentFrequency === "Semi-Monthly";
 
   const scheduleMath = getScheduleMathCheck(formData);
 
@@ -187,8 +190,11 @@ function DealForm() {
 
         if (value === "Cash") {
           updated.monthlyPayment = "";
+          updated.eachMonthPayment = "";
           updated.paymentFrequency = "Monthly";
+          updated.eachMonthPayment = "";
           updated.firstPaymentDate = "";
+          updated.secondDueDay = "";
           updated.dueDay = "";
           updated.term = "";
           updated.maturityDate = "";
@@ -196,7 +202,9 @@ function DealForm() {
 
         if (value === "Registration Money") {
           updated.paymentFrequency = "Monthly";
+          updated.eachMonthPayment = "";
           updated.firstPaymentDate = "";
+          updated.secondDueDay = "";
           updated.term = "1";
 
           if (updated.totalAmount) {
@@ -229,11 +237,29 @@ function DealForm() {
           if (updated.startDate && updated.paymentFrequency === "Biweekly") {
             updated.firstPaymentDate =
               updated.firstPaymentDate || updated.startDate;
+            updated.secondDueDay = "";
             updated.dueDay = "";
 
             if (updated.term) {
               updated.maturityDate = calculateBiweeklyMaturityDate(
                 updated.firstPaymentDate,
+                updated.term
+              );
+            }
+          }
+
+          if (updated.startDate && updated.paymentFrequency === "Semi-Monthly") {
+            updated.firstPaymentDate =
+              updated.firstPaymentDate || getFirstPaymentDateOneMonthAfterStart(updated.startDate);
+            updated.secondDueDay =
+              updated.secondDueDay ||
+              getSemiMonthlySecondDueDay(updated.firstPaymentDate);
+            updated.dueDay = "";
+
+            if (updated.firstPaymentDate && updated.secondDueDay && updated.term) {
+              updated.maturityDate = calculateSemiMonthlyMaturityDate(
+                updated.firstPaymentDate,
+                updated.secondDueDay,
                 updated.term
               );
             }
@@ -244,6 +270,8 @@ function DealForm() {
       if (name === "paymentFrequency") {
         if (value === "Monthly") {
           updated.firstPaymentDate = "";
+          updated.secondDueDay = "";
+          updated.eachMonthPayment = "";
 
           if (updated.startDate) {
             const dueDay = getDueDayFromStartDate(updated.startDate);
@@ -261,12 +289,33 @@ function DealForm() {
 
         if (value === "Biweekly") {
           updated.dueDay = "";
+          updated.secondDueDay = "";
+          updated.eachMonthPayment = "";
           updated.firstPaymentDate =
             updated.firstPaymentDate || updated.startDate || "";
 
           if (updated.firstPaymentDate && updated.term) {
             updated.maturityDate = calculateBiweeklyMaturityDate(
               updated.firstPaymentDate,
+              updated.term
+            );
+          } else {
+            updated.maturityDate = "";
+          }
+        }
+
+        if (value === "Semi-Monthly") {
+          updated.dueDay = "";
+          updated.firstPaymentDate =
+            updated.firstPaymentDate || getFirstPaymentDateOneMonthAfterStart(updated.startDate) || "";
+          updated.secondDueDay =
+            updated.secondDueDay ||
+            getSemiMonthlySecondDueDay(updated.firstPaymentDate || updated.startDate);
+
+          if (updated.firstPaymentDate && updated.secondDueDay && updated.term) {
+            updated.maturityDate = calculateSemiMonthlyMaturityDate(
+              updated.firstPaymentDate,
+              updated.secondDueDay,
               updated.term
             );
           } else {
@@ -303,6 +352,7 @@ function DealForm() {
       ) {
         if (updated.paymentFrequency === "Biweekly") {
           updated.firstPaymentDate = updated.firstPaymentDate || value;
+          updated.secondDueDay = "";
           updated.dueDay = "";
 
           if (updated.term) {
@@ -311,9 +361,24 @@ function DealForm() {
               updated.term
             );
           }
+        } else if (updated.paymentFrequency === "Semi-Monthly") {
+          updated.firstPaymentDate = updated.firstPaymentDate || value;
+          updated.secondDueDay =
+            updated.secondDueDay ||
+            getSemiMonthlySecondDueDay(updated.firstPaymentDate);
+          updated.dueDay = "";
+
+          if (updated.firstPaymentDate && updated.secondDueDay && updated.term) {
+            updated.maturityDate = calculateSemiMonthlyMaturityDate(
+              updated.firstPaymentDate,
+              updated.secondDueDay,
+              updated.term
+            );
+          }
         } else {
           const dueDay = getDueDayFromStartDate(value);
           updated.dueDay = dueDay;
+          updated.secondDueDay = "";
 
           if (updated.term) {
             updated.maturityDate = calculateMaturityDate(
@@ -329,17 +394,36 @@ function DealForm() {
         name === "firstPaymentDate" &&
         updated.dealType !== "Cash" &&
         updated.dealType !== "Registration Money" &&
-        updated.paymentFrequency === "Biweekly"
+        ["Biweekly", "Semi-Monthly"].includes(updated.paymentFrequency)
       ) {
         updated.dueDay = "";
 
-        if (value && updated.term) {
-          updated.maturityDate = calculateBiweeklyMaturityDate(
-            value,
-            updated.term
-          );
-        } else {
-          updated.maturityDate = "";
+        if (updated.paymentFrequency === "Biweekly") {
+          updated.secondDueDay = "";
+
+          if (value && updated.term) {
+            updated.maturityDate = calculateBiweeklyMaturityDate(
+              value,
+              updated.term
+            );
+          } else {
+            updated.maturityDate = "";
+          }
+        }
+
+        if (updated.paymentFrequency === "Semi-Monthly") {
+          updated.secondDueDay =
+            updated.secondDueDay || getSemiMonthlySecondDueDay(value);
+
+          if (value && updated.secondDueDay && updated.term) {
+            updated.maturityDate = calculateSemiMonthlyMaturityDate(
+              value,
+              updated.secondDueDay,
+              updated.term
+            );
+          } else {
+            updated.maturityDate = "";
+          }
         }
       }
 
@@ -350,6 +434,7 @@ function DealForm() {
       ) {
         if (updated.paymentFrequency === "Biweekly") {
           updated.dueDay = "";
+          updated.secondDueDay = "";
 
           if (updated.firstPaymentDate && value) {
             updated.maturityDate = calculateBiweeklyMaturityDate(
@@ -359,7 +444,20 @@ function DealForm() {
           } else {
             updated.maturityDate = "";
           }
+        } else if (updated.paymentFrequency === "Semi-Monthly") {
+          updated.dueDay = "";
+
+          if (updated.firstPaymentDate && updated.secondDueDay && value) {
+            updated.maturityDate = calculateSemiMonthlyMaturityDate(
+              updated.firstPaymentDate,
+              updated.secondDueDay,
+              value
+            );
+          } else {
+            updated.maturityDate = "";
+          }
         } else {
+          updated.secondDueDay = "";
           updated.maturityDate = calculateMaturityDate(
             updated.startDate,
             updated.dueDay,
@@ -381,6 +479,67 @@ function DealForm() {
         );
       }
 
+      if (
+        updated.dealType !== "Cash" &&
+        updated.dealType !== "Registration Money" &&
+        updated.paymentFrequency === "Semi-Monthly"
+      ) {
+        updated.dueDay = "";
+
+        if (name === "startDate") {
+          updated.firstPaymentDate = getFirstPaymentDateOneMonthAfterStart(value);
+          updated.secondDueDay = getSemiMonthlySecondDueDay(
+            updated.firstPaymentDate
+          );
+        }
+
+        if (name === "paymentFrequency") {
+          updated.firstPaymentDate = getFirstPaymentDateOneMonthAfterStart(
+            updated.startDate
+          );
+          updated.secondDueDay = getSemiMonthlySecondDueDay(
+            updated.firstPaymentDate
+          );
+        }
+
+        if (name === "firstPaymentDate") {
+          updated.secondDueDay = getSemiMonthlySecondDueDay(value);
+        }
+
+        if (name === "eachMonthPayment") {
+          updated.monthlyPayment = getSemiMonthlyPaymentFromMonthlyAmount(value);
+          updated.term = calculateSemiMonthlyTermFromEachMonthPayment(
+            updated.totalAmount,
+            value
+          );
+        }
+
+        if (name === "monthlyPayment") {
+          updated.eachMonthPayment = getMonthlyAmountFromSemiMonthlyPayment(value);
+          updated.term = calculateSemiMonthlyTermFromSemiMonthlyPayment(
+            updated.totalAmount,
+            value
+          );
+        }
+
+        if (name === "totalAmount" && updated.eachMonthPayment) {
+          updated.term = calculateSemiMonthlyTermFromEachMonthPayment(
+            value,
+            updated.eachMonthPayment
+          );
+        }
+
+        if (updated.firstPaymentDate && updated.secondDueDay && updated.term) {
+          updated.maturityDate = calculateSemiMonthlyMaturityDate(
+            updated.firstPaymentDate,
+            updated.secondDueDay,
+            updated.term
+          );
+        } else {
+          updated.maturityDate = "";
+        }
+      }
+
       return updated;
     });
   };
@@ -395,8 +554,10 @@ function DealForm() {
       address: formData.address.trim(),
       dealTag: formData.dealTag.trim(),
       principalAmount: formData.principalAmount,
+      eachMonthPayment: formData.eachMonthPayment,
       paymentFrequency: formData.paymentFrequency || "Monthly",
       firstPaymentDate: formData.firstPaymentDate || "",
+      secondDueDay: formData.secondDueDay || "",
       truck: formData.truck.trim(),
       year: formData.year.trim(),
       vin: formData.vin.trim().toUpperCase(),
@@ -479,8 +640,8 @@ function DealForm() {
         return "Payment frequency is required.";
       }
 
-      if (!["Monthly", "Biweekly"].includes(data.paymentFrequency)) {
-        return "Payment frequency must be Monthly or Biweekly.";
+      if (!["Monthly", "Biweekly", "Semi-Monthly"].includes(data.paymentFrequency)) {
+        return "Payment frequency must be Monthly, Biweekly, or Semi-Monthly.";
       }
 
       if (!data.monthlyPayment || Number(data.monthlyPayment) <= 0) {
@@ -515,6 +676,30 @@ function DealForm() {
         }
       }
 
+      if (data.paymentFrequency === "Semi-Monthly") {
+        if (!data.firstPaymentDate) {
+          return "First payment date is required for semi-monthly deals.";
+        }
+
+        if (data.firstPaymentDate < data.startDate) {
+          return "First payment date cannot be before the start date.";
+        }
+
+        if (!data.secondDueDay || Number(data.secondDueDay) <= 0) {
+          return "Second due day is required for semi-monthly deals.";
+        }
+
+        if (Number(data.secondDueDay) < 1 || Number(data.secondDueDay) > 31) {
+          return "Second due day must be between 1 and 31.";
+        }
+
+        const firstDueDay = new Date(`${data.firstPaymentDate}T00:00:00`).getDate();
+
+        if (Number(data.secondDueDay) === firstDueDay) {
+          return "Second due day must be different from the first payment day.";
+        }
+      }
+
       if (!data.maturityDate) {
         return "Maturity date is required.";
       }
@@ -546,6 +731,7 @@ function DealForm() {
     const savedDueDay = getSavedDueDay(data);
     const savedTerm = getSavedTerm(data);
     const savedFirstPaymentDate = getSavedFirstPaymentDate(data);
+    const savedSecondDueDay = getSavedSecondDueDay(data);
     const savedMaturityDate = getSavedMaturityDate(data);
 
     const scheduleCheckForConfirm = getScheduleMathCheck(data);
@@ -612,6 +798,7 @@ function DealForm() {
         monthlyPayment: savedPaymentAmount,
         paymentFrequency: savedPaymentFrequency,
         firstPaymentDate: savedFirstPaymentDate,
+        secondDueDay: savedSecondDueDay,
         dueDay: savedDueDay,
         term: savedTerm,
         maturityDate: savedMaturityDate,
@@ -656,6 +843,7 @@ function DealForm() {
           monthly_payment: savedPaymentAmount,
           payment_frequency: savedPaymentFrequency,
           first_payment_date: savedFirstPaymentDate,
+          second_due_day: savedSecondDueDay,
           due_day: savedDueDay,
           term: savedTerm,
           start_date: data.startDate || null,
@@ -1022,6 +1210,8 @@ function DealForm() {
             ? "Registration Money is treated as a one-time scheduled receivable."
             : isBiweeklyPayment
             ? "Biweekly schedule is calculated from the first payment date, payment amount, and number of payments."
+            : isSemiMonthlyPayment
+            ? "Semi-monthly schedule creates two payments per month using the first payment date and second due day."
             : "Monthly schedule is calculated from start date, due day, term, and payment amount."
         }
       >
@@ -1048,6 +1238,14 @@ function DealForm() {
           </div>
         )}
 
+        {!isCashDeal && !isRegistrationMoneyDeal && isSemiMonthlyPayment && (
+          <div style={biweeklyInfoBox}>
+            Semi-monthly selected. The app will create two installments per
+            month, starting with the first payment date and then using the second
+            due day every month. Term means total number of semi-monthly payments.
+          </div>
+        )}
+
         <div style={grid}>
           <Input
             label={isRegistrationMoneyDeal ? "Tentative Due Date" : "Start Date"}
@@ -1064,6 +1262,8 @@ function DealForm() {
                 ? "This is the one-time expected payment date."
                 : isBiweeklyPayment
                 ? "Deal start date. First payment date below controls the biweekly schedule."
+                : isSemiMonthlyPayment
+                ? "Deal start date. First payment date and second due day below control the semi-monthly schedule."
                 : "Due day will auto-fill from this date."
             }
           />
@@ -1074,9 +1274,21 @@ function DealForm() {
               name="paymentFrequency"
               value={formData.paymentFrequency}
               onChange={handleChange}
-              options={["Monthly", "Biweekly"]}
+              options={["Monthly", "Biweekly", "Semi-Monthly"]}
               required
-              helperText="Choose Monthly for once per month or Biweekly for every 14 days."
+              helperText="Choose Monthly, Biweekly, or Semi-Monthly."
+            />
+          )}
+
+          {isSemiMonthlyPayment && !isCashDeal && !isRegistrationMoneyDeal && (
+            <Input
+              label="Each Month Payment"
+              name="eachMonthPayment"
+              type="number"
+              value={formData.eachMonthPayment}
+              onChange={handleChange}
+              placeholder="Example: 1000"
+              helperText="Enter the total customer should pay per month. Semi-monthly payment and term will auto-calculate, but both can still be edited."
             />
           )}
 
@@ -1086,6 +1298,8 @@ function DealForm() {
                 ? "One-Time Amount"
                 : isBiweeklyPayment
                 ? "Biweekly Payment"
+                : isSemiMonthlyPayment
+                ? "Semi-Monthly Payment"
                 : "Monthly Payment"
             }
             name="monthlyPayment"
@@ -1102,6 +1316,8 @@ function DealForm() {
                 ? "Auto-filled from registration money amount."
                 : isBiweeklyPayment
                 ? "Amount due every 14 days."
+                : isSemiMonthlyPayment
+                ? "Auto-filled as half of Each Month Payment, but can be edited."
                 : "Amount due every month."
             }
           />
@@ -1119,15 +1335,34 @@ function DealForm() {
             />
           )}
 
-          {isBiweeklyPayment && !isCashDeal && !isRegistrationMoneyDeal && (
+          {(isBiweeklyPayment || isSemiMonthlyPayment) &&
+            !isCashDeal &&
+            !isRegistrationMoneyDeal && (
+              <Input
+                label="First Payment Date"
+                name="firstPaymentDate"
+                type="date"
+                value={formData.firstPaymentDate}
+                onChange={handleChange}
+                required
+                helperText={
+                  isSemiMonthlyPayment
+                    ? "First semi-monthly installment date. Example: 09/05/2026."
+                    : "First installment due date. Future payments repeat every 14 days."
+                }
+              />
+            )}
+
+          {isSemiMonthlyPayment && !isCashDeal && !isRegistrationMoneyDeal && (
             <Input
-              label="First Payment Date"
-              name="firstPaymentDate"
-              type="date"
-              value={formData.firstPaymentDate}
+              label="Second Due Day"
+              name="secondDueDay"
+              type="number"
+              value={formData.secondDueDay}
               onChange={handleChange}
               required
-              helperText="First installment due date. Future payments repeat every 14 days."
+              placeholder="Example: 20"
+              helperText="Second payment day each month. Example: first payment on the 5th and second due day 20."
             />
           )}
 
@@ -1135,6 +1370,8 @@ function DealForm() {
             label={
               isBiweeklyPayment && !isRegistrationMoneyDeal
                 ? "Number of Biweekly Payments"
+                : isSemiMonthlyPayment && !isRegistrationMoneyDeal
+                ? "Number of Semi-Monthly Payments"
                 : "Term"
             }
             name="term"
@@ -1143,10 +1380,12 @@ function DealForm() {
             onChange={handleChange}
             required={!isCashDeal}
             disabled={isCashDeal || isRegistrationMoneyDeal}
-            placeholder={isBiweeklyPayment ? "Example: 26" : "Example: 5"}
+            placeholder={isBiweeklyPayment ? "Example: 26" : isSemiMonthlyPayment ? "Example: 24" : "Example: 5"}
             helperText={
               isBiweeklyPayment && !isRegistrationMoneyDeal
                 ? "For biweekly deals, term means total number of 14-day payments."
+                : isSemiMonthlyPayment && !isRegistrationMoneyDeal
+                ? "For semi-monthly deals, term means total number of semi-monthly payments."
                 : "For monthly deals, term means total number of monthly payments."
             }
           />
@@ -1164,6 +1403,8 @@ function DealForm() {
                 ? "Same as tentative due date for Registration Money."
                 : isBiweeklyPayment
                 ? "Auto-calculated from first payment date and number of biweekly payments."
+                : isSemiMonthlyPayment
+                ? "Auto-calculated from first payment date, second due day, and number of payments."
                 : "Auto-calculated from start date, due day, and term."
             }
           />
@@ -1214,6 +1455,63 @@ function DealForm() {
   );
 }
 
+function getFirstPaymentDateOneMonthAfterStart(startDate) {
+  if (!startDate) return "";
+
+  const [year, month, day] = String(startDate).split("-").map(Number);
+
+  if (!year || !month || !day) return "";
+
+  return buildSafeMonthlyDateString(year, month + 1, day);
+}
+
+function buildSafeMonthlyDateString(year, month, day) {
+  const normalized = new Date(year, month - 1, 1);
+  const normalizedYear = normalized.getFullYear();
+  const normalizedMonth = normalized.getMonth();
+  const lastDay = new Date(normalizedYear, normalizedMonth + 1, 0).getDate();
+  const safeDay = Math.min(Math.max(Number(day || 1), 1), lastDay);
+
+  return `${normalizedYear}-${String(normalizedMonth + 1).padStart(
+    2,
+    "0"
+  )}-${String(safeDay).padStart(2, "0")}`;
+}
+
+function getSemiMonthlyPaymentFromMonthlyAmount(eachMonthPayment) {
+  const monthlyAmount = Number(eachMonthPayment || 0);
+
+  if (!monthlyAmount || monthlyAmount <= 0) return "";
+
+  return String(Number((monthlyAmount / 2).toFixed(2)));
+}
+
+function getMonthlyAmountFromSemiMonthlyPayment(semiMonthlyPayment) {
+  const paymentAmount = Number(semiMonthlyPayment || 0);
+
+  if (!paymentAmount || paymentAmount <= 0) return "";
+
+  return String(Number((paymentAmount * 2).toFixed(2)));
+}
+
+function calculateSemiMonthlyTermFromEachMonthPayment(totalAmount, eachMonthPayment) {
+  const total = Number(totalAmount || 0);
+  const monthlyAmount = Number(eachMonthPayment || 0);
+
+  if (!total || total <= 0 || !monthlyAmount || monthlyAmount <= 0) return "";
+
+  return String(Math.ceil(total / (monthlyAmount / 2)));
+}
+
+function calculateSemiMonthlyTermFromSemiMonthlyPayment(totalAmount, semiMonthlyPayment) {
+  const total = Number(totalAmount || 0);
+  const paymentAmount = Number(semiMonthlyPayment || 0);
+
+  if (!total || total <= 0 || !paymentAmount || paymentAmount <= 0) return "";
+
+  return String(Math.ceil(total / paymentAmount));
+}
+
 function calculateBiweeklyMaturityDate(firstPaymentDate, term) {
   if (!firstPaymentDate || !term || Number(term) <= 0) return "";
 
@@ -1223,6 +1521,65 @@ function calculateBiweeklyMaturityDate(firstPaymentDate, term) {
   date.setDate(date.getDate() + (Number(term) - 1) * 14);
 
   return date.toISOString().split("T")[0];
+}
+
+function calculateSemiMonthlyMaturityDate(firstPaymentDate, secondDueDay, term) {
+  if (!firstPaymentDate || !secondDueDay || !term || Number(term) <= 0) {
+    return "";
+  }
+
+  const firstDate = new Date(`${firstPaymentDate}T00:00:00`);
+  if (Number.isNaN(firstDate.getTime())) return "";
+
+  const firstDueDay = firstDate.getDate();
+  const secondDay = Number(secondDueDay || 0);
+  const dates = [];
+  let year = firstDate.getFullYear();
+  let month = firstDate.getMonth();
+
+  while (dates.length < Number(term)) {
+    const firstMonthDate = buildSafeMonthlyDate(year, month, firstDueDay);
+
+    if (firstMonthDate >= firstDate && dates.length < Number(term)) {
+      dates.push(firstMonthDate);
+    }
+
+    const secondMonthDate = buildSafeMonthlyDate(year, month, secondDay);
+
+    if (secondMonthDate >= firstDate && dates.length < Number(term)) {
+      dates.push(secondMonthDate);
+    }
+
+    month += 1;
+
+    if (month > 11) {
+      month = 0;
+      year += 1;
+    }
+  }
+
+  return dates[dates.length - 1]?.toISOString().split("T")[0] || "";
+}
+
+function buildSafeMonthlyDate(year, monthIndex, dueDay) {
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  const safeDay = Math.min(Math.max(Number(dueDay || 1), 1), lastDay);
+
+  return new Date(year, monthIndex, safeDay);
+}
+
+function getSemiMonthlySecondDueDay(firstPaymentDate) {
+  if (!firstPaymentDate) return "";
+
+  const date = new Date(`${firstPaymentDate}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+
+  // Add 15 actual calendar days.
+  // Example: first due day 25 -> second due day 10 next month, not 31.
+  const secondDate = new Date(date);
+  secondDate.setDate(secondDate.getDate() + 15);
+
+  return String(secondDate.getDate());
 }
 
 function getSavedPaymentFrequency(data) {
@@ -1243,7 +1600,7 @@ function getSavedPaymentAmount(data) {
 
 function getSavedDueDay(data) {
   if (data.dealType === "Cash") return null;
-  if (data.paymentFrequency === "Biweekly") return null;
+  if (["Biweekly", "Semi-Monthly"].includes(data.paymentFrequency)) return null;
 
   return Number(data.dueDay || 0);
 }
@@ -1258,9 +1615,21 @@ function getSavedTerm(data) {
 function getSavedFirstPaymentDate(data) {
   if (data.dealType === "Cash") return null;
   if (data.dealType === "Registration Money") return null;
-  if (data.paymentFrequency !== "Biweekly") return null;
+  if (!["Biweekly", "Semi-Monthly"].includes(data.paymentFrequency)) return null;
+
+  if (data.paymentFrequency === "Semi-Monthly") {
+    return data.firstPaymentDate || getFirstPaymentDateOneMonthAfterStart(data.startDate) || null;
+  }
 
   return data.firstPaymentDate || data.startDate || null;
+}
+
+function getSavedSecondDueDay(data) {
+  if (data.dealType === "Cash") return null;
+  if (data.dealType === "Registration Money") return null;
+  if (data.paymentFrequency !== "Semi-Monthly") return null;
+
+  return Number(data.secondDueDay || 0);
 }
 
 function getSavedMaturityDate(data) {
@@ -1272,6 +1641,17 @@ function getSavedMaturityDate(data) {
       data.maturityDate ||
       calculateBiweeklyMaturityDate(
         data.firstPaymentDate || data.startDate,
+        data.term
+      )
+    );
+  }
+
+  if (data.paymentFrequency === "Semi-Monthly") {
+    return (
+      data.maturityDate ||
+      calculateSemiMonthlyMaturityDate(
+        data.firstPaymentDate || getFirstPaymentDateOneMonthAfterStart(data.startDate),
+        data.secondDueDay,
         data.term
       )
     );
@@ -1298,6 +1678,8 @@ function getScheduleMathCheck(data) {
   const paymentLabel =
     paymentFrequency === "Biweekly"
       ? "Biweekly Payment"
+      : paymentFrequency === "Semi-Monthly"
+      ? "Semi-Monthly Payment"
       : paymentFrequency === "One-Time"
       ? "One-Time Amount"
       : "Monthly Payment";

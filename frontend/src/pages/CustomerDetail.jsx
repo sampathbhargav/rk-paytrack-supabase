@@ -99,7 +99,7 @@ function CustomerDetail() {
 
   if (error) {
     return (
-      <div style={pageWrapper}>
+      <div style={getThemedStyle(pageWrapper, isDangerTheme, dangerPageWrapper)}>
         <button type="button" onClick={handleBack} style={backLink}>
           ← Back
         </button>
@@ -140,6 +140,7 @@ function CustomerDetail() {
   const isBiweeklySchedule = paymentFrequency === "Biweekly";
   const isSemiMonthlySchedule = paymentFrequency === "Semi-Monthly";
   const isMonthlySchedule = paymentFrequency === "Monthly";
+  const isDangerTheme = isDangerDealStatus(deal.status);
 
   const activePayments = payments.filter(
     (payment) => payment.payment_status !== "Voided"
@@ -265,7 +266,7 @@ function CustomerDetail() {
 
   return (
     <div style={pageWrapper}>
-      <div style={topNav}>
+      <div style={getThemedStyle(topNav, isDangerTheme, dangerTopNav)}>
         <button type="button" onClick={handleBack} style={backLink}>
           ← Back
         </button>
@@ -345,9 +346,16 @@ function CustomerDetail() {
         </div>
       </div>
 
+      {isDangerTheme && (
+        <div style={dangerAlertBanner}>
+          <strong>⚠️ {deal.status} Deal</strong>
+          <span> This account is marked as {deal.status}. Red theme is active for collection/recovery attention.</span>
+        </div>
+      )}
+
       <div style={profileLayout}>
-        <aside style={profileSidebar}>
-          <div style={avatarCircle}>
+        <aside style={getThemedStyle(profileSidebar, isDangerTheme, dangerProfileSidebar)}>
+          <div style={getThemedStyle(avatarCircle, isDangerTheme, dangerAvatarCircle)}>
             {getInitials(deal.customers?.customer_name)}
           </div>
 
@@ -370,7 +378,7 @@ function CustomerDetail() {
             </span>
           </div>
 
-          <div style={sidebarBalanceCard}>
+          <div style={getThemedStyle(sidebarBalanceCard, isDangerTheme, dangerSidebarBalanceCard)}>
             <span style={sidebarBalanceLabel}>Current Balance</span>
             <strong style={sidebarBalanceAmount}>{formatMoney(balance)}</strong>
           </div>
@@ -453,7 +461,7 @@ function CustomerDetail() {
           )}
         </aside>
 
-        <main style={accountPanel}>
+        <main style={getThemedStyle(accountPanel, isDangerTheme, dangerAccountPanel)}>
           <div style={accountHeader}>
             <div>
               <div style={eyebrow}>Customer Account</div>
@@ -504,7 +512,12 @@ function CustomerDetail() {
             </div>
 
             <div style={progressTrack}>
-              <div style={{ ...progressFill, width: `${paidPercent}%` }} />
+              <div
+                style={{
+                  ...(isDangerTheme ? dangerProgressFill : progressFill),
+                  width: `${paidPercent}%`,
+                }}
+              />
             </div>
           </div>
 
@@ -635,6 +648,7 @@ function CustomerDetail() {
           label="Installment Schedule"
           title="Due Schedule"
           description="Review installment status, paid amounts, remaining balances, and promise activity."
+          dangerTheme={isDangerTheme}
         >
           <DueSchedule deal={deal} payments={activePayments} promises={promises} />
         </SectionShell>
@@ -643,6 +657,7 @@ function CustomerDetail() {
           label="Payment Activity"
           title="Payment History"
           description="View customer payments, print receipts, and manage payment records."
+          dangerTheme={isDangerTheme}
         >
           <PaymentHistory
             payments={payments}
@@ -656,6 +671,7 @@ function CustomerDetail() {
           label="Promise Tracking"
           title="Promise History"
           description="Track pending, broken, paid, partial, rescheduled, and cancelled promises."
+          dangerTheme={isDangerTheme}
         >
           <PromiseHistory
             promises={promises}
@@ -709,9 +725,9 @@ function InfoLine({ label, value }) {
   );
 }
 
-function SectionShell({ label, title, description, children }) {
+function SectionShell({ label, title, description, children, dangerTheme = false }) {
   return (
-    <section style={sectionShell}>
+    <section style={getThemedStyle(sectionShell, dangerTheme, dangerSectionShell)}>
       <div style={sectionHeader}>
         <div>
           <div style={sectionLabel}>{label}</div>
@@ -723,6 +739,14 @@ function SectionShell({ label, title, description, children }) {
       <div style={sectionContent}>{children}</div>
     </section>
   );
+}
+
+function isDangerDealStatus(status) {
+  return ["Defaulted", "Repo"].includes(String(status || ""));
+}
+
+function getThemedStyle(baseStyle, enabled, overrideStyle) {
+  return enabled ? { ...baseStyle, ...overrideStyle } : baseStyle;
 }
 
 function getPaymentFrequency(deal) {
@@ -1656,6 +1680,59 @@ const loadingCard = {
 const loadingIcon = {
   fontSize: "34px",
   marginBottom: "10px",
+};
+
+const dangerPageWrapper = {
+  background: "linear-gradient(180deg, #fff1f2 0%, #ffffff 42%, #fef2f2 100%)",
+  borderRadius: "22px",
+  padding: "12px",
+};
+
+const dangerTopNav = {
+  border: "1px solid #fecaca",
+  boxShadow: "0 10px 28px rgba(153, 27, 27, 0.14)",
+};
+
+const dangerAlertBanner = {
+  background: "linear-gradient(135deg, #7f1d1d 0%, #991b1b 55%, #dc2626 100%)",
+  color: "white",
+  border: "1px solid #fecaca",
+  borderRadius: "18px",
+  padding: "14px 16px",
+  boxShadow: "0 12px 28px rgba(153, 27, 27, 0.22)",
+  fontWeight: "800",
+};
+
+const dangerProfileSidebar = {
+  background: "linear-gradient(180deg, #fff7f7 0%, #fef2f2 100%)",
+  border: "1px solid #fecaca",
+  boxShadow: "0 12px 32px rgba(153, 27, 27, 0.12)",
+};
+
+const dangerAvatarCircle = {
+  background: "linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%)",
+  boxShadow: "0 12px 24px rgba(153, 27, 27, 0.25)",
+};
+
+const dangerSidebarBalanceCard = {
+  background: "linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)",
+  boxShadow: "0 10px 22px rgba(153, 27, 27, 0.22)",
+};
+
+const dangerAccountPanel = {
+  background: "linear-gradient(135deg, #7f1d1d 0%, #991b1b 55%, #dc2626 100%)",
+  border: "1px solid rgba(254, 202, 202, 0.45)",
+  boxShadow: "0 16px 38px rgba(153, 27, 27, 0.26)",
+};
+
+const dangerProgressFill = {
+  ...progressFill,
+  background: "linear-gradient(90deg, #fecaca, #ffffff)",
+};
+
+const dangerSectionShell = {
+  border: "1px solid #fecaca",
+  boxShadow: "0 10px 26px rgba(153, 27, 27, 0.09)",
 };
 
 const errorBox = {

@@ -17,15 +17,17 @@ function DueSchedule({ deal, payments, promises = [] }) {
         payment.payment_status !== "Voided"
     );
 
-    const paidForDueDate = paymentsForDueDate.reduce(
+    const paidForDueDateRaw = paymentsForDueDate.reduce(
       (sum, payment) => sum + Number(payment.amount_paid || 0),
       0
     );
 
-    const remaining = Math.max(
-      Number(installment.amountDue || 0) - paidForDueDate,
-      0
-    );
+    const amountDueCents = toCents(installment.amountDue);
+    const paidForDueDateCents = toCents(paidForDueDateRaw);
+    const remainingCents = Math.max(amountDueCents - paidForDueDateCents, 0);
+
+    const paidForDueDate = fromCents(paidForDueDateCents);
+    const remaining = fromCents(remainingCents);
 
     const relatedPromises = promises.filter(
       (promise) =>
@@ -46,11 +48,11 @@ function DueSchedule({ deal, payments, promises = [] }) {
     let status = "Due";
     let promiseStatus = "";
 
-    if (paidForDueDate >= Number(installment.amountDue || 0)) {
+    if (remainingCents <= 0) {
       status = "Paid";
       promiseStatus = "";
     } else {
-      if (paidForDueDate > 0) {
+      if (paidForDueDateCents > 0) {
         status = "Partial";
       } else if (installment.dueDate < today) {
         status = "Past Due";
@@ -257,6 +259,20 @@ function DueSchedule({ deal, payments, promises = [] }) {
       )}
     </div>
   );
+}
+
+function toCents(value) {
+  const numberValue = Number(value || 0);
+
+  if (!Number.isFinite(numberValue)) {
+    return 0;
+  }
+
+  return Math.round(numberValue * 100);
+}
+
+function fromCents(cents) {
+  return Number((Number(cents || 0) / 100).toFixed(2));
 }
 
 function getPaymentFrequency(deal) {

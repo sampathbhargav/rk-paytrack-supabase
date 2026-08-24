@@ -99,7 +99,7 @@ function CustomerDetail() {
 
   if (error) {
     return (
-      <div style={getThemedStyle(pageWrapper, isDangerTheme, dangerPageWrapper)}>
+      <div style={pageWrapper}>
         <button type="button" onClick={handleBack} style={backLink}>
           ← Back
         </button>

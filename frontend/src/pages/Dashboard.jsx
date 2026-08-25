@@ -51,10 +51,16 @@ function Dashboard() {
     (payment) => payment.payment_status !== "Voided"
   );
 
-  const dueToday = getDueDealsForDate(deals, activePayments, today);
+  const collectionDeals = deals.filter((deal) => isCollectionEligibleDeal(deal));
 
-  const scheduledDueToday = dueToday.filter(
-    (item) => item.status === "Due" || item.status === "Partial"
+  const dueToday = getDueDealsForDate(
+    collectionDeals,
+    activePayments,
+    today
+  ).map((item) => normalizeScheduledItem(item, today));
+
+  const scheduledDueToday = dueToday.filter((item) =>
+    hasRemainingBalance(item)
   );
 
   const promisesDueToday = promises.filter((promise) => {
@@ -74,10 +80,12 @@ function Dashboard() {
   const brokenPromises = pastDuePromises;
 
   const pastDueScheduled = getPastDueScheduledPayments(
-    deals,
+    collectionDeals,
     activePayments,
     today
-  );
+  )
+    .map((item) => normalizeScheduledItem(item, today))
+    .filter((item) => hasRemainingBalance(item));
 
   const totalPastDueScheduled = pastDueScheduled.reduce(
     (sum, item) => sum + Number(item.remainingForDueDate || 0),
@@ -732,6 +740,7 @@ function EmptyState({ icon, title, message }) {
 
 function getPaymentFrequencyLabel(frequency) {
   if (frequency === "Biweekly") return "Biweekly";
+  if (frequency === "Semi-Monthly") return "Semi-Monthly";
   if (frequency === "One-Time") return "One-Time";
   if (frequency === "Cash") return "Cash";
 
@@ -758,6 +767,15 @@ function getFrequencyBadgeStyle(frequency) {
       background: "#ede9fe",
       color: "#6d28d9",
       borderColor: "#ddd6fe",
+    };
+  }
+
+  if (frequency === "Semi-Monthly") {
+    return {
+      ...base,
+      background: "#fef3c7",
+      color: "#92400e",
+      borderColor: "#fde68a",
     };
   }
 
@@ -900,6 +918,58 @@ function formatDisplayDate(dateString) {
 
   const [year, month, day] = dateString.split("-");
   return `${month}/${day}/${year}`;
+}
+
+function toCents(value) {
+  const numberValue = Number(value || 0);
+
+  if (!Number.isFinite(numberValue)) {
+    return 0;
+  }
+
+  return Math.round(numberValue * 100);
+}
+
+function fromCents(cents) {
+  return Number((Number(cents || 0) / 100).toFixed(2));
+}
+
+function isCollectionEligibleDeal(deal) {
+  const status = String(deal?.status || "Active").trim();
+
+  return !["Paid Off", "Closed", "Cancelled"].includes(status);
+}
+
+function normalizeScheduledItem(item, today) {
+  const amountDueCents = toCents(item.amountDue);
+  const paidCents = toCents(item.paidForDueDate);
+  const remainingCents = Math.max(amountDueCents - paidCents, 0);
+  const remainingForDueDate = fromCents(remainingCents);
+
+  let status = item.status || "Due";
+
+  if (remainingCents <= 0) {
+    status = "Paid";
+  } else if (paidCents > 0 && item.dueDate < today) {
+    status = "Past Due - Partial";
+  } else if (paidCents > 0) {
+    status = "Partial";
+  } else if (item.dueDate < today) {
+    status = "Past Due";
+  } else {
+    status = "Due";
+  }
+
+  return {
+    ...item,
+    paidForDueDate: fromCents(paidCents),
+    remainingForDueDate,
+    status,
+  };
+}
+
+function hasRemainingBalance(item) {
+  return toCents(item.remainingForDueDate) > 0;
 }
 
 function getPastDueStatusStyle(status) {

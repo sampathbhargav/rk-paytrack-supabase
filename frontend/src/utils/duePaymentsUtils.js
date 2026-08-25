@@ -43,6 +43,20 @@ function createSafeDate(year, monthIndex, dueDay) {
   return new Date(year, monthIndex, safeDueDay);
 }
 
+function toCents(value) {
+  const numberValue = Number(value || 0);
+
+  if (!Number.isFinite(numberValue)) {
+    return 0;
+  }
+
+  return Math.round(numberValue * 100);
+}
+
+function fromCents(cents) {
+  return Number((Number(cents || 0) / 100).toFixed(2));
+}
+
 function normalizePaymentFrequency(deal) {
   if (deal?.deal_type === "Cash") return "Cash";
 
@@ -267,53 +281,106 @@ export function getDealDueSchedule(deal) {
   return dueDates;
 }
 
+function getPaymentsForDeal(deal, payments) {
+  return payments.filter(
+    (payment) =>
+      String(payment.deal_id) === String(deal.id) &&
+      payment.payment_status !== "Voided"
+  );
+}
+
+function hasUsableDueDate(payment) {
+  return Boolean(payment.due_date);
+}
+
+function getExactPaidCentsForDueDate(dealPayments, dueDate) {
+  return dealPayments
+    .filter((payment) => hasUsableDueDate(payment) && payment.due_date === dueDate)
+    .reduce((sum, payment) => sum + toCents(payment.amount_paid), 0);
+}
+
+function getLegacyPaymentsWithoutDueDate(dealPayments) {
+  return dealPayments.filter((payment) => !hasUsableDueDate(payment));
+}
+
+function applyLegacyPaymentsToSchedule(schedule, dealPayments) {
+  let legacyPaidCents = getLegacyPaymentsWithoutDueDate(dealPayments).reduce(
+    (sum, payment) => sum + toCents(payment.amount_paid),
+    0
+  );
+
+  return schedule.map((installment) => {
+    const amountDueCents = toCents(installment.amountDue);
+    const exactPaidCents = getExactPaidCentsForDueDate(
+      dealPayments,
+      installment.dueDate
+    );
+
+    const remainingAfterExactCents = Math.max(
+      amountDueCents - exactPaidCents,
+      0
+    );
+
+    const legacyAppliedCents = Math.min(
+      legacyPaidCents,
+      remainingAfterExactCents
+    );
+
+    legacyPaidCents = Math.max(legacyPaidCents - legacyAppliedCents, 0);
+
+    const paidForDueDateCents = Math.min(
+      exactPaidCents + legacyAppliedCents,
+      amountDueCents
+    );
+
+    const remainingForDueDateCents = Math.max(
+      amountDueCents - paidForDueDateCents,
+      0
+    );
+
+    let status = "Due";
+
+    if (remainingForDueDateCents <= 0) {
+      status = "Paid";
+    } else if (paidForDueDateCents > 0) {
+      status = "Partial";
+    }
+
+    return {
+      ...installment,
+      amountDue: fromCents(amountDueCents),
+      paidForDueDate: fromCents(paidForDueDateCents),
+      remainingForDueDate: fromCents(remainingForDueDateCents),
+      status,
+    };
+  });
+}
+
+function getScheduleWithPaymentStatus(deal, payments) {
+  const schedule = getDealDueSchedule(deal);
+  const dealPayments = getPaymentsForDeal(deal, payments);
+
+  return applyLegacyPaymentsToSchedule(schedule, dealPayments);
+}
+
 export function getDueDealsForDate(deals, payments, selectedDate) {
   return deals
     .filter(isScheduledDealReady)
     .flatMap((deal) => {
-      const schedule = getDealDueSchedule(deal);
+      const scheduleWithStatus = getScheduleWithPaymentStatus(deal, payments);
 
-      return schedule
+      return scheduleWithStatus
         .filter((item) => item.dueDate === selectedDate)
-        .map((scheduleItem) => {
-          const paidForDueDate = payments
-            .filter(
-              (payment) =>
-                String(payment.deal_id) === String(deal.id) &&
-                payment.due_date === selectedDate &&
-                payment.payment_status !== "Voided"
-            )
-            .reduce(
-              (sum, payment) => sum + Number(payment.amount_paid || 0),
-              0
-            );
-
-          const amountDue = Number(scheduleItem.amountDue || 0);
-
-          const remainingForDueDate = Math.max(
-            amountDue - paidForDueDate,
-            0
-          );
-
-          let status = "Due";
-
-          if (paidForDueDate >= amountDue) {
-            status = "Paid";
-          } else if (paidForDueDate > 0 && paidForDueDate < amountDue) {
-            status = "Partial";
-          }
-
-          return {
-            deal,
-            installmentNumber: scheduleItem.installmentNumber,
-            dueDate: scheduleItem.dueDate,
-            amountDue,
-            paidForDueDate,
-            remainingForDueDate,
-            status,
-            paymentFrequency: scheduleItem.paymentFrequency,
-          };
-        });
+        .map((scheduleItem) => ({
+          deal,
+          installmentNumber: scheduleItem.installmentNumber,
+          dueDate: scheduleItem.dueDate,
+          amountDue: scheduleItem.amountDue,
+          paidForDueDate: scheduleItem.paidForDueDate,
+          remainingForDueDate: scheduleItem.remainingForDueDate,
+          status: scheduleItem.status,
+          paymentFrequency: scheduleItem.paymentFrequency,
+        }));
     });
 }
 
@@ -323,54 +390,34 @@ export function getPastDueScheduledPayments(deals, payments, todayDate) {
   return deals
     .filter(isScheduledDealReady)
     .flatMap((deal) => {
-      const schedule = getDealDueSchedule(deal);
+      const scheduleWithStatus = getScheduleWithPaymentStatus(deal, payments);
 
-      return schedule
+      return scheduleWithStatus
         .filter((installment) => {
           const dueDate = new Date(`${installment.dueDate}T00:00:00`);
-          return dueDate < today;
+
+          return (
+            dueDate < today &&
+            toCents(installment.remainingForDueDate) > 0
+          );
         })
         .map((installment) => {
-          const paidForDueDate = payments
-            .filter(
-              (payment) =>
-                String(payment.deal_id) === String(deal.id) &&
-                payment.due_date === installment.dueDate &&
-                payment.payment_status !== "Voided"
-            )
-            .reduce(
-              (sum, payment) => sum + Number(payment.amount_paid || 0),
-              0
-            );
-
-          const amountDue = Number(installment.amountDue || 0);
-
-          const remainingForDueDate = Math.max(
-            amountDue - paidForDueDate,
-            0
-          );
-
-          if (remainingForDueDate <= 0) {
-            return null;
-          }
-
           const dueDate = new Date(`${installment.dueDate}T00:00:00`);
           const diffMs = today - dueDate;
           const daysLate = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-          let status = "Past Due";
-
-          if (paidForDueDate > 0) {
-            status = "Past Due - Partial";
-          }
+          const status =
+            toCents(installment.paidForDueDate) > 0
+              ? "Past Due - Partial"
+              : "Past Due";
 
           return {
             deal,
             installmentNumber: installment.installmentNumber,
             dueDate: installment.dueDate,
-            amountDue,
-            paidForDueDate,
-            remainingForDueDate,
+            amountDue: installment.amountDue,
+            paidForDueDate: installment.paidForDueDate,
+            remainingForDueDate: installment.remainingForDueDate,
             daysLate,
             status,
             paymentFrequency: installment.paymentFrequency,

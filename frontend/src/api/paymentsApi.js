@@ -2,39 +2,57 @@ import { supabase } from "../supabaseClient";
 import { calculatePaymentType } from "../utils/statusCalculator";
 
 export async function getPayments() {
-  const { data, error } = await supabase
-    .from("payments")
-    .select(`
-      *,
-      deals (
-        id,
-        deal_tag,
-        deal_type,
-        deal_subtype,
-        payment_frequency,
-        first_payment_date,
-        start_date,
-        due_day,
-        monthly_payment,
-        term,
-        maturity_date,
-        truck,
-        year,
-        customers (
+  const pageSize = 1000;
+  let from = 0;
+  let allPayments = [];
+
+  while (true) {
+    const to = from + pageSize - 1;
+
+    const { data, error } = await supabase
+      .from("payments")
+      .select(`
+        *,
+        deals (
           id,
-          customer_name,
-          company_name,
-          phone,
-          email,
-          address
+          deal_tag,
+          deal_type,
+          deal_subtype,
+          payment_frequency,
+          first_payment_date,
+          second_due_day,
+          start_date,
+          due_day,
+          monthly_payment,
+          term,
+          maturity_date,
+          truck,
+          year,
+          customers (
+            id,
+            customer_name,
+            company_name,
+            phone,
+            email,
+            address
+          )
         )
-      )
-    `)
-    .order("payment_date", { ascending: false });
+      `)
+      .order("payment_date", { ascending: false })
+      .range(from, to);
 
-  if (error) throw error;
+    if (error) throw error;
 
-  return data || [];
+    allPayments = [...allPayments, ...(data || [])];
+
+    if (!data || data.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return allPayments;
 }
 
 export async function getPaymentsByDealId(dealId) {

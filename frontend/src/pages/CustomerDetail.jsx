@@ -179,39 +179,164 @@ function CustomerDetail() {
     )
     .reduce((sum, promise) => sum + Number(promise.remaining_amount || 0), 0);
 
-  const openPaymentReceipt = (payment) => {
+  const openPaymentReceipt = (payment, paymentGroup = null) => {
+    if (!payment || !deal) return;
+
     const activePaymentsForReceipt = payments.filter(
       (p) => p.payment_status !== "Voided"
     );
 
-    const totalPaidForReceipt = activePaymentsForReceipt.reduce(
-      (sum, p) => sum + Number(p.amount_paid || 0),
+    /*
+      Historical receipt rule:
+
+      When printing an older receipt from Payment History, show the account
+      values as they stood immediately after that transaction, not the current
+      balance after later payments.
+    */
+    const groupPayments =
+      paymentGroup?.payments?.length > 0 ? paymentGroup.payments : [payment];
+
+    const groupCreatedTimes = groupPayments
+      .map((item) => item.created_at || "")
+      .filter(Boolean)
+      .sort((a, b) => String(a).localeCompare(String(b)));
+
+    const receiptCreatedCutoff =
+      groupCreatedTimes[groupCreatedTimes.length - 1] ||
+      payment.created_at ||
+      "";
+
+    const receiptPaymentDate =
+      paymentGroup?.paymentDate || payment.payment_date || "";
+
+    const paymentsThroughThisReceipt = activePaymentsForReceipt.filter((item) => {
+      if (receiptCreatedCutoff && item.created_at) {
+        return String(item.created_at) <= String(receiptCreatedCutoff);
+      }
+
+      if (receiptPaymentDate && item.payment_date) {
+        return String(item.payment_date) <= String(receiptPaymentDate);
+      }
+
+      return item.id === payment.id;
+    });
+
+    const totalPaidToDate = paymentsThroughThisReceipt.reduce(
+      (sum, item) => sum + Number(item.amount_paid || 0),
       0
     );
 
-    const totalAmountForReceipt = Number(deal.total_amount || 0);
+    const totalAmountOwed = Number(deal.total_amount || 0);
 
     const remainingBalance = Math.max(
-      totalAmountForReceipt - totalPaidForReceipt,
+      totalAmountOwed - totalPaidToDate,
       0
     );
 
+    const activeGroupPayments = groupPayments.filter(
+      (item) => item.payment_status !== "Voided"
+    );
+
+    const activeGroupAppliedTotal = activeGroupPayments.reduce(
+      (sum, item) => sum + Number(item.amount_paid || 0),
+      0
+    );
+
+    const hasVoidedGroupPayment = groupPayments.some(
+      (item) => item.payment_status === "Voided"
+    );
+
+    /*
+      For split payments, PaymentHistory passes the whole payment group so the
+      receipt can show the total amount the customer actually handed over,
+      rather than only one allocation row.
+    */
+    const amountPaidOnReceipt =
+      paymentGroup && !hasVoidedGroupPayment
+        ? Number(paymentGroup.customerPaid || activeGroupAppliedTotal || 0)
+        : paymentGroup
+        ? activeGroupAppliedTotal
+        : Number(payment.amount_paid || 0);
+
+    const receiptPaymentFrequency =
+      payment.payment_frequency ||
+      payment.paymentFrequency ||
+      deal.payment_frequency ||
+      deal.paymentFrequency ||
+      (deal.deal_type === "Cash"
+        ? "Cash"
+        : deal.deal_type === "Registration Money"
+        ? "One-Time"
+        : "Monthly");
+
+    const receiptPaymentType =
+      paymentGroup?.isSplitPayment
+        ? `Split ${receiptPaymentFrequency} Payment`
+        : payment.payment_type || "";
+
+    const firstGroupPayment =
+      paymentGroup?.payments?.[0] || payment;
+
+    /*
+      For one combined split-payment receipt, rebuild the allocation notes in
+      the same format used immediately after taking a payment.
+    */
+    const splitAllocationText = paymentGroup?.isSplitPayment
+      ? [...groupPayments]
+          .sort((a, b) =>
+            String(a.due_date || "").localeCompare(String(b.due_date || ""))
+          )
+          .map((item, index) => {
+            const installmentMatch = String(item.notes || "").match(
+              /installment\s+(\d+)/i
+            );
+
+            const installmentNumber =
+              installmentMatch?.[1] || index + 1;
+
+            const dueDateText = formatDisplayDate(item.due_date);
+            const amountApplied = formatMoney(item.amount_paid || 0);
+            const voidedText =
+              item.payment_status === "Voided" ? " (VOIDED)" : "";
+
+            return `Installment ${installmentNumber} (${dueDateText}) - ${amountApplied}${voidedText}`;
+          })
+          .join("\n")
+      : "";
+
+    const receiptNotes = paymentGroup?.isSplitPayment
+      ? [
+          `Payment was automatically applied across ${groupPayments.length} installments:`,
+          splitAllocationText,
+          paymentGroup?.notes || "",
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      : payment.notes || "";
+
     setReceipt({
-      paymentId: payment.id,
+      paymentId: firstGroupPayment.id || payment.id,
       customerName: deal.customers?.customer_name || "",
       phone: deal.customers?.phone || "",
       dealTag: deal.deal_tag || "",
       dealType: deal.deal_type || "",
+      paymentFrequency: receiptPaymentFrequency,
       truck: `${deal.year || ""} ${deal.truck || ""}`.trim(),
       vin: deal.vin || "",
-      amountPaid: payment.amount_paid || 0,
-      paymentMethod: payment.payment_method || "Other",
-      paymentDate: payment.payment_date || "",
-      dueDate: payment.due_date || "",
-      paymentType: payment.payment_type || "",
-      paymentStatus: payment.payment_status || "Paid",
+
+      totalAmountOwed,
+      totalPaidToDate,
       remainingBalance,
-      notes: payment.notes || "",
+
+      amountPaid: amountPaidOnReceipt,
+
+      paymentMethod:
+        paymentGroup?.paymentMethod || payment.payment_method || "Other",
+      paymentDate: receiptPaymentDate,
+      dueDate: payment.due_date || "",
+      paymentType: receiptPaymentType,
+      paymentStatus: payment.payment_status || "Paid",
+      notes: receiptNotes,
     });
   };
 

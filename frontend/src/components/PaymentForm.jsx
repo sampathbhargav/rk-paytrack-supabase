@@ -443,13 +443,19 @@ function PaymentForm() {
           selectedDealData?.truck || ""
         }`.trim(),
         vin: selectedDealData?.vin || "",
+
+        // Deal totals shown on the payment receipt.
+        totalAmountOwed: roundMoney(selectedDealData?.total_amount || 0),
+        totalPaidToDate: roundMoney(newTotalPaid),
+        remainingBalance: roundMoney(remainingBalance),
+
+        // This payment.
         amountPaid,
         paymentMethod: formData.paymentMethod || "Other",
         paymentDate: formData.paymentDate || "",
         dueDate: formData.dueDate || "",
         paymentType,
         paymentStatus: "Active",
-        remainingBalance,
         notes:
           paymentAllocations.length > 1
             ? `Payment was automatically applied across ${

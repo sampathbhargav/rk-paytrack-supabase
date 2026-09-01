@@ -41,6 +41,8 @@ function PaymentReceipt({ receipt, onClose }) {
   const generatedAt = new Date().toLocaleString();
 
   const status = receipt.paymentStatus || "Paid";
+  const totalAmountOwed = Number(receipt.totalAmountOwed || 0);
+  const totalPaidToDate = Number(receipt.totalPaidToDate || 0);
   const remainingBalance = Number(receipt.remainingBalance || 0);
   const amountPaid = Number(receipt.amountPaid || 0);
   const paymentFrequency = getPaymentFrequency(receipt);
@@ -58,6 +60,8 @@ function PaymentReceipt({ receipt, onClose }) {
       paymentDate,
       dueDate,
       generatedAt,
+      totalAmountOwed,
+      totalPaidToDate,
       remainingBalance,
       amountPaid,
       status,
@@ -78,7 +82,10 @@ function PaymentReceipt({ receipt, onClose }) {
       `Customer: ${receipt.customerName || "-"}`,
       `Phone: ${receipt.phone || "-"}`,
       `Deal Tag: ${receipt.dealTag || "-"}`,
-      `Amount Paid: ${formatMoney(amountPaid)}`,
+      `Total Amount Owed: ${formatMoney(totalAmountOwed)}`,
+      `Total Paid To Date: ${formatMoney(totalPaidToDate)}`,
+      `Amount Paid Today: ${formatMoney(amountPaid)}`,
+      `Remaining Balance: ${formatMoney(remainingBalance)}`,
       `Payment Date: ${paymentDate}`,
       `Payment Method: ${receipt.paymentMethod || "-"}`,
       `Payment Frequency: ${paymentFrequency}`,
@@ -90,7 +97,6 @@ function PaymentReceipt({ receipt, onClose }) {
             ...(skipReason ? [`Skip Reason: ${skipReason}`] : []),
           ]
         : []),
-      `Remaining Balance: ${formatMoney(remainingBalance)}`,
       `Status: ${status}`,
     ].join("\n");
 
@@ -145,7 +151,7 @@ function PaymentReceipt({ receipt, onClose }) {
             </div>
 
             <div style={amountBox}>
-              <div style={amountLabel}>Amount Paid</div>
+              <div style={amountLabel}>Amount Paid Today</div>
               <div style={amountValue}>{formatMoney(amountPaid)}</div>
               <div style={amountSubText}>
                 Paid by {receipt.paymentMethod || "Other"} on {paymentDate}
@@ -153,6 +159,17 @@ function PaymentReceipt({ receipt, onClose }) {
             </div>
 
             <div style={summaryGrid}>
+              <SummaryBox
+                label="Total Amount Owed"
+                value={formatMoney(totalAmountOwed)}
+              />
+
+              <SummaryBox
+                label="Total Paid To Date"
+                value={formatMoney(totalPaidToDate)}
+                tone="success"
+              />
+
               <SummaryBox
                 label="Remaining Balance"
                 value={formatMoney(remainingBalance)}
@@ -205,7 +222,19 @@ function PaymentReceipt({ receipt, onClose }) {
               <table style={detailTable}>
                 <tbody>
                   <ReceiptRow label="Receipt Number" value={receiptNumber} />
-                  <ReceiptRow label="Amount Paid" value={formatMoney(amountPaid)} />
+                  <ReceiptRow
+                    label="Total Amount Owed"
+                    value={formatMoney(totalAmountOwed)}
+                  />
+                  <ReceiptRow
+                    label="Total Paid To Date"
+                    value={formatMoney(totalPaidToDate)}
+                    highlight="success"
+                  />
+                  <ReceiptRow
+                    label="Amount Paid Today"
+                    value={formatMoney(amountPaid)}
+                  />
                   <ReceiptRow
                     label="Payment Method"
                     value={receipt.paymentMethod || "—"}
@@ -483,6 +512,8 @@ function buildReceiptPrintHtml({
   paymentDate,
   dueDate,
   generatedAt,
+  totalAmountOwed,
+  totalPaidToDate,
   remainingBalance,
   amountPaid,
   status,
@@ -821,7 +852,7 @@ function buildReceiptPrintHtml({
             </div>
 
             <div class="amount-box">
-              <div class="amount-label">Amount Paid</div>
+              <div class="amount-label">Amount Paid Today</div>
               <div class="amount">${formatMoney(amountPaid)}</div>
               <div class="amount-sub">
                 Paid by ${escapeHtml(receipt.paymentMethod || "Other")} on ${escapeHtml(paymentDate)}
@@ -829,6 +860,14 @@ function buildReceiptPrintHtml({
             </div>
 
             <div class="summary-grid">
+              <div class="summary-box">
+                <span>Total Amount Owed</span>
+                <strong>${formatMoney(totalAmountOwed)}</strong>
+              </div>
+              <div class="summary-box">
+                <span>Total Paid To Date</span>
+                <strong>${formatMoney(totalPaidToDate)}</strong>
+              </div>
               <div class="summary-box">
                 <span>Remaining Balance</span>
                 <strong>${formatMoney(remainingBalance)}</strong>
@@ -888,7 +927,9 @@ function buildReceiptPrintHtml({
               <table>
                 <tbody>
                   ${printRow("Receipt Number", receiptNumber)}
-                  ${printRow("Amount Paid", formatMoney(amountPaid))}
+                  ${printRow("Total Amount Owed", formatMoney(totalAmountOwed))}
+                  ${printRow("Total Paid To Date", formatMoney(totalPaidToDate))}
+                  ${printRow("Amount Paid Today", formatMoney(amountPaid))}
                   ${printRow("Payment Method", receipt.paymentMethod)}
                   ${printRow("Payment Frequency", paymentFrequency)}
                   ${printRow("Payment Type", paymentType)}

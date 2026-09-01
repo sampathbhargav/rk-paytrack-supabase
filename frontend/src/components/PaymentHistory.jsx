@@ -229,13 +229,30 @@ function PaymentHistory({ payments = [], onPaymentUpdated, openPaymentReceipt })
                       </td>
 
                       <td style={td}>
-                        <button
-                          type="button"
-                          onClick={() => toggleGroup(group.key)}
-                          style={detailsButton}
-                        >
-                          {isExpanded ? "Hide" : "Details"}
-                        </button>
+                        <div style={groupActionButtonRow}>
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(group.key)}
+                            style={detailsButton}
+                          >
+                            {isExpanded ? "Hide" : "Details"}
+                          </button>
+
+                          {group.isSplitPayment &&
+                            group.status !== "Voided" &&
+                            openPaymentReceipt && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openPaymentReceipt(group.payments[0], group)
+                                }
+                                style={groupReceiptButton}
+                                title="Print one receipt for the complete split payment"
+                              >
+                                🧾 Receipt
+                              </button>
+                            )}
+                        </div>
                       </td>
                     </tr>
 
@@ -347,7 +364,7 @@ function PaymentHistory({ payments = [], onPaymentUpdated, openPaymentReceipt })
                                                 type="button"
                                                 onClick={() => {
                                                   if (openPaymentReceipt) {
-                                                    openPaymentReceipt(payment);
+                                                    openPaymentReceipt(payment, group);
                                                   }
                                                 }}
                                                 style={receiptIconButton}
@@ -833,6 +850,25 @@ const smallText = {
   color: "#667085",
   fontSize: "11px",
   marginTop: "2px",
+};
+
+const groupActionButtonRow = {
+  display: "flex",
+  alignItems: "center",
+  gap: "7px",
+  flexWrap: "wrap",
+};
+
+const groupReceiptButton = {
+  background: "#166534",
+  color: "white",
+  border: "none",
+  padding: "7px 10px",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontWeight: "800",
+  fontSize: "12px",
+  whiteSpace: "nowrap",
 };
 
 const detailsButton = {

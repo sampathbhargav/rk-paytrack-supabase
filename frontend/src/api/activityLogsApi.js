@@ -112,7 +112,22 @@ export function formatActivityDate(dateValue) {
 function shouldSaveActivityLog(activity = {}) {
   const action = normalizeAction(activity.action);
   const module = String(activity.module || "").trim();
+  const moduleLower = module.toLowerCase();
   const description = String(activity.description || "").toLowerCase();
+  const metadata = activity.metadata || {};
+
+  /*
+    IMPORTANT-EVENTS-ONLY AUDIT POLICY
+
+    Save only events that matter for:
+      - money / balances
+      - payment schedules
+      - promises / collections
+      - critical deal status
+      - destructive changes
+      - data exports
+      - security-sensitive changes
+  */
 
   const ignoredActions = [
     "VIEW",
@@ -127,6 +142,8 @@ function shouldSaveActivityLog(activity = {}) {
     "RECEIPT_VIEW",
     "MODAL_OPEN",
     "FILTER",
+    "LOGIN",
+    "LOGOUT",
   ];
 
   if (ignoredActions.includes(action)) {
@@ -145,74 +162,214 @@ function shouldSaveActivityLog(activity = {}) {
     "printed receipt",
     "receipt printed",
     "account summary printed",
+    "contract printed",
     "opened receipt",
     "viewed receipt",
-    "filter",
+    "filter applied",
   ];
 
   if (ignoredDescriptionWords.some((word) => description.includes(word))) {
     return false;
   }
 
-  const importantActions = [
-    "CREATE",
-    "UPDATE",
-    "DELETE",
-    "VOID",
-    "PAYMENT",
-    "PROMISE",
-    "RESCHEDULE",
-    "CANCEL",
-    "PAID",
-    "EXPORT",
-    "STATUS_CHANGE",
-    "LOGIN",
-    "SECURITY",
-  ];
-
-  if (importantActions.includes(action)) {
+  // Financial events are always important.
+  if (action === "PAYMENT" || action === "VOID") {
     return true;
   }
 
-  const importantModules = [
-    "Deals",
-    "Payments",
-    "Promises",
-    "Maintenance",
-    "Customers",
-    "Reports",
-    "Auth",
-  ];
+  // Collection and schedule events are important.
+  if (
+    [
+      "PROMISE",
+      "RESCHEDULE",
+      "CANCEL",
+      "PAID",
+      "STATUS_CHANGE",
+      "SKIP",
+      "SKIP_PAYMENT",
+      "SKIP_CANCEL",
+      "CANCEL_SKIP",
+    ].includes(action)
+  ) {
+    return true;
+  }
 
-  if (!importantModules.includes(module)) {
+  if (action === "SECURITY" || action === "EXPORT") {
+    return true;
+  }
+
+  // Important destructive changes only.
+  if (action === "DELETE") {
+    return [
+      "deals",
+      "payments",
+      "customers",
+      "promises",
+      "maintenance",
+      "payment skips",
+      "payment-skips",
+      "schedule",
+    ].includes(moduleLower);
+  }
+
+  /*
+    CREATE:
+    Keep deal creation because it creates a financial obligation.
+    Keep promise/skip creation if older code uses CREATE for those.
+  */
+  if (action === "CREATE") {
+    if (moduleLower === "deals") {
+      return true;
+    }
+
+    if (
+      moduleLower === "promises" &&
+      hasAnyWord(description, ["promise", "promised"])
+    ) {
+      return true;
+    }
+
+    if (
+      ["payment skips", "payment-skips", "schedule"].includes(moduleLower) &&
+      hasAnyWord(description, ["skip", "skipped"])
+    ) {
+      return true;
+    }
+
     return false;
   }
 
-  const importantDescriptionWords = [
-    "created",
-    "updated",
-    "deleted",
-    "voided",
-    "payment",
-    "paid",
-    "promise",
-    "rescheduled",
-    "cancelled",
-    "canceled",
-    "defaulted",
-    "paid off",
-    "completed",
-    "exported",
-    "status changed",
-    "balance changed",
-    "customer updated",
-    "deal updated",
-    "maintenance updated",
-    "invoice updated",
-  ];
+  /*
+    UPDATE:
+    Deal edits are logged only when they affect important financial,
+    schedule, balance, or status information.
+  */
+  if (action === "UPDATE") {
+    if (moduleLower === "deals") {
+      const importantDealWords = [
+        "total amount",
+        "principal",
+        "payment amount",
+        "monthly payment",
+        "biweekly payment",
+        "semi-monthly payment",
+        "payment frequency",
+        "term",
+        "maturity",
+        "due day",
+        "second due day",
+        "first payment date",
+        "start date",
+        "balance",
+        "defaulted",
+        "repo",
+        "paid off",
+        "status changed",
+      ];
 
-  return importantDescriptionWords.some((word) =>
-    description.includes(word)
+      const importantDealMetadata = [
+        "old_status",
+        "new_status",
+        "total_amount",
+        "old_total_amount",
+        "new_total_amount",
+        "principal_amount",
+        "monthly_payment",
+        "old_monthly_payment",
+        "new_monthly_payment",
+        "payment_frequency",
+        "term",
+        "due_day",
+        "second_due_day",
+        "first_payment_date",
+        "maturity_date",
+        "remaining_balance",
+      ];
+
+      return (
+        hasAnyWord(description, importantDealWords) ||
+        hasAnyMetadataKey(metadata, importantDealMetadata)
+      );
+    }
+
+    if (moduleLower === "payments") {
+      return (
+        hasAnyWord(description, [
+          "payment",
+          "amount",
+          "balance",
+          "payment method",
+          "due date",
+          "void",
+        ]) ||
+        hasAnyMetadataKey(metadata, [
+          "amount",
+          "amount_paid",
+          "payment_method",
+          "payment_date",
+          "due_date",
+          "remaining_balance",
+          "remaining_deal_balance",
+          "void_reason",
+        ])
+      );
+    }
+
+    if (moduleLower === "promises") {
+      return hasAnyWord(description, [
+        "promise",
+        "promised",
+        "rescheduled",
+        "cancelled",
+        "canceled",
+        "broken",
+        "paid",
+      ]);
+    }
+
+    if (
+      ["payment skips", "payment-skips", "schedule"].includes(moduleLower)
+    ) {
+      return hasAnyWord(description, ["skip", "skipped", "cancel"]);
+    }
+
+    // Routine maintenance edits are ignored unless the money changed.
+    if (moduleLower === "maintenance") {
+      return (
+        hasAnyWord(description, [
+          "amount changed",
+          "balance changed",
+          "invoice total",
+          "payment voided",
+        ]) ||
+        hasAnyMetadataKey(metadata, [
+          "total_before",
+          "total_after",
+          "previous_balance",
+          "remaining_balance",
+          "amount_paid",
+          "void_reason",
+        ])
+      );
+    }
+
+    return false;
+  }
+
+  return false;
+}
+
+function hasAnyWord(text, words = []) {
+  return words.some((word) => text.includes(String(word).toLowerCase()));
+}
+
+function hasAnyMetadataKey(metadata = {}, keys = []) {
+  return keys.some(
+    (key) =>
+      Object.prototype.hasOwnProperty.call(metadata, key) &&
+      metadata[key] !== undefined &&
+      metadata[key] !== null &&
+      metadata[key] !== ""
   );
 }
 
@@ -226,23 +383,60 @@ function normalizeAction(action) {
 function cleanActivityMetadata(metadata = {}) {
   const allowedMetadata = {};
 
+  // Keep metadata compact but sufficient for financial/status investigation.
   const allowedKeys = [
     "deal_tag",
     "customer",
+    "customer_name",
     "company",
+    "company_name",
     "invoice_no",
+
     "amount",
+    "amount_paid",
+    "total_amount",
+    "principal_amount",
+    "monthly_payment",
+
     "payment_method",
     "payment_date",
+    "payment_frequency",
     "due_date",
+    "due_day",
+    "second_due_day",
+    "first_payment_date",
+    "maturity_date",
+    "term",
+
     "old_status",
     "new_status",
+
     "promise_date",
+    "promised_date",
+    "promised_amount",
+    "promise_status",
+
     "remaining_balance",
+    "remaining_deal_balance",
+    "previous_balance",
+
     "void_reason",
+
+    "installment_no",
+    "installment_number",
+    "original_due_date",
+    "moved_due_date",
+    "skip_reason",
+
+    "old_total_amount",
+    "new_total_amount",
+    "old_monthly_payment",
+    "new_monthly_payment",
+    "total_before",
+    "total_after",
+
     "report_name",
     "deal_type",
-    "payment_frequency",
   ];
 
   allowedKeys.forEach((key) => {

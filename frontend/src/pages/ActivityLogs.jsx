@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { formatActivityDate, getActivityLogs } from "../api/activityLogsApi";
+import { formatMoney } from "../utils/moneyUtils";
 
-const todayString = new Date().toISOString().split("T")[0];
+const todayString = getLocalDateString(new Date());
 
 function ActivityLogs() {
   const [logs, setLogs] = useState([]);
@@ -17,6 +18,12 @@ function ActivityLogs() {
   const [selectedLog, setSelectedLog] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  const [dailySummaryDate, setDailySummaryDate] = useState(todayString);
+  const [dailySummaryLogs, setDailySummaryLogs] = useState([]);
+  const [dailySummaryLoading, setDailySummaryLoading] = useState(false);
+  const [dailySummaryMessage, setDailySummaryMessage] = useState("");
+  const [dailySummaryLoaded, setDailySummaryLoaded] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -59,6 +66,64 @@ function ActivityLogs() {
     }
   };
 
+  const loadDailySummary = async (dateValue = dailySummaryDate) => {
+    const selectedDate = dateValue || dailySummaryDate;
+
+    if (!selectedDate) {
+      setDailySummaryMessage("Select a date to view the daily activity summary.");
+      return;
+    }
+
+    try {
+      setDailySummaryLoading(true);
+      setDailySummaryMessage("");
+
+      /*
+        Query a small buffer around the selected date, then filter by the
+        browser's local date. This avoids UTC/date-boundary errors during
+        evening end-of-day reporting.
+      */
+      const data = await getActivityLogs({
+        startDate: shiftDateString(selectedDate, -1),
+        endDate: shiftDateString(selectedDate, 1),
+      });
+
+      const localDayLogs = (data || []).filter(
+        (log) => getLocalDateString(log.created_at) === selectedDate
+      );
+
+      setDailySummaryLogs(localDayLogs);
+      setDailySummaryLoaded(true);
+    } catch (error) {
+      setDailySummaryLogs([]);
+      setDailySummaryLoaded(true);
+      setDailySummaryMessage(
+        error.message || "Unable to load the daily activity summary."
+      );
+    } finally {
+      setDailySummaryLoading(false);
+    }
+  };
+
+  const loadTodaySummary = async () => {
+    setDailySummaryDate(todayString);
+    await loadDailySummary(todayString);
+  };
+
+  const dailySummary = useMemo(
+    () => buildDailyActivitySummary(dailySummaryLogs),
+    [dailySummaryLogs]
+  );
+
+  const printDailySummary = () => {
+    if (!dailySummaryLoaded || dailySummaryLoading) return;
+
+    printDailyActivitySummary({
+      date: dailySummaryDate,
+      summary: dailySummary,
+    });
+  };
+
   const updateFilter = (field, value) => {
     setFilters((prev) => ({
       ...prev,
@@ -79,12 +144,13 @@ function ActivityLogs() {
   };
 
   const stats = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalDateString(new Date());
 
     return {
       total: logs.length,
-      today: logs.filter((log) => String(log.created_at || "").startsWith(today))
-        .length,
+      today: logs.filter(
+        (log) => getLocalDateString(log.created_at) === today
+      ).length,
       payments: logs.filter((log) =>
         String(log.module || "").toLowerCase().includes("payment")
       ).length,
@@ -147,6 +213,23 @@ function ActivityLogs() {
         <StatCard title="Maintenance Logs" value={stats.maintenance} icon="🔧" />
       </div>
 
+      <DailyActivitySummary
+        date={dailySummaryDate}
+        onDateChange={(value) => {
+          setDailySummaryDate(value);
+          setDailySummaryLoaded(false);
+          setDailySummaryMessage("");
+        }}
+        onLoad={() => loadDailySummary()}
+        onToday={loadTodaySummary}
+        onPrint={printDailySummary}
+        loading={dailySummaryLoading}
+        loaded={dailySummaryLoaded}
+        message={dailySummaryMessage}
+        summary={dailySummary}
+        isMobile={isMobile}
+      />
+
       <div style={isMobile ? mobileFilterCard : filterCard}>
         <div style={isMobile ? mobileFilterGrid : filterGrid}>
           <div>
@@ -196,9 +279,13 @@ function ActivityLogs() {
               <option value="DELETE">DELETE</option>
               <option value="VOID">VOID</option>
               <option value="PAYMENT">PAYMENT</option>
-              <option value="PRINT">PRINT</option>
-              <option value="LOGIN">LOGIN</option>
-              <option value="LOGOUT">LOGOUT</option>
+              <option value="PROMISE">PROMISE</option>
+              <option value="RESCHEDULE">RESCHEDULE</option>
+              <option value="CANCEL">CANCEL</option>
+              <option value="STATUS_CHANGE">STATUS CHANGE</option>
+              <option value="SKIP">SKIP</option>
+              <option value="EXPORT">EXPORT</option>
+              <option value="SECURITY">SECURITY</option>
             </select>
           </div>
 
@@ -367,6 +454,859 @@ function ActivityLogs() {
       )}
     </div>
   );
+}
+
+function DailyActivitySummary({
+  date,
+  onDateChange,
+  onLoad,
+  onToday,
+  onPrint,
+  loading,
+  loaded,
+  message,
+  summary,
+  isMobile,
+}) {
+  return (
+    <div style={simpleSummaryWrapper}>
+      <div style={simpleSummaryTopRow}>
+        <div>
+          <h2 style={simpleSummaryTitle}>Daily Activity Summary</h2>
+          <p style={simpleSummaryHelp}>
+            Select a business day to review collections and important activity.
+          </p>
+        </div>
+
+        <div style={isMobile ? simpleSummaryControlsMobile : simpleSummaryControls}>
+          <div>
+            <label style={dailyDateLabel}>Summary Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(event) => onDateChange(event.target.value)}
+              style={dailyDateInput}
+            />
+          </div>
+
+          <button type="button" onClick={onToday} style={simpleSecondaryButton}>
+            Today
+          </button>
+
+          <button type="button" onClick={onLoad} style={simplePrimaryButton}>
+            {loading ? "Loading..." : "View Summary"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onPrint}
+            disabled={!loaded || loading}
+            style={{
+              ...simpleSecondaryButton,
+              ...(!loaded || loading ? disabledDailyButton : {}),
+            }}
+          >
+            Print
+          </button>
+        </div>
+      </div>
+
+      {message && <div style={dailySummaryError}>{message}</div>}
+
+      {loading ? (
+        <LoadingSpinner message="Building daily summary..." height="180px" />
+      ) : !loaded ? (
+        <div style={simpleSummaryEmpty}>
+          Select a date and click <strong>View Summary</strong>.
+        </div>
+      ) : summary.totalActivities === 0 ? (
+        <div style={simpleSummaryEmpty}>
+          No important activity was recorded for {formatSummaryDate(date)}.
+        </div>
+      ) : (
+        <div style={simpleTextReport}>
+          <div style={simpleReportHeader}>
+            <strong>DAILY ACTIVITY SUMMARY</strong>
+            <span>{formatSummaryDate(date)}</span>
+          </div>
+
+          <section style={simpleReportSection}>
+            <strong>COLLECTIONS</strong>
+            <div style={simpleReportLines}>
+              <SimpleReportLine
+                label="Gross Collections"
+                value={formatMoney(summary.grossCollections)}
+              />
+              <SimpleReportLine
+                label="Voided Amount"
+                value={formatMoney(summary.voidedAmount)}
+              />
+              <SimpleReportLine
+                label="Net Collections"
+                value={formatMoney(summary.netCollections)}
+              />
+              <SimpleReportLine
+                label="Payment Transactions"
+                value={summary.paymentTransactions}
+              />
+              <SimpleReportLine
+                label="Important Activities"
+                value={summary.totalActivities}
+              />
+              <SimpleReportLine
+                label="Active Users"
+                value={summary.activeUsers.length}
+              />
+            </div>
+          </section>
+
+          {summary.paymentMethodBreakdown.length > 0 && (
+            <section style={simpleReportSection}>
+              <strong>COLLECTIONS BY PAYMENT METHOD</strong>
+              <div style={simpleReportLines}>
+                {summary.paymentMethodBreakdown.map((item) => (
+                  <SimpleReportLine
+                    key={item.method}
+                    label={`${item.method} (${item.count})`}
+                    value={formatMoney(item.amount)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section style={simpleReportSection}>
+            <strong>PAYMENTS RECEIVED</strong>
+
+            {summary.payments.length === 0 ? (
+              <div style={simpleNoItems}>No payments were recorded.</div>
+            ) : (
+              <div style={simpleActivityList}>
+                {summary.payments.map((payment, index) => (
+                  <div key={payment.key} style={simpleActivityItem}>
+                    <div>
+                      <strong>
+                        {index + 1}. {payment.customer}
+                      </strong>
+                      {payment.company ? ` — ${payment.company}` : ""}
+                    </div>
+
+                    <div>
+                      {payment.dealLabel || payment.recordLabel || "No deal/invoice"}
+                      {" | "}
+                      {formatMoney(payment.amount)}
+                      {" | "}
+                      {payment.method}
+                    </div>
+
+                    <div style={simpleMutedText}>
+                      {payment.time} | Recorded by {payment.user}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section style={simpleReportSection}>
+            <strong>IMPORTANT ACTIVITY</strong>
+
+            {summary.importantActivities.length === 0 ? (
+              <div style={simpleNoItems}>
+                No other important activity was recorded.
+              </div>
+            ) : (
+              <div style={simpleActivityList}>
+                {summary.importantActivities.map((activity, index) => (
+                  <div key={activity.key} style={simpleActivityItem}>
+                    <div>
+                      <strong>
+                        {index + 1}. {activity.action} — {activity.module}
+                      </strong>
+                    </div>
+
+                    <div>
+                      {activity.recordLabel || "Record"} —{" "}
+                      {activity.description || "Important activity recorded."}
+                    </div>
+
+                    <div style={simpleMutedText}>
+                      {activity.time} | {activity.user}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section style={simpleReportSection}>
+            <strong>ACTIVITY BY USER</strong>
+
+            <div style={simpleActivityList}>
+              {summary.userSummaries.map((user) => (
+                <div key={user.user} style={simpleActivityItem}>
+                  <div>
+                    <strong>{user.user}</strong>
+                  </div>
+
+                  <div>
+                    Collected {formatMoney(user.paymentAmount)} from{" "}
+                    {user.paymentCount} payment
+                    {user.paymentCount === 1 ? "" : "s"}.
+                  </div>
+
+                  <div style={simpleMutedText}>
+                    Total actions: {user.totalActivities}
+                    {" | "}Voids: {user.voidCount}
+                    {" | "}Deals created: {user.dealsCreated}
+                    {" | "}Deal updates: {user.dealUpdates}
+                    {" | "}Promises: {user.promiseActions}
+                    {" | "}Skips: {user.skipActions}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SimpleReportLine({ label, value }) {
+  return (
+    <div style={simpleReportLine}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function DailyMetricCard({ icon, title, value, detail, danger = false }) {
+  return (
+    <div
+      style={{
+        ...dailyMetricCard,
+        ...(danger ? dailyMetricDanger : {}),
+      }}
+    >
+      <div style={dailyMetricIcon}>{icon}</div>
+      <div>
+        <span style={dailyMetricTitle}>{title}</span>
+        <strong style={dailyMetricValue}>{value}</strong>
+        <span style={dailyMetricDetail}>{detail}</span>
+      </div>
+    </div>
+  );
+}
+
+function DailySection({ title, subtitle, children }) {
+  return (
+    <section style={dailySection}>
+      <div style={dailySectionHeader}>
+        <h3 style={dailySectionTitle}>{title}</h3>
+        <p style={dailySectionSubtitle}>{subtitle}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SummaryFact({ label, value }) {
+  return (
+    <div style={summaryFact}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function buildDailyActivitySummary(logs = []) {
+  const normalizedLogs = Array.isArray(logs) ? logs : [];
+
+  const paymentLogs = normalizedLogs.filter(
+    (log) => normalizeText(log.action) === "payment"
+  );
+
+  const voidLogs = normalizedLogs.filter(
+    (log) => normalizeText(log.action) === "void"
+  );
+
+  const payments = paymentLogs
+    .map((log, index) => buildPaymentSummaryItem(log, index))
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+
+  const grossCollections = roundMoney(
+    payments.reduce((sum, payment) => sum + payment.amount, 0)
+  );
+
+  const voidedAmount = roundMoney(
+    voidLogs.reduce((sum, log) => sum + getActivityAmount(log), 0)
+  );
+
+  const paymentMethodMap = new Map();
+
+  payments.forEach((payment) => {
+    const method = payment.method || "Other";
+    const current = paymentMethodMap.get(method) || {
+      method,
+      amount: 0,
+      count: 0,
+    };
+
+    current.amount = roundMoney(current.amount + payment.amount);
+    current.count += 1;
+    paymentMethodMap.set(method, current);
+  });
+
+  const paymentMethodBreakdown = Array.from(paymentMethodMap.values()).sort(
+    (a, b) => b.amount - a.amount
+  );
+
+  const importantActivities = normalizedLogs
+    .filter((log) => normalizeText(log.action) !== "payment")
+    .map((log, index) => {
+      const action = String(log.action || "ACTIVITY").toUpperCase();
+
+      return {
+        key: log.id || `activity-${index}`,
+        action,
+        module: log.module || "System",
+        recordLabel: getRecordLabel(log),
+        description: log.description || "",
+        user: log.user_email || "Unknown user",
+        time: formatTimeOnly(log.created_at),
+        createdAt: log.created_at || "",
+        isException: [
+          "VOID",
+          "DELETE",
+          "CANCEL",
+          "STATUS_CHANGE",
+          "SECURITY",
+        ].includes(action),
+      };
+    })
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+
+  const userMap = new Map();
+
+  normalizedLogs.forEach((log) => {
+    const user = log.user_email || "Unknown user";
+
+    if (!userMap.has(user)) {
+      userMap.set(user, {
+        user,
+        totalActivities: 0,
+        paymentCount: 0,
+        paymentAmount: 0,
+        voidCount: 0,
+        dealsCreated: 0,
+        dealUpdates: 0,
+        promiseActions: 0,
+        skipActions: 0,
+      });
+    }
+
+    const summary = userMap.get(user);
+    const action = normalizeText(log.action);
+    const module = normalizeText(log.module);
+    const description = normalizeText(log.description);
+
+    summary.totalActivities += 1;
+
+    if (action === "payment") {
+      summary.paymentCount += 1;
+      summary.paymentAmount = roundMoney(
+        summary.paymentAmount + getActivityAmount(log)
+      );
+    }
+
+    if (action === "void") {
+      summary.voidCount += 1;
+    }
+
+    if (action === "create" && module === "deals") {
+      summary.dealsCreated += 1;
+    }
+
+    if (
+      (action === "update" || action === "status_change") &&
+      module === "deals"
+    ) {
+      summary.dealUpdates += 1;
+    }
+
+    if (
+      module === "promises" ||
+      ["promise", "reschedule", "cancel", "paid"].includes(action) ||
+      description.includes("promise")
+    ) {
+      summary.promiseActions += 1;
+    }
+
+    if (
+      ["skip", "skip_payment", "skip_cancel", "cancel_skip"].includes(action) ||
+      description.includes("skipped installment") ||
+      description.includes("payment skip")
+    ) {
+      summary.skipActions += 1;
+    }
+  });
+
+  const userSummaries = Array.from(userMap.values()).sort((a, b) => {
+    if (b.paymentAmount !== a.paymentAmount) {
+      return b.paymentAmount - a.paymentAmount;
+    }
+
+    return b.totalActivities - a.totalActivities;
+  });
+
+  return {
+    totalActivities: normalizedLogs.length,
+    payments,
+    paymentTransactions: payments.length,
+    grossCollections,
+    voidedAmount,
+    voidCount: voidLogs.length,
+    netCollections: roundMoney(grossCollections - voidedAmount),
+    paymentMethodBreakdown,
+    importantActivities,
+    userSummaries,
+    activeUsers: userSummaries.map((item) => item.user),
+  };
+}
+
+function buildPaymentSummaryItem(log, index) {
+  const metadata = log.metadata || {};
+
+  return {
+    key: log.id || `payment-${index}`,
+    customer:
+      metadata.customer_name ||
+      metadata.customer ||
+      getCustomerFromDescription(log.description) ||
+      log.entity_label ||
+      "Customer",
+    company: metadata.company_name || metadata.company || "",
+    dealLabel:
+      metadata.deal_tag ||
+      metadata.invoice_no ||
+      getDealFromDescription(log.description) ||
+      "",
+    recordLabel: getRecordLabel(log),
+    amount: getActivityAmount(log),
+    method: metadata.payment_method || "Other",
+    user: log.user_email || "Unknown user",
+    time: formatTimeOnly(log.created_at),
+    createdAt: log.created_at || "",
+    description: log.description || "",
+  };
+}
+
+function getActivityAmount(log) {
+  const metadata = log?.metadata || {};
+
+  const directValues = [
+    metadata.amount_paid,
+    metadata.amount,
+    metadata.total_amount,
+  ];
+
+  for (const value of directValues) {
+    const numericValue = Number(value);
+
+    if (Number.isFinite(numericValue) && numericValue !== 0) {
+      return roundMoney(Math.abs(numericValue));
+    }
+  }
+
+  const description = String(log?.description || "");
+  const moneyMatch = description.match(/\$([\d,]+(?:\.\d{1,2})?)/);
+
+  if (moneyMatch?.[1]) {
+    return roundMoney(Number(moneyMatch[1].replaceAll(",", "")) || 0);
+  }
+
+  return 0;
+}
+
+function getRecordLabel(log) {
+  const metadata = log?.metadata || {};
+
+  return (
+    metadata.deal_tag ||
+    metadata.invoice_no ||
+    log?.entity_label ||
+    log?.entity_id ||
+    "—"
+  );
+}
+
+function getCustomerFromDescription(description) {
+  const text = String(description || "");
+  const match = text.match(/recorded for\s+(.+?)\s+on\s+(?:deal|invoice)\b/i);
+  return match?.[1]?.trim() || "";
+}
+
+function getDealFromDescription(description) {
+  const text = String(description || "");
+  const match = text.match(/\bon deal\s+([^\s.]+)/i);
+  return match?.[1]?.trim() || "";
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function roundMoney(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function formatTimeOnly(dateValue) {
+  if (!dateValue) return "—";
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getLocalDateString(dateValue = new Date()) {
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function shiftDateString(dateValue, daysToAdd) {
+  const [year, month, day] = String(dateValue || "").split("-").map(Number);
+
+  if (!year || !month || !day) return dateValue || "";
+
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + Number(daysToAdd || 0));
+
+  return getLocalDateString(date);
+}
+
+function formatSummaryDate(dateValue) {
+  if (!dateValue) return "—";
+
+  const [year, month, day] = String(dateValue).split("-").map(Number);
+
+  if (!year || !month || !day) return dateValue;
+
+  return new Date(year, month - 1, day).toLocaleDateString([], {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function printDailyActivitySummary({ date, summary }) {
+  const printWindow = window.open("", "_blank", "width=1100,height=820");
+
+  if (!printWindow) {
+    alert("Popup was blocked. Allow popups to print the daily summary.");
+    return;
+  }
+
+  const paymentRows = summary.payments
+    .map(
+      (payment) => `
+        <tr>
+          <td>${escapeHtml(payment.time)}</td>
+          <td>
+            <strong>${escapeHtml(payment.customer)}</strong>
+            ${
+              payment.company
+                ? `<div class="muted">${escapeHtml(payment.company)}</div>`
+                : ""
+            }
+          </td>
+          <td>${escapeHtml(payment.dealLabel || payment.recordLabel)}</td>
+          <td>${escapeHtml(payment.method)}</td>
+          <td class="money">${escapeHtml(formatMoney(payment.amount))}</td>
+          <td>${escapeHtml(payment.user)}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  const methodRows = summary.paymentMethodBreakdown
+    .map(
+      (item) => `
+        <tr>
+          <td>${escapeHtml(item.method)}</td>
+          <td>${item.count}</td>
+          <td class="money">${escapeHtml(formatMoney(item.amount))}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  const activityRows = summary.importantActivities
+    .map(
+      (activity) => `
+        <tr>
+          <td>${escapeHtml(activity.time)}</td>
+          <td>${escapeHtml(activity.action)}</td>
+          <td>${escapeHtml(activity.module)}</td>
+          <td>${escapeHtml(activity.recordLabel)}</td>
+          <td>${escapeHtml(activity.description)}</td>
+          <td>${escapeHtml(activity.user)}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  const userRows = summary.userSummaries
+    .map(
+      (user) => `
+        <tr>
+          <td>${escapeHtml(user.user)}</td>
+          <td>${user.paymentCount}</td>
+          <td class="money">${escapeHtml(formatMoney(user.paymentAmount))}</td>
+          <td>${user.voidCount}</td>
+          <td>${user.dealsCreated}</td>
+          <td>${user.dealUpdates}</td>
+          <td>${user.promiseActions}</td>
+          <td>${user.skipActions}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Daily Activity Summary - ${escapeHtml(formatSummaryDate(date))}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            padding: 28px;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #111827;
+            background: white;
+          }
+          h1, h2 { margin: 0; }
+          h1 { font-size: 26px; }
+          h2 {
+            font-size: 17px;
+            margin-top: 26px;
+            margin-bottom: 9px;
+          }
+          .subtitle {
+            margin-top: 6px;
+            color: #64748b;
+          }
+          .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+          }
+          .metric {
+            border: 1px solid #dbe3ee;
+            border-radius: 10px;
+            padding: 12px;
+          }
+          .metric span {
+            display: block;
+            color: #64748b;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 700;
+          }
+          .metric strong {
+            display: block;
+            margin-top: 6px;
+            font-size: 19px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 7px;
+          }
+          th, td {
+            border: 1px solid #dbe3ee;
+            padding: 8px;
+            font-size: 11px;
+            text-align: left;
+            vertical-align: top;
+          }
+          th {
+            background: #f8fafc;
+            text-transform: uppercase;
+            color: #475569;
+          }
+          .money {
+            white-space: nowrap;
+            font-weight: 700;
+          }
+          .muted {
+            color: #64748b;
+            font-size: 10px;
+            margin-top: 2px;
+          }
+          .empty {
+            border: 1px dashed #cbd5e1;
+            padding: 12px;
+            color: #64748b;
+          }
+          .footer {
+            margin-top: 28px;
+            border-top: 1px solid #dbe3ee;
+            padding-top: 10px;
+            color: #64748b;
+            font-size: 10px;
+          }
+          @media print {
+            body { padding: 0; }
+            .section { break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Daily Activity Summary</h1>
+        <div class="subtitle">${escapeHtml(formatSummaryDate(date))}</div>
+
+        <div class="metrics">
+          <div class="metric">
+            <span>Gross Collections</span>
+            <strong>${escapeHtml(formatMoney(summary.grossCollections))}</strong>
+          </div>
+          <div class="metric">
+            <span>Voided</span>
+            <strong>${escapeHtml(formatMoney(summary.voidedAmount))}</strong>
+          </div>
+          <div class="metric">
+            <span>Net Collections</span>
+            <strong>${escapeHtml(formatMoney(summary.netCollections))}</strong>
+          </div>
+          <div class="metric">
+            <span>Important Activities</span>
+            <strong>${summary.totalActivities}</strong>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Collections by Payment Method</h2>
+          ${
+            methodRows
+              ? `<table>
+                  <thead>
+                    <tr><th>Method</th><th>Transactions</th><th>Amount</th></tr>
+                  </thead>
+                  <tbody>${methodRows}</tbody>
+                </table>`
+              : '<div class="empty">No payments recorded.</div>'
+          }
+        </div>
+
+        <div class="section">
+          <h2>Payments Received</h2>
+          ${
+            paymentRows
+              ? `<table>
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Customer</th>
+                      <th>Deal / Invoice</th>
+                      <th>Method</th>
+                      <th>Amount</th>
+                      <th>Taken By</th>
+                    </tr>
+                  </thead>
+                  <tbody>${paymentRows}</tbody>
+                </table>`
+              : '<div class="empty">No payments recorded.</div>'
+          }
+        </div>
+
+        <div class="section">
+          <h2>Important Activity</h2>
+          ${
+            activityRows
+              ? `<table>
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Action</th>
+                      <th>Module</th>
+                      <th>Record</th>
+                      <th>Description</th>
+                      <th>User</th>
+                    </tr>
+                  </thead>
+                  <tbody>${activityRows}</tbody>
+                </table>`
+              : '<div class="empty">No other important activity recorded.</div>'
+          }
+        </div>
+
+        <div class="section">
+          <h2>Activity by User</h2>
+          ${
+            userRows
+              ? `<table>
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Payments</th>
+                      <th>Collected</th>
+                      <th>Voids</th>
+                      <th>Deals Created</th>
+                      <th>Deal Updates</th>
+                      <th>Promises</th>
+                      <th>Skips</th>
+                    </tr>
+                  </thead>
+                  <tbody>${userRows}</tbody>
+                </table>`
+              : '<div class="empty">No user activity recorded.</div>'
+          }
+        </div>
+
+        <div class="footer">
+          Generated from existing RK PayTrack activity logs. No additional
+          activity-log records are created by this report.
+        </div>
+
+        <script>
+          window.onload = function () {
+            window.focus();
+            window.print();
+          };
+        </script>
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function PaginationControls({
@@ -606,6 +1546,641 @@ function actionBadge(action) {
     borderColor: "#bfdbfe",
   };
 }
+
+
+const simpleSummaryWrapper = {
+  background: "white",
+  border: "1px solid #d1d5db",
+  borderRadius: "10px",
+  padding: "16px",
+};
+
+const simpleSummaryTopRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  gap: "16px",
+  flexWrap: "wrap",
+  paddingBottom: "14px",
+  borderBottom: "1px solid #e5e7eb",
+};
+
+const simpleSummaryTitle = {
+  margin: 0,
+  fontSize: "22px",
+  color: "#111827",
+};
+
+const simpleSummaryHelp = {
+  margin: "5px 0 0",
+  color: "#6b7280",
+  fontSize: "13px",
+};
+
+const simpleSummaryControls = {
+  display: "flex",
+  alignItems: "flex-end",
+  gap: "8px",
+  flexWrap: "wrap",
+};
+
+const simpleSummaryControlsMobile = {
+  ...simpleSummaryControls,
+  width: "100%",
+};
+
+const simplePrimaryButton = {
+  background: "#111827",
+  color: "white",
+  border: "1px solid #111827",
+  borderRadius: "6px",
+  padding: "10px 12px",
+  cursor: "pointer",
+  fontWeight: "700",
+};
+
+const simpleSecondaryButton = {
+  background: "white",
+  color: "#111827",
+  border: "1px solid #d1d5db",
+  borderRadius: "6px",
+  padding: "10px 12px",
+  cursor: "pointer",
+  fontWeight: "700",
+};
+
+const simpleSummaryEmpty = {
+  padding: "18px 0 4px",
+  color: "#6b7280",
+};
+
+const simpleTextReport = {
+  marginTop: "16px",
+  color: "#111827",
+  fontSize: "14px",
+  lineHeight: "1.55",
+};
+
+const simpleReportHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  flexWrap: "wrap",
+  paddingBottom: "10px",
+};
+
+const simpleReportSection = {
+  borderTop: "1px solid #d1d5db",
+  padding: "12px 0",
+};
+
+const simpleReportLines = {
+  marginTop: "8px",
+  display: "grid",
+  gap: "4px",
+  maxWidth: "560px",
+};
+
+const simpleReportLine = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "20px",
+  padding: "2px 0",
+};
+
+const simpleActivityList = {
+  marginTop: "8px",
+  display: "grid",
+  gap: "10px",
+};
+
+const simpleActivityItem = {
+  paddingBottom: "9px",
+  borderBottom: "1px solid #f3f4f6",
+};
+
+const simpleMutedText = {
+  color: "#6b7280",
+  fontSize: "12px",
+};
+
+const simpleNoItems = {
+  marginTop: "8px",
+  color: "#6b7280",
+};
+
+const dailySummaryCard = {
+  background: "white",
+  border: "1px solid #dbe3ee",
+  borderRadius: "22px",
+  padding: "20px",
+  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+};
+
+const mobileDailySummaryCard = {
+  ...dailySummaryCard,
+  borderRadius: "18px",
+  padding: "14px",
+};
+
+const dailySummaryHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "18px",
+  flexWrap: "wrap",
+};
+
+const dailySummaryEyebrow = {
+  color: "#1d4ed8",
+  fontSize: "11px",
+  fontWeight: "900",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+};
+
+const dailySummaryTitle = {
+  margin: "5px 0 0",
+  color: "#0f172a",
+  fontSize: "23px",
+};
+
+const dailySummaryDescription = {
+  margin: "7px 0 0",
+  color: "#64748b",
+  lineHeight: "1.5",
+  maxWidth: "730px",
+  fontSize: "13px",
+};
+
+const dailySummaryControls = {
+  display: "flex",
+  alignItems: "end",
+  gap: "8px",
+  flexWrap: "wrap",
+};
+
+const mobileDailySummaryControls = {
+  ...dailySummaryControls,
+  width: "100%",
+  alignItems: "stretch",
+};
+
+const dailyDateField = {
+  display: "grid",
+  gap: "5px",
+};
+
+const dailyDateLabel = {
+  color: "#475569",
+  fontSize: "11px",
+  fontWeight: "900",
+  textTransform: "uppercase",
+};
+
+const dailyDateInput = {
+  border: "1px solid #cbd5e1",
+  borderRadius: "10px",
+  padding: "10px 11px",
+  background: "white",
+  color: "#0f172a",
+  fontWeight: "800",
+};
+
+const dailyTodayButton = {
+  border: "1px solid #cbd5e1",
+  borderRadius: "10px",
+  padding: "10px 12px",
+  background: "white",
+  color: "#334155",
+  fontWeight: "900",
+  cursor: "pointer",
+};
+
+const dailyLoadButton = {
+  border: "none",
+  borderRadius: "10px",
+  padding: "11px 14px",
+  background: "#0A1A2F",
+  color: "white",
+  fontWeight: "900",
+  cursor: "pointer",
+};
+
+const dailyPrintButton = {
+  border: "none",
+  borderRadius: "10px",
+  padding: "11px 14px",
+  background: "#166534",
+  color: "white",
+  fontWeight: "900",
+  cursor: "pointer",
+};
+
+const disabledDailyButton = {
+  opacity: 0.45,
+  cursor: "not-allowed",
+};
+
+const dailySummaryError = {
+  marginTop: "14px",
+  border: "1px solid #fecaca",
+  background: "#fef2f2",
+  color: "#991b1b",
+  borderRadius: "12px",
+  padding: "11px 12px",
+  fontWeight: "800",
+};
+
+const dailySummaryEmpty = {
+  marginTop: "16px",
+  border: "1px dashed #cbd5e1",
+  background: "#f8fafc",
+  borderRadius: "14px",
+  padding: "20px",
+  color: "#64748b",
+  textAlign: "center",
+};
+
+const dailySummaryBody = {
+  marginTop: "16px",
+  display: "grid",
+  gap: "16px",
+};
+
+const dailySummaryDateBanner = {
+  background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)",
+  color: "white",
+  borderRadius: "16px",
+  padding: "15px 17px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap",
+};
+
+const dailySummaryDateLabel = {
+  display: "block",
+  color: "#bfdbfe",
+  fontSize: "10px",
+  fontWeight: "900",
+  textTransform: "uppercase",
+  letterSpacing: "0.07em",
+};
+
+const dailySummaryDateValue = {
+  display: "block",
+  marginTop: "4px",
+  fontSize: "18px",
+};
+
+const dailySummaryDateBannerRight = {
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap",
+  fontSize: "12px",
+  fontWeight: "800",
+  color: "#dbeafe",
+};
+
+const dailyMetricGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: "11px",
+};
+
+const mobileDailyMetricGrid = {
+  ...dailyMetricGrid,
+  gridTemplateColumns: "1fr 1fr",
+};
+
+const dailyMetricCard = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "15px",
+  padding: "13px",
+  display: "flex",
+  gap: "11px",
+  alignItems: "flex-start",
+  background: "#ffffff",
+};
+
+const dailyMetricDanger = {
+  borderColor: "#fecaca",
+  background: "#fff7f7",
+};
+
+const dailyMetricIcon = {
+  width: "39px",
+  height: "39px",
+  borderRadius: "12px",
+  background: "#eff6ff",
+  display: "grid",
+  placeItems: "center",
+  flexShrink: 0,
+};
+
+const dailyMetricTitle = {
+  display: "block",
+  color: "#64748b",
+  fontSize: "11px",
+  fontWeight: "900",
+  textTransform: "uppercase",
+};
+
+const dailyMetricValue = {
+  display: "block",
+  marginTop: "3px",
+  color: "#0f172a",
+  fontSize: "20px",
+};
+
+const dailyMetricDetail = {
+  display: "block",
+  marginTop: "3px",
+  color: "#94a3b8",
+  fontSize: "11px",
+};
+
+const dailySection = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "16px",
+  padding: "14px",
+  background: "#ffffff",
+};
+
+const dailySectionHeader = {
+  marginBottom: "11px",
+};
+
+const dailySectionTitle = {
+  margin: 0,
+  color: "#0f172a",
+  fontSize: "16px",
+};
+
+const dailySectionSubtitle = {
+  margin: "4px 0 0",
+  color: "#64748b",
+  fontSize: "12px",
+};
+
+const dailyPaymentMethodGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  gap: "9px",
+};
+
+const dailyPaymentMethodCard = {
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: "12px",
+  padding: "11px",
+};
+
+const dailyPaymentMethodName = {
+  display: "block",
+  color: "#475569",
+  fontWeight: "900",
+  fontSize: "12px",
+};
+
+const dailyPaymentMethodAmount = {
+  display: "block",
+  color: "#166534",
+  marginTop: "4px",
+  fontSize: "18px",
+};
+
+const dailyPaymentMethodCount = {
+  display: "block",
+  color: "#94a3b8",
+  marginTop: "3px",
+  fontSize: "11px",
+};
+
+const dailyTableWrapper = {
+  width: "100%",
+  overflowX: "auto",
+  border: "1px solid #e2e8f0",
+  borderRadius: "12px",
+};
+
+const dailyTable = {
+  width: "100%",
+  minWidth: "800px",
+  borderCollapse: "collapse",
+};
+
+const dailyTh = {
+  textAlign: "left",
+  background: "#f8fafc",
+  color: "#475569",
+  padding: "10px",
+  fontSize: "10px",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  borderBottom: "1px solid #e2e8f0",
+};
+
+const dailyTd = {
+  padding: "10px",
+  borderBottom: "1px solid #f1f5f9",
+  color: "#0f172a",
+  fontSize: "12px",
+  verticalAlign: "top",
+};
+
+const dailyCellSubText = {
+  display: "block",
+  color: "#64748b",
+  fontSize: "10px",
+  marginTop: "2px",
+};
+
+const dailyInlineEmpty = {
+  padding: "12px",
+  border: "1px dashed #cbd5e1",
+  borderRadius: "11px",
+  color: "#64748b",
+  background: "#f8fafc",
+};
+
+const dailyMobileList = {
+  display: "grid",
+  gap: "9px",
+};
+
+const dailyMobilePaymentCard = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "13px",
+  padding: "11px",
+  background: "#f8fafc",
+};
+
+const dailyMobilePaymentTop = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "10px",
+  alignItems: "flex-start",
+};
+
+const dailySmallMuted = {
+  display: "block",
+  color: "#64748b",
+  fontSize: "11px",
+  marginTop: "3px",
+};
+
+const dailyPaymentAmount = {
+  color: "#166534",
+  whiteSpace: "nowrap",
+};
+
+const dailyMobilePaymentMeta = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "7px",
+  marginTop: "9px",
+  color: "#475569",
+  fontSize: "11px",
+  fontWeight: "800",
+};
+
+const dailyPaymentDescription = {
+  margin: "8px 0 0",
+  color: "#64748b",
+  fontSize: "11px",
+  lineHeight: "1.4",
+};
+
+const dailyImportantList = {
+  display: "grid",
+  gap: "9px",
+};
+
+const dailyImportantItem = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "12px",
+  padding: "11px",
+  background: "#f8fafc",
+};
+
+const dailyExceptionItem = {
+  borderColor: "#fecaca",
+  background: "#fff7f7",
+};
+
+const dailyImportantTop = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+
+const dailyImportantBadges = {
+  display: "flex",
+  gap: "6px",
+  flexWrap: "wrap",
+};
+
+const dailyImportantTime = {
+  color: "#64748b",
+  fontSize: "11px",
+  fontWeight: "800",
+};
+
+const dailyImportantRecord = {
+  display: "block",
+  color: "#0f172a",
+  marginTop: "8px",
+};
+
+const dailyImportantDescription = {
+  margin: "5px 0 0",
+  color: "#475569",
+  fontSize: "12px",
+  lineHeight: "1.45",
+};
+
+const dailyImportantUser = {
+  display: "block",
+  marginTop: "7px",
+  color: "#64748b",
+  fontSize: "11px",
+  fontWeight: "800",
+};
+
+const userSummaryGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gap: "10px",
+};
+
+const mobileUserSummaryGrid = {
+  ...userSummaryGrid,
+  gridTemplateColumns: "1fr",
+};
+
+const userSummaryCard = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "13px",
+  padding: "12px",
+  background: "#f8fafc",
+};
+
+const userSummaryHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "8px",
+  alignItems: "flex-start",
+};
+
+const userSummaryName = {
+  color: "#0f172a",
+  fontSize: "12px",
+  overflowWrap: "anywhere",
+};
+
+const userSummaryActivityCount = {
+  color: "#64748b",
+  fontSize: "10px",
+  fontWeight: "800",
+  whiteSpace: "nowrap",
+};
+
+const userSummaryMoney = {
+  marginTop: "10px",
+  padding: "9px 10px",
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "10px",
+  color: "#475569",
+  fontSize: "11px",
+};
+
+const userSummaryFacts = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, 1fr)",
+  gap: "7px",
+  marginTop: "9px",
+};
+
+const summaryFact = {
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "9px",
+  padding: "8px",
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "6px",
+  color: "#64748b",
+  fontSize: "10px",
+};
 
 const pageWrapper = {
   display: "grid",

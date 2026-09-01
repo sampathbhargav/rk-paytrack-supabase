@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { addPaymentSkip } from "../api/paymentSkipsApi";
+import { addPaymentSkip, cancelPaymentSkip } from "../api/paymentSkipsApi";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
 import {
@@ -15,6 +15,7 @@ function DueSchedule({
   onSkipUpdated,
 }) {
   const [isSkipping, setIsSkipping] = useState(false);
+  const [isCancellingSkip, setIsCancellingSkip] = useState(false);
   const schedule = getDealDueSchedule(deal, paymentSkips);
   const dealPaymentFrequency = getPaymentFrequency(deal);
 
@@ -174,6 +175,89 @@ function DueSchedule({
     }
   };
 
+  const handleCancelSkipPayment = async (item) => {
+    if (!deal?.id || isCancellingSkip) return;
+
+    if (!item.skipId) {
+      alert("Skip record was not found for this installment.");
+      return;
+    }
+
+    const relatedOriginalInstallment = scheduleWithStatus.find(
+      (scheduleItem) =>
+        scheduleItem.skipId === item.skipId && scheduleItem.isSkipped
+    );
+
+    const relatedMovedInstallment = scheduleWithStatus.find(
+      (scheduleItem) =>
+        scheduleItem.skipId === item.skipId && scheduleItem.isMovedFromSkip
+    );
+
+    const originalDueDate = item.isMovedFromSkip
+      ? item.originalDueDate || relatedOriginalInstallment?.dueDate || ""
+      : item.dueDate || relatedOriginalInstallment?.dueDate || "";
+
+    const originalInstallmentNumber =
+      relatedOriginalInstallment?.installmentNumber || item.installmentNumber;
+
+    const movedDueDate = item.isMovedFromSkip
+      ? item.dueDate
+      : item.movedDueDate || relatedMovedInstallment?.dueDate || "";
+
+    if (!originalDueDate) {
+      alert("Original skipped installment date could not be determined.");
+      return;
+    }
+
+    const laterPayments = payments
+      .filter(
+        (payment) =>
+          String(payment.deal_id) === String(deal.id) &&
+          payment.payment_status !== "Voided" &&
+          Number(payment.amount_paid || 0) > 0 &&
+          payment.due_date &&
+          payment.due_date > originalDueDate
+      )
+      .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
+
+    if (laterPayments.length > 0) {
+      const firstBlockingPayment = laterPayments[0];
+
+      alert(
+        `This skip cannot be cancelled because a payment has already been recorded for a later installment.\n\nSkipped installment: #${originalInstallmentNumber} due ${formatDisplayDate(
+          originalDueDate
+        )}\nLater paid installment due: ${formatDisplayDate(
+          firstBlockingPayment.due_date
+        )}\n\nVoid all payments recorded for installments after the skipped installment before cancelling this skip.`
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Cancel skip for installment #${originalInstallmentNumber}?\n\nOriginal due date ${formatDisplayDate(
+        originalDueDate
+      )} will go back to normal.\nMoved final payment ${
+        movedDueDate ? `due ${formatDisplayDate(movedDueDate)}` : ""
+      } will disappear.\nDashboard and reports will recalculate automatically.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsCancellingSkip(true);
+      await cancelPaymentSkip(item.skipId);
+
+      if (onSkipUpdated) {
+        await onSkipUpdated();
+      }
+    } catch (error) {
+      alert(error.message || "Unable to cancel this skipped payment.");
+    } finally {
+      setIsCancellingSkip(false);
+    }
+  };
+
+
   return (
     <div style={boxStyle}>
       <div style={sectionHeader}>
@@ -312,7 +396,18 @@ function DueSchedule({
 
                   <td style={td}>
                     {item.isSkipped ? (
-                      <span style={skippedText}>Skipped</span>
+                      <div style={reminderButtonRow}>
+                        <span style={skippedText}>Skipped</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCancelSkipPayment(item)}
+                          disabled={isCancellingSkip}
+                          style={undoSkipButton}
+                          title="Cancel this skipped payment"
+                        >
+                          ↩ Undo Skip
+                        </button>
+                      </div>
                     ) : item.remaining > 0 ? (
                       <div style={reminderButtonRow}>
                         <button
@@ -333,7 +428,17 @@ function DueSchedule({
                           🗓️ ICS
                         </button>
 
-                        {!item.isMovedFromSkip && (
+                        {item.isMovedFromSkip ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCancelSkipPayment(item)}
+                            disabled={isCancellingSkip}
+                            style={undoSkipButton}
+                            title="Cancel this skipped payment"
+                          >
+                            ↩ Undo Skip
+                          </button>
+                        ) : (
                           <button
                             type="button"
                             onClick={() => handleSkipPayment(item)}
@@ -680,6 +785,17 @@ const skipButton = {
   background: "#7f1d1d",
   color: "white",
   border: "none",
+  borderRadius: "8px",
+  padding: "7px 10px",
+  cursor: "pointer",
+  fontWeight: "bold",
+  fontSize: "12px",
+};
+
+const undoSkipButton = {
+  background: "#f8fafc",
+  color: "#334155",
+  border: "1px solid #cbd5e1",
   borderRadius: "8px",
   padding: "7px 10px",
   cursor: "pointer",

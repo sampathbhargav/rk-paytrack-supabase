@@ -87,6 +87,113 @@ export async function cancelPaymentSkip(skipId) {
     throw new Error("Skip ID is required.");
   }
 
+  // ---------------------------------------------------------
+  // STEP 1:
+  // Get the skip record so we know:
+  // - which deal it belongs to
+  // - which installment was originally skipped
+  // - the original due date
+  // ---------------------------------------------------------
+
+  const { data: skip, error: skipError } = await supabase
+    .from("payment_skips")
+    .select("*")
+    .eq("id", skipId)
+    .maybeSingle();
+
+  if (skipError) {
+    throw skipError;
+  }
+
+  if (!skip) {
+    throw new Error("Skip record was not found.");
+  }
+
+  if (skip.skip_status === "Cancelled") {
+    throw new Error("This payment skip has already been cancelled.");
+  }
+
+  if (!skip.deal_id) {
+    throw new Error(
+      "This skip does not have a deal associated with it and cannot be cancelled."
+    );
+  }
+
+  if (!skip.original_due_date) {
+    throw new Error(
+      "This skip does not have an original due date and cannot be cancelled safely."
+    );
+  }
+
+  // ---------------------------------------------------------
+  // STEP 2:
+  // Check if ANY payment has been made toward an installment
+  // AFTER the skipped installment.
+  //
+  // IMPORTANT:
+  // We compare payment.due_date with skip.original_due_date.
+  //
+  // We DO NOT compare payment_date because someone may pay a
+  // future installment early.
+  //
+  // Example:
+  //
+  // Skipped installment:
+  // Due Date: 07/05/2026
+  //
+  // Next installment:
+  // Due Date: 08/05/2026
+  //
+  // Customer paid it early on:
+  // Payment Date: 07/20/2026
+  //
+  // This still counts as a later installment and therefore
+  // MUST prevent cancelling the skip.
+  // ---------------------------------------------------------
+
+  const { data: laterPayments, error: laterPaymentsError } = await supabase
+    .from("payments")
+    .select(`
+      id,
+      deal_id,
+      due_date,
+      payment_date,
+      amount_paid,
+      payment_status
+    `)
+    .eq("deal_id", skip.deal_id)
+    .neq("payment_status", "Voided")
+    .gt("due_date", skip.original_due_date)
+    .gt("amount_paid", 0)
+    .order("due_date", { ascending: true });
+
+  if (laterPaymentsError) {
+    throw laterPaymentsError;
+  }
+
+  // ---------------------------------------------------------
+  // STEP 3:
+  // If a later installment already has a payment,
+  // DO NOT allow the skipped payment to be cancelled.
+  // ---------------------------------------------------------
+
+  if (laterPayments && laterPayments.length > 0) {
+    const firstBlockingPayment = laterPayments[0];
+
+    throw new Error(
+      `This skip cannot be cancelled because a payment has already been recorded for a later installment due ${formatDateForMessage(
+        firstBlockingPayment.due_date
+      )}. Void all payments assigned to installments after the skipped installment before cancelling this skip.`
+    );
+  }
+
+  // ---------------------------------------------------------
+  // STEP 4:
+  // No later installment payments exist.
+  //
+  // It is safe to cancel the skip.
+  // ---------------------------------------------------------
+
   const { data, error } = await supabase
     .from("payment_skips")
     .update({
@@ -94,10 +201,27 @@ export async function cancelPaymentSkip(skipId) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", skipId)
+    .neq("skip_status", "Cancelled")
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   return data;
+}
+
+function formatDateForMessage(dateString) {
+  if (!dateString) {
+    return "an unknown date";
+  }
+
+  const [year, month, day] = String(dateString).split("-");
+
+  if (!year || !month || !day) {
+    return dateString;
+  }
+
+  return `${month}/${day}/${year}`;
 }

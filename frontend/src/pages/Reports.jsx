@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
 import { getPromises } from "../api/promisesApi";
+import { getPaymentSkips } from "../api/paymentSkipsApi";
 import {
   calculateMaintenanceTotals,
   getMaintenanceJobs,
@@ -23,6 +24,7 @@ function Reports() {
   const [deals, setDeals] = useState([]);
   const [payments, setPayments] = useState([]);
   const [promises, setPromises] = useState([]);
+  const [paymentSkips, setPaymentSkips] = useState([]);
   const [maintenanceJobs, setMaintenanceJobs] = useState([]);
 
   const [reportMonth, setReportMonth] = useState(
@@ -49,11 +51,13 @@ function Reports() {
       const dealsData = await getDeals();
       const paymentsData = await getPayments();
       const promisesData = await getPromises();
+      const paymentSkipsData = await getPaymentSkips();
       const maintenanceData = await getMaintenanceJobs();
 
       setDeals(dealsData || []);
       setPayments(paymentsData || []);
       setPromises(promisesData || []);
+      setPaymentSkips(paymentSkipsData || []);
       setMaintenanceJobs(maintenanceData || []);
       setLastRefreshedAt(new Date());
     } catch (error) {
@@ -66,6 +70,12 @@ function Reports() {
   const activePayments = useMemo(() => {
     return payments.filter((payment) => payment.payment_status !== "Voided");
   }, [payments]);
+
+  const activePaymentSkips = useMemo(() => {
+    return paymentSkips.filter(
+      (skip) => (skip.skip_status || skip.skipStatus || "Active") !== "Cancelled"
+    );
+  }, [paymentSkips]);
 
   const enrichedMaintenanceJobs = useMemo(() => {
     return maintenanceJobs.map((job) => ({
@@ -204,15 +214,28 @@ function Reports() {
   const pastDueScheduled = getPastDueScheduledPayments(
     deals,
     activePayments,
-    today
+    today,
+    activePaymentSkips
   );
 
-  const dueToday = getDueDealsForDate(deals, activePayments, today).filter(
+  const dueToday = getDueDealsForDate(
+    deals,
+    activePayments,
+    today,
+    activePaymentSkips
+  ).filter(
     (item) => item.status === "Due" || item.status === "Partial"
   );
 
   const brokenPromises = promises.filter(
     (promise) => promise.promise_status === "Broken"
+  );
+
+  const skippedPaymentCount = activePaymentSkips.length;
+
+  const skippedPaymentAmount = activePaymentSkips.reduce(
+    (sum, skip) => sum + Number(skip.amount_due || skip.amountDue || 0),
+    0
   );
 
   const pastDueDealPromises = promises.filter(
@@ -389,6 +412,20 @@ function Reports() {
           })
           .join(" | ");
 
+        const dealSkips = activePaymentSkips.filter(
+          (skip) => String(skip.deal_id || skip.dealId) === String(deal.id)
+        );
+
+        const skipHistory = dealSkips
+          .map((skip) => {
+            return `${skip.skip_status || "Active"} - Original Due: ${
+              skip.original_due_date || ""
+            } - Moved Due: ${skip.moved_due_date || ""} - Amount: ${
+              skip.amount_due || 0
+            } - Reason: ${skip.skip_reason || ""}`;
+          })
+          .join(" | ");
+
         return {
           Deal_Tag: deal.deal_tag || "",
           Customer: deal.customers?.customer_name || "",
@@ -429,6 +466,8 @@ function Reports() {
           Active_Promise_Count: activeDealPromises.length,
           Active_Promise_Amount: activePromiseAmount,
           Promise_History: promiseHistory,
+          Skipped_Payment_Count: dealSkips.length,
+          Skipped_Payment_History: skipHistory,
           Notes: deal.notes || "",
         };
       });
@@ -463,6 +502,8 @@ function Reports() {
         Paid: item.paidForDueDate || 0,
         Remaining: item.remainingForDueDate || 0,
         Status: item.status || "",
+        Is_Moved_From_Skip: item.isMovedFromSkip ? "Yes" : "No",
+        Original_Skipped_Due_Date: item.originalDueDate || "",
         Days_Past_Due: getScheduledDaysPastDue(item),
       }));
 
@@ -496,6 +537,8 @@ function Reports() {
         Paid: item.paidForDueDate || 0,
         Remaining: item.remainingForDueDate || 0,
         Status: item.status || "",
+        Is_Moved_From_Skip: item.isMovedFromSkip ? "Yes" : "No",
+        Original_Skipped_Due_Date: item.originalDueDate || "",
       }));
 
       const maintenanceRows = maintenanceDueToday.map((job) => ({
@@ -565,6 +608,44 @@ function Reports() {
         ...dealPromiseRows,
         ...maintenancePromiseRows,
       ]);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setLoadingReport("");
+    }
+  };
+
+  const exportSkippedPaymentsReport = async () => {
+    try {
+      setLoadingReport("Skipped Payments");
+      setError("");
+
+      const rows = activePaymentSkips.map((skip) => {
+        const deal = deals.find(
+          (item) => String(item.id) === String(skip.deal_id || skip.dealId)
+        );
+
+        return {
+          Source: "Skipped Deal Payment",
+          Deal_Tag: deal?.deal_tag || "",
+          Customer: deal?.customers?.customer_name || "",
+          Company: deal?.customers?.company_name || "",
+          Phone: deal?.customers?.phone || "",
+          Deal_Type: deal?.deal_type || "",
+          Payment_Frequency: getPaymentFrequencyLabel(getPaymentFrequency(deal)),
+          Truck: `${deal?.year || ""} ${deal?.truck || ""}`.trim(),
+          Original_Due_Date: skip.original_due_date || skip.originalDueDate || "",
+          Original_Installment: skip.installment_no || skip.installmentNo || "",
+          Skipped_Amount: skip.amount_due || skip.amountDue || 0,
+          Moved_Due_Date: skip.moved_due_date || skip.movedDueDate || "",
+          Moved_Installment: skip.moved_installment_no || skip.movedInstallmentNo || "",
+          Skip_Status: skip.skip_status || skip.skipStatus || "Active",
+          Skip_Reason: skip.skip_reason || skip.skipReason || "",
+          Created_At: skip.created_at || "",
+        };
+      });
+
+      exportToCsv(`rk-paytrack-skipped-payments-${today}.csv`, rows);
     } catch (error) {
       setError(error.message);
     } finally {
@@ -1002,6 +1083,16 @@ function Reports() {
       count: reportMonth,
     },
     {
+      category: "Collections",
+      title: "Skipped Payments",
+      description:
+        "Skipped deal installments with original due date, moved due date, skipped amount, status, and reason.",
+      buttonText: "Export Skipped Payments",
+      loadingKey: "Skipped Payments",
+      onClick: exportSkippedPaymentsReport,
+      count: activePaymentSkips.length,
+    },
+    {
       category: "Deals",
       title: "Paid Off Deals",
       description:
@@ -1168,6 +1259,18 @@ function Reports() {
           title="Past Due"
           value={pastDueScheduled.length + maintenancePastDue.length}
           tone="danger"
+        />
+
+        <SummaryCard
+          title="Skipped Payments"
+          value={skippedPaymentCount}
+          tone="warning"
+        />
+
+        <SummaryCard
+          title="Skipped Amount Moved"
+          value={formatMoney(skippedPaymentAmount)}
+          tone="warning"
         />
 
         <SummaryCard

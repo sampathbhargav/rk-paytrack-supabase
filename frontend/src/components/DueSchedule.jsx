@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { addPaymentSkip } from "../api/paymentSkipsApi";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
 import {
@@ -5,8 +7,15 @@ import {
   createIcsCollectionReminder,
 } from "../utils/calendarUtils";
 
-function DueSchedule({ deal, payments, promises = [] }) {
-  const schedule = getDealDueSchedule(deal);
+function DueSchedule({
+  deal,
+  payments,
+  promises = [],
+  paymentSkips = [],
+  onSkipUpdated,
+}) {
+  const [isSkipping, setIsSkipping] = useState(false);
+  const schedule = getDealDueSchedule(deal, paymentSkips);
   const dealPaymentFrequency = getPaymentFrequency(deal);
 
   const scheduleWithStatus = schedule.map((installment) => {
@@ -23,8 +32,12 @@ function DueSchedule({ deal, payments, promises = [] }) {
     );
 
     const amountDueCents = toCents(installment.amountDue);
-    const paidForDueDateCents = toCents(paidForDueDateRaw);
-    const remainingCents = Math.max(amountDueCents - paidForDueDateCents, 0);
+    const paidForDueDateCents = installment.isSkipped
+      ? 0
+      : Math.min(toCents(paidForDueDateRaw), amountDueCents);
+    const remainingCents = installment.isSkipped
+      ? 0
+      : Math.max(amountDueCents - paidForDueDateCents, 0);
 
     const paidForDueDate = fromCents(paidForDueDateCents);
     const remaining = fromCents(remainingCents);
@@ -48,7 +61,10 @@ function DueSchedule({ deal, payments, promises = [] }) {
     let status = "Due";
     let promiseStatus = "";
 
-    if (remainingCents <= 0) {
+    if (installment.isSkipped) {
+      status = "Skipped";
+      promiseStatus = "";
+    } else if (remainingCents <= 0) {
       status = "Paid";
       promiseStatus = "";
     } else {
@@ -100,6 +116,64 @@ function DueSchedule({ deal, payments, promises = [] }) {
     createIcsCollectionReminder(buildReminderData(item));
   };
 
+  const handleSkipPayment = async (item) => {
+    if (!deal?.id || isSkipping) return;
+
+    if (item.isSkipped) {
+      alert("This installment is already skipped.");
+      return;
+    }
+
+    if (item.isMovedFromSkip) {
+      alert("This is already a moved skipped payment. It cannot be skipped again.");
+      return;
+    }
+
+    if (toCents(item.remaining) <= 0) {
+      alert("Paid installments cannot be skipped.");
+      return;
+    }
+
+    const reason = window.prompt(
+      `Reason for skipping installment #${item.installmentNumber} due ${formatDisplayDate(
+        item.dueDate
+      )}:`,
+      "Customer requested to skip this payment"
+    );
+
+    if (reason === null) return;
+
+    const confirmed = window.confirm(
+      `Skip installment #${item.installmentNumber}?\n\nOriginal due date: ${formatDisplayDate(
+        item.dueDate
+      )}\nAmount moved to end: ${formatMoney(
+        item.remaining || item.amountDue
+      )}\n\nThis original due date will no longer appear as past due. A new payment will be added at the end of the schedule.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsSkipping(true);
+
+      await addPaymentSkip({
+        dealId: deal.id,
+        originalDueDate: item.dueDate,
+        installmentNo: item.installmentNumber,
+        amountDue: item.remaining || item.amountDue,
+        skipReason: reason.trim(),
+      });
+
+      if (onSkipUpdated) {
+        await onSkipUpdated();
+      }
+    } catch (error) {
+      alert(error.message || "Unable to skip this payment.");
+    } finally {
+      setIsSkipping(false);
+    }
+  };
+
   return (
     <div style={boxStyle}>
       <div style={sectionHeader}>
@@ -107,8 +181,8 @@ function DueSchedule({ deal, payments, promises = [] }) {
           <h2 style={sectionTitle}>Due Schedule</h2>
           <p style={sectionDescription}>
             Monthly, biweekly, semi-monthly, or one-time installment schedule
-            with paid, partial, due, past-due, promise status, and calendar
-            reminders.
+            with paid, partial, due, past-due, skipped, promise status, and
+            calendar reminders.
           </p>
         </div>
 
@@ -142,7 +216,9 @@ function DueSchedule({ deal, payments, promises = [] }) {
 
             <div>
               <span style={summaryLabel}>First Due Day</span>
-              <strong>{deal.due_day || getDayFromDate(deal.first_payment_date) || "—"}</strong>
+              <strong>
+                {deal.due_day || getDayFromDate(deal.first_payment_date) || "—"}
+              </strong>
             </div>
 
             <div>
@@ -190,13 +266,16 @@ function DueSchedule({ deal, payments, promises = [] }) {
                 <th style={th}>Remaining</th>
                 <th style={th}>Status</th>
                 <th style={th}>Promise</th>
-                <th style={th}>Reminder</th>
+                <th style={th}>Action</th>
               </tr>
             </thead>
 
             <tbody>
               {scheduleWithStatus.map((item) => (
-                <tr key={`${item.installmentNumber}-${item.dueDate}`}>
+                <tr
+                  key={`${item.installmentNumber}-${item.dueDate}-${item.skipId || ""}`}
+                  style={item.isSkipped ? skippedRowStyle : undefined}
+                >
                   <td style={td}>{item.installmentNumber}</td>
 
                   <td style={td}>
@@ -205,15 +284,20 @@ function DueSchedule({ deal, payments, promises = [] }) {
                     </span>
                   </td>
 
-                  <td style={td}>{formatDisplayDate(item.dueDate)}</td>
+                  <td style={td}>
+                    {formatDisplayDate(item.dueDate)}
+                    {item.isMovedFromSkip && (
+                      <small style={movedNote}>
+                        Moved from {formatDisplayDate(item.originalDueDate)}
+                      </small>
+                    )}
+                  </td>
                   <td style={td}>{formatMoney(item.amountDue)}</td>
                   <td style={td}>{formatMoney(item.paidForDueDate)}</td>
                   <td style={td}>{formatMoney(item.remaining)}</td>
 
                   <td style={td}>
-                    <span style={getStatusStyle(item.status)}>
-                      {item.status}
-                    </span>
+                    <span style={getStatusStyle(item.status)}>{item.status}</span>
                   </td>
 
                   <td style={td}>
@@ -227,7 +311,9 @@ function DueSchedule({ deal, payments, promises = [] }) {
                   </td>
 
                   <td style={td}>
-                    {item.remaining > 0 ? (
+                    {item.isSkipped ? (
+                      <span style={skippedText}>Skipped</span>
+                    ) : item.remaining > 0 ? (
                       <div style={reminderButtonRow}>
                         <button
                           type="button"
@@ -246,6 +332,18 @@ function DueSchedule({ deal, payments, promises = [] }) {
                         >
                           🗓️ ICS
                         </button>
+
+                        {!item.isMovedFromSkip && (
+                          <button
+                            type="button"
+                            onClick={() => handleSkipPayment(item)}
+                            disabled={isSkipping}
+                            style={skipButton}
+                            title="Skip this payment and move it to the end"
+                          >
+                            ⏭️ Skip
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <span style={paidText}>Paid</span>
@@ -395,6 +493,14 @@ function getStatusStyle(status) {
     };
   }
 
+  if (status === "Skipped") {
+    return {
+      ...base,
+      background: "#e5e7eb",
+      color: "#374151",
+    };
+  }
+
   if (status === "Partial") {
     return {
       ...base,
@@ -475,7 +581,7 @@ const tableWrap = {
 
 const tableStyle = {
   width: "100%",
-  minWidth: "1120px",
+  minWidth: "1220px",
   borderCollapse: "collapse",
 };
 
@@ -545,6 +651,7 @@ const reminderButtonRow = {
   display: "flex",
   alignItems: "center",
   gap: "8px",
+  flexWrap: "wrap",
 };
 
 const googleButton = {
@@ -569,10 +676,39 @@ const icsButton = {
   fontSize: "12px",
 };
 
+const skipButton = {
+  background: "#7f1d1d",
+  color: "white",
+  border: "none",
+  borderRadius: "8px",
+  padding: "7px 10px",
+  cursor: "pointer",
+  fontWeight: "bold",
+  fontSize: "12px",
+};
+
 const paidText = {
   color: "#166534",
   fontWeight: "bold",
   fontSize: "13px",
+};
+
+const skippedText = {
+  color: "#374151",
+  fontWeight: "bold",
+  fontSize: "13px",
+};
+
+const skippedRowStyle = {
+  background: "#f3f4f6",
+};
+
+const movedNote = {
+  display: "block",
+  marginTop: "4px",
+  color: "#92400e",
+  fontWeight: "800",
+  fontSize: "11px",
 };
 
 export default DueSchedule;

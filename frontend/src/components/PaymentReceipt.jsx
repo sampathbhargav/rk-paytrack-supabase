@@ -45,6 +45,11 @@ function PaymentReceipt({ receipt, onClose }) {
   const amountPaid = Number(receipt.amountPaid || 0);
   const paymentFrequency = getPaymentFrequency(receipt);
   const paymentType = getReceiptPaymentType(receipt, paymentFrequency);
+  const isMovedSkippedPayment = isReceiptForMovedSkippedPayment(receipt);
+  const originalSkippedDueDate = formatDisplayDate(
+    receipt.originalDueDate || receipt.original_due_date
+  );
+  const skipReason = receipt.skipReason || receipt.skip_reason || "";
 
   const handlePrint = () => {
     const html = buildReceiptPrintHtml({
@@ -58,6 +63,9 @@ function PaymentReceipt({ receipt, onClose }) {
       status,
       paymentFrequency,
       paymentType,
+      isMovedSkippedPayment,
+      originalSkippedDueDate,
+      skipReason,
     });
 
     printHtmlWithIframe(html, "Payment Receipt");
@@ -75,6 +83,13 @@ function PaymentReceipt({ receipt, onClose }) {
       `Payment Method: ${receipt.paymentMethod || "-"}`,
       `Payment Frequency: ${paymentFrequency}`,
       `Due Date: ${dueDate}`,
+      ...(isMovedSkippedPayment
+        ? [
+            "Payment Source: Moved skipped payment",
+            `Original Skipped Due Date: ${originalSkippedDueDate}`,
+            ...(skipReason ? [`Skip Reason: ${skipReason}`] : []),
+          ]
+        : []),
       `Remaining Balance: ${formatMoney(remainingBalance)}`,
       `Status: ${status}`,
     ].join("\n");
@@ -151,6 +166,14 @@ function PaymentReceipt({ receipt, onClose }) {
               <SummaryBox label="Payment Type" value={paymentType} />
 
               <SummaryBox label="Due Date" value={dueDate} />
+
+              {isMovedSkippedPayment && (
+                <SummaryBox
+                  label="Original Skipped Due"
+                  value={originalSkippedDueDate}
+                  tone="warning"
+                />
+              )}
             </div>
 
             <div style={sectionStyle}>
@@ -191,6 +214,23 @@ function PaymentReceipt({ receipt, onClose }) {
                   <ReceiptRow label="Payment Type" value={paymentType} />
                   <ReceiptRow label="Payment Date" value={paymentDate} />
                   <ReceiptRow label="Applied Due Date" value={dueDate} />
+
+                  {isMovedSkippedPayment && (
+                    <>
+                      <ReceiptRow
+                        label="Payment Source"
+                        value="Moved skipped payment"
+                      />
+                      <ReceiptRow
+                        label="Original Skipped Due Date"
+                        value={originalSkippedDueDate}
+                      />
+                      {skipReason && (
+                        <ReceiptRow label="Skip Reason" value={skipReason} />
+                      )}
+                    </>
+                  )}
+
                   <ReceiptRow
                     label="Remaining Balance"
                     value={formatMoney(remainingBalance)}
@@ -295,6 +335,10 @@ function getReceiptPaymentType(receipt, paymentFrequency) {
   if (receipt?.paymentType) return receipt.paymentType;
   if (receipt?.payment_type) return receipt.payment_type;
 
+  if (isReceiptForMovedSkippedPayment(receipt)) {
+    return `Moved Skipped ${paymentFrequency} Payment`;
+  }
+
   if (paymentFrequency === "Semi-Monthly") {
     return "Semi-Monthly Payment";
   }
@@ -312,6 +356,17 @@ function getReceiptPaymentType(receipt, paymentFrequency) {
   }
 
   return "Monthly Payment";
+}
+
+function isReceiptForMovedSkippedPayment(receipt) {
+  return Boolean(
+    receipt?.isMovedFromSkip ||
+      receipt?.is_moved_from_skip ||
+      receipt?.originalDueDate ||
+      receipt?.original_due_date ||
+      receipt?.skipId ||
+      receipt?.skip_id
+  );
 }
 
 function formatDisplayDate(dateString) {
@@ -377,6 +432,13 @@ function getSummaryTone(tone) {
     };
   }
 
+  if (tone === "warning") {
+    return {
+      background: "#fffbeb",
+      borderColor: "#fde68a",
+    };
+  }
+
   return {
     background: "#f8fafc",
     borderColor: "#e5e7eb",
@@ -426,6 +488,9 @@ function buildReceiptPrintHtml({
   status,
   paymentFrequency,
   paymentType,
+  isMovedSkippedPayment,
+  originalSkippedDueDate,
+  skipReason,
 }) {
   return `
     <html>
@@ -604,6 +669,11 @@ function buildReceiptPrintHtml({
             line-height: 1.2;
           }
 
+          .summary-box.warning {
+            background: #fffbeb;
+            border-color: #fde68a;
+          }
+
           .two-column {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -779,6 +849,16 @@ function buildReceiptPrintHtml({
                 <span>Due Date</span>
                 <strong>${escapeHtml(dueDate)}</strong>
               </div>
+              ${
+                isMovedSkippedPayment
+                  ? `
+                    <div class="summary-box warning">
+                      <span>Original Skipped Due</span>
+                      <strong>${escapeHtml(originalSkippedDueDate)}</strong>
+                    </div>
+                  `
+                  : ""
+              }
             </div>
 
             <div class="two-column">
@@ -814,6 +894,15 @@ function buildReceiptPrintHtml({
                   ${printRow("Payment Type", paymentType)}
                   ${printRow("Payment Date", paymentDate)}
                   ${printRow("Applied Due Date", dueDate)}
+                  ${
+                    isMovedSkippedPayment
+                      ? `
+                        ${printRow("Payment Source", "Moved skipped payment")}
+                        ${printRow("Original Skipped Due Date", originalSkippedDueDate)}
+                        ${skipReason ? printRow("Skip Reason", skipReason) : ""}
+                      `
+                      : ""
+                  }
                   ${printRow("Remaining Balance", formatMoney(remainingBalance))}
                 </tbody>
               </table>

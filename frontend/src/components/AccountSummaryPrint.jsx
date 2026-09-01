@@ -1,8 +1,53 @@
+import { useEffect, useState } from "react";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
 import logo from "../assets/rk-paytrack-logo.png";
+import { getPaymentSkipsByDealId } from "../api/paymentSkipsApi";
 
-function AccountSummaryPrint({ deal, payments = [], promises = [], totalPaid, balance }) {
+function AccountSummaryPrint({
+  deal,
+  payments = [],
+  promises = [],
+  paymentSkips = null,
+  totalPaid,
+  balance,
+}) {
+  const [loadedPaymentSkips, setLoadedPaymentSkips] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPaymentSkips() {
+      if (!deal?.id || Array.isArray(paymentSkips)) {
+        return;
+      }
+
+      try {
+        const skipsData = await getPaymentSkipsByDealId(deal.id);
+
+        if (isMounted) {
+          setLoadedPaymentSkips(skipsData || []);
+        }
+      } catch (error) {
+        console.error("Unable to load payment skips for account summary:", error);
+
+        if (isMounted) {
+          setLoadedPaymentSkips([]);
+        }
+      }
+    }
+
+    loadPaymentSkips();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [deal?.id, paymentSkips]);
+
+  const resolvedPaymentSkips = Array.isArray(paymentSkips)
+    ? paymentSkips
+    : loadedPaymentSkips;
+
   const today = new Date().toISOString().split("T")[0];
 
   const activePayments = payments.filter(
@@ -42,44 +87,54 @@ function AccountSummaryPrint({ deal, payments = [], promises = [], totalPaid, ba
   const paymentFrequency = getPaymentFrequency(deal);
   const paymentAmountLabel = getPaymentAmountLabel(paymentFrequency);
 
-  const schedule = getDealDueSchedule(deal || {}).map((installment) => {
-    const paidForDueDate = activePayments
-      .filter(
-        (payment) =>
-          String(payment.deal_id) === String(deal?.id) &&
-          payment.due_date === installment.dueDate
-      )
-      .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+  const schedule = getDealDueSchedule(deal || {}, resolvedPaymentSkips).map(
+    (installment) => {
+      const paidForDueDate = activePayments
+        .filter(
+          (payment) =>
+            String(payment.deal_id) === String(deal?.id) &&
+            payment.due_date === installment.dueDate
+        )
+        .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
 
-    const remaining = Math.max(
-      Number(installment.amountDue || 0) - paidForDueDate,
-      0
-    );
+      const amountDue = Number(installment.amountDue || 0);
+      const remaining = installment.isSkipped
+        ? 0
+        : Math.max(amountDue - paidForDueDate, 0);
 
-    let status = "Due";
+      let status = "Due";
 
-    if (paidForDueDate >= Number(installment.amountDue || 0)) {
-      status = "Paid";
-    } else if (paidForDueDate > 0) {
-      status = "Partial";
-    } else if (installment.dueDate < today) {
-      status = "Past Due";
+      if (installment.isSkipped) {
+        status = paidForDueDate > 0 ? "Partial Skipped" : "Skipped";
+      } else if (paidForDueDate >= amountDue) {
+        status = "Paid";
+      } else if (paidForDueDate > 0) {
+        status = "Partial";
+      } else if (installment.dueDate < today) {
+        status = "Past Due";
+      }
+
+      return {
+        ...installment,
+        amountDue,
+        paidForDueDate,
+        remaining,
+        status,
+        paymentFrequency: installment.paymentFrequency || paymentFrequency,
+      };
     }
-
-    return {
-      ...installment,
-      paidForDueDate,
-      remaining,
-      status,
-      paymentFrequency: installment.paymentFrequency || paymentFrequency,
-    };
-  });
+  );
 
   const openInstallments = schedule
     .filter((item) => Number(item.remaining || 0) > 0)
     .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
 
   const upcomingInstallments = openInstallments.slice(0, 6);
+
+  const skippedInstallments = schedule
+    .filter((item) => item.isSkipped)
+    .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
+    .slice(0, 6);
 
   const recentPayments = [...payments]
     .sort((a, b) =>
@@ -459,6 +514,19 @@ function AccountSummaryPrint({ deal, payments = [], promises = [], totalPaid, ba
               font-weight: 900;
             }
 
+            .status-skipped {
+              color: #7c2d12;
+              font-weight: 900;
+            }
+
+            .moved-note {
+              display: block;
+              margin-top: 3px;
+              color: #92400e;
+              font-size: 8.5px;
+              font-weight: 800;
+            }
+
             .notes-box {
               border: 1px solid #e5e7eb;
               border-radius: 14px;
@@ -759,7 +827,14 @@ function AccountSummaryPrint({ deal, payments = [], promises = [], totalPaid, ba
                       <tr key={`${item.installmentNumber}-${item.dueDate}`}>
                         <td>{item.installmentNumber}</td>
                         <td>{item.paymentFrequency || paymentFrequency}</td>
-                        <td>{formatDisplayDate(item.dueDate)}</td>
+                        <td>
+                          {formatDisplayDate(item.dueDate)}
+                          {item.isMovedFromSkip && (
+                            <span className="moved-note">
+                              Moved from skipped due {formatDisplayDate(item.originalDueDate)}
+                            </span>
+                          )}
+                        </td>
                         <td className="money">{formatMoney(item.amountDue)}</td>
                         <td className="money">{formatMoney(item.remaining)}</td>
                         <td>
@@ -808,6 +883,41 @@ function AccountSummaryPrint({ deal, payments = [], promises = [], totalPaid, ba
             </div>
           </div>
 
+          {skippedInstallments.length > 0 && (
+            <div className="panel" style={{ marginBottom: "10px" }}>
+              <h3 className="panel-title">Skipped Installments</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Original Due</th>
+                    <th>Skipped Amount</th>
+                    <th>Moved Due</th>
+                    <th>Status</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {skippedInstallments.map((item) => (
+                    <tr key={`skipped-${item.skipId || item.dueDate}`}>
+                      <td>{item.installmentNumber}</td>
+                      <td>{formatDisplayDate(item.dueDate)}</td>
+                      <td className="money">{formatMoney(item.amountDue)}</td>
+                      <td>{formatDisplayDate(item.movedDueDate)}</td>
+                      <td>
+                        <span className={getPrintStatusClass(item.status)}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td>{item.skipReason || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           <div className="panel" style={{ marginBottom: "10px" }}>
             <h3 className="panel-title">Active Promises</h3>
             <table>
@@ -853,9 +963,9 @@ function AccountSummaryPrint({ deal, payments = [], promises = [], totalPaid, ba
           <div className="fine-print">
             This account summary is generated from RK PayTrack records as of the
             generated date above. Referral Credit reduces the account balance but
-            is shown separately from actual cash collected. Please contact RK
-            Truck & Trailer Sales if you believe any payment or balance is
-            incorrect.
+            is shown separately from actual cash collected. Skipped installments
+            are shown with their moved due dates when applicable. Please contact RK
+            Truck & Trailer Sales if you believe any payment or balance is incorrect.
           </div>
 
           <div className="signature-row">
@@ -939,6 +1049,9 @@ function getPrintStatusClass(status) {
   if (status === "Paid") return "status-paid";
   if (status === "Partial") return "status-partial";
   if (status === "Past Due") return "status-past-due";
+  if (status === "Skipped" || status === "Partial Skipped") {
+    return "status-skipped";
+  }
   return "status-due";
 }
 

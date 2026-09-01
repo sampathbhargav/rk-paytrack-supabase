@@ -6,6 +6,7 @@ import {
   updateDealPaidOffStatus,
 } from "../api/paymentsApi";
 import { getPromisesByDealId, updateBrokenPromises } from "../api/promisesApi";
+import { getPaymentSkipsByDealId } from "../api/paymentSkipsApi";
 import { formatMoney } from "../utils/moneyUtils";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import {
@@ -27,6 +28,7 @@ function CustomerDetail() {
   const [deal, setDeal] = useState(null);
   const [payments, setPayments] = useState([]);
   const [promises, setPromises] = useState([]);
+  const [paymentSkips, setPaymentSkips] = useState([]);
   const [error, setError] = useState("");
 
   const [receipt, setReceipt] = useState(null);
@@ -88,10 +90,12 @@ function CustomerDetail() {
 
       const paymentsData = await getPaymentsByDealId(dealData.id);
       const promisesData = await getPromisesByDealId(dealData.id);
+      const skipsData = await getPaymentSkipsByDealId(dealData.id);
 
       setDeal(dealData);
       setPayments(paymentsData || []);
       setPromises(promisesData || []);
+      setPaymentSkips(skipsData || []);
     } catch (error) {
       setError(error.message || "Unable to load customer account.");
     }
@@ -212,7 +216,7 @@ function CustomerDetail() {
   };
 
   const getAllUnpaidReminderItems = () => {
-    const schedule = getDealDueSchedule(deal);
+    const schedule = getDealDueSchedule(deal, paymentSkips);
 
     return schedule
       .map((installment) => {
@@ -228,10 +232,9 @@ function CustomerDetail() {
           0
         );
 
-        const remaining = Math.max(
-          Number(installment.amountDue || 0) - paidForDueDate,
-          0
-        );
+        const remaining = installment.isSkipped
+          ? 0
+          : Math.max(Number(installment.amountDue || 0) - paidForDueDate, 0);
 
         return {
           customerName: deal.customers?.customer_name || "",
@@ -245,9 +248,10 @@ function CustomerDetail() {
           remainingAmount: remaining,
           paymentFrequency,
           notes: `${paymentFrequency} collection reminder for installment ${installment.installmentNumber}`,
+          isSkipped: Boolean(installment.isSkipped),
         };
       })
-      .filter((item) => Number(item.remainingAmount || 0) > 0);
+      .filter((item) => !item.isSkipped && Number(item.remainingAmount || 0) > 0);
   };
 
   const handleAddAllToGoogleCalendar = () => {
@@ -650,7 +654,13 @@ function CustomerDetail() {
           description="Review installment status, paid amounts, remaining balances, and promise activity."
           dangerTheme={isDangerTheme}
         >
-          <DueSchedule deal={deal} payments={activePayments} promises={promises} />
+          <DueSchedule
+            deal={deal}
+            payments={activePayments}
+            promises={promises}
+            paymentSkips={paymentSkips}
+            onSkipUpdated={loadCustomerDetail}
+          />
         </SectionShell>
 
         <SectionShell

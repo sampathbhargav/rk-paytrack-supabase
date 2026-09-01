@@ -25,6 +25,7 @@ function BusinessInsights() {
   const [deals, setDeals] = useState([]);
   const [payments, setPayments] = useState([]);
   const [promises, setPromises] = useState([]);
+  const [paymentSkips, setPaymentSkips] = useState([]);
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -42,7 +43,7 @@ function BusinessInsights() {
       setIsLoading(true);
       setError("");
 
-      const [dealsResult, paymentsResult, promisesResult] = await Promise.all([
+      const [dealsResult, paymentsResult, promisesResult, skipsResult] = await Promise.all([
         supabase
           .from("deals")
           .select("*, customers(*)")
@@ -57,15 +58,23 @@ function BusinessInsights() {
           .from("payment_promises")
           .select("*")
           .order("promised_date", { ascending: false }),
+
+        supabase
+          .from("payment_skips")
+          .select("*")
+          .neq("skip_status", "Cancelled")
+          .order("created_at", { ascending: false }),
       ]);
 
       if (dealsResult.error) throw dealsResult.error;
       if (paymentsResult.error) throw paymentsResult.error;
       if (promisesResult.error) throw promisesResult.error;
+      if (skipsResult.error) throw skipsResult.error;
 
       setDeals(dealsResult.data || []);
       setPayments(paymentsResult.data || []);
       setPromises(promisesResult.data || []);
+      setPaymentSkips(skipsResult.data || []);
     } catch (error) {
       setError(error.message || "Unable to load business insights.");
     } finally {
@@ -103,11 +112,12 @@ function BusinessInsights() {
       deals,
       payments,
       promises,
+      paymentSkips,
       selectedFilter,
       currentMonthKey,
       currentYear,
     });
-  }, [deals, payments, promises, selectedFilter, currentMonthKey, currentYear]);
+  }, [deals, payments, promises, paymentSkips, selectedFilter, currentMonthKey, currentYear]);
 
   if (isLoading) {
     return (
@@ -363,6 +373,18 @@ function BusinessInsights() {
             />
 
             <RiskRow
+              label="Skipped Payments"
+              value={insights.skippedPaymentCount}
+              severity={insights.skippedPaymentCount > 0 ? "medium" : "low"}
+            />
+
+            <RiskRow
+              label="Skipped Amount Moved"
+              value={formatMoney(insights.totalSkippedAmount)}
+              severity={insights.totalSkippedAmount > 0 ? "medium" : "low"}
+            />
+
+            <RiskRow
               label="Pending Promises"
               value={insights.pendingPromisesCount}
               severity={insights.pendingPromisesCount > 5 ? "medium" : "low"}
@@ -526,6 +548,8 @@ function BusinessInsightsPrintReport({ insights, selectedFilterOption, generated
           <PrintMetricRow label="Repo Deals" value={insights.repoDealsCount} />
           <PrintMetricRow label="Pending Promises" value={insights.pendingPromisesCount} />
           <PrintMetricRow label="Broken Promises" value={insights.brokenPromisesCount} />
+          <PrintMetricRow label="Skipped Payments" value={insights.skippedPaymentCount} />
+          <PrintMetricRow label="Skipped Amount Moved" value={formatMoney(insights.totalSkippedAmount)} />
           <PrintMetricRow label="Referral Credits Applied" value={formatMoney(insights.referralCreditsApplied)} />
           <PrintMetricRow label="Open Balance Ratio" value={`${insights.openBalanceRatio.toFixed(1)}%`} />
           <PrintMetricRow label="Business Health Score" value={`${insights.healthScore}/100`} />
@@ -629,6 +653,7 @@ function buildBusinessInsights({
   deals,
   payments,
   promises,
+  paymentSkips,
   selectedFilter,
   currentMonthKey,
   currentYear,
@@ -647,6 +672,23 @@ function buildBusinessInsights({
 
   const filteredReferralCreditPayments = filteredPayments.filter((payment) =>
     isReferralCredit(payment)
+  );
+
+  const activePaymentSkips = (paymentSkips || []).filter((skip) =>
+    isActivePaymentSkip(skip)
+  );
+
+  const filteredPaymentSkips = activePaymentSkips.filter((skip) =>
+    filteredDealIds.has(String(skip.deal_id || skip.dealId))
+  );
+
+  const skippedPaymentCount = filteredPaymentSkips.length;
+
+  const totalSkippedAmount = roundMoney(
+    filteredPaymentSkips.reduce(
+      (sum, skip) => sum + Number(skip.amount_due || skip.amountDue || 0),
+      0
+    )
   );
 
   const dealSummaries = filteredDeals.map((deal) =>
@@ -778,6 +820,7 @@ function buildBusinessInsights({
     defaultedDealsCount,
     repoDealsCount,
     brokenPromisesCount,
+    skippedPaymentCount,
     openBalanceRatio,
     missingPrincipalCount,
   });
@@ -794,6 +837,8 @@ function buildBusinessInsights({
     repoDealsCount,
     brokenPromisesCount,
     pendingPromisesCount,
+    skippedPaymentCount,
+    totalSkippedAmount,
     missingPrincipalCount,
     paidThisMonth,
     withInterestThisMonth,
@@ -833,6 +878,8 @@ function buildBusinessInsights({
     missingPrincipalCount,
     pendingPromisesCount,
     brokenPromisesCount,
+    skippedPaymentCount,
+    totalSkippedAmount,
     healthScore,
     healthMessage: getHealthMessage(healthScore),
     dealTypeBreakdown,
@@ -948,6 +995,8 @@ function buildRecommendations({
   repoDealsCount,
   brokenPromisesCount,
   pendingPromisesCount,
+  skippedPaymentCount,
+  totalSkippedAmount,
   missingPrincipalCount,
   paidThisMonth,
   withInterestThisMonth,
@@ -1007,6 +1056,16 @@ function buildRecommendations({
     });
   }
 
+  if (skippedPaymentCount > 0) {
+    recommendations.push({
+      title: "Skipped payments need follow-up",
+      message: `${skippedPaymentCount} skipped payment(s) moved ${formatMoney(
+        totalSkippedAmount
+      )} to later due dates. Review these accounts so skipped balances do not become forgotten back-end collections.`,
+      priority: "Medium",
+    });
+  }
+
   if (openBalanceRatio > 50) {
     recommendations.push({
       title: "High open balance",
@@ -1038,6 +1097,7 @@ function calculateHealthScore({
   defaultedDealsCount,
   repoDealsCount,
   brokenPromisesCount,
+  skippedPaymentCount,
   openBalanceRatio,
   missingPrincipalCount,
 }) {
@@ -1050,6 +1110,7 @@ function calculateHealthScore({
   if (defaultedDealsCount > 0) score -= Math.min(defaultedDealsCount * 5, 20);
   if (repoDealsCount > 0) score -= Math.min(repoDealsCount * 7, 21);
   if (brokenPromisesCount > 0) score -= Math.min(brokenPromisesCount * 3, 18);
+  if (skippedPaymentCount > 0) score -= Math.min(skippedPaymentCount * 2, 12);
   if (missingPrincipalCount > 0) score -= Math.min(missingPrincipalCount * 2, 10);
 
   return Math.max(Math.min(Math.round(score), 100), 0);
@@ -1208,6 +1269,14 @@ function isSemiMonthlyDeal(deal) {
 
 function isCashDeal(deal) {
   return normalizeDealType(deal?.deal_type) === "cash";
+}
+
+function isActivePaymentSkip(skip) {
+  const status = String(skip?.skip_status || skip?.skipStatus || "Active")
+    .trim()
+    .toLowerCase();
+
+  return status !== "cancelled" && status !== "canceled";
 }
 
 function isReferralCredit(payment) {

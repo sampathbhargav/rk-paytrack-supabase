@@ -200,7 +200,7 @@ function getSemiMonthlyDueSchedule(deal, term, paymentAmount) {
   return dueDates;
 }
 
-export function getDealDueSchedule(deal) {
+function getBaseDealDueSchedule(deal) {
   if (!deal || isCashDeal(deal)) {
     return [];
   }
@@ -281,6 +281,157 @@ export function getDealDueSchedule(deal) {
   return dueDates;
 }
 
+function getActiveSkipsForDeal(deal, paymentSkips = []) {
+  if (!deal?.id) return [];
+
+  return (paymentSkips || [])
+    .filter(
+      (skip) =>
+        String(skip.deal_id || skip.dealId) === String(deal.id) &&
+        (skip.skip_status || skip.skipStatus || "Active") !== "Cancelled"
+    )
+    .sort((a, b) =>
+      String(a.original_due_date || a.originalDueDate || "").localeCompare(
+        String(b.original_due_date || b.originalDueDate || "")
+      )
+    );
+}
+
+function getSkipForInstallment(activeSkips, installment) {
+  return activeSkips.find(
+    (skip) =>
+      String(skip.original_due_date || skip.originalDueDate) ===
+        String(installment.dueDate) ||
+      Number(skip.installment_no || skip.installmentNo) ===
+        Number(installment.installmentNumber)
+  );
+}
+
+function addMonths(date, monthsToAdd, preferredDay) {
+  const year = date.getFullYear();
+  const month = date.getMonth() + monthsToAdd;
+  const target = new Date(year, month, 1);
+  const lastDay = getLastDayOfMonth(target.getFullYear(), target.getMonth());
+
+  target.setDate(Math.min(Number(preferredDay || date.getDate()), lastDay));
+
+  return target;
+}
+
+function getNextSemiMonthlyDateAfter(deal, date) {
+  const secondDueDay = Number(getSecondDueDay(deal));
+  const firstDueDay = Number(getFirstDueDayForSemiMonthly(deal));
+
+  if (!firstDueDay || !secondDueDay) {
+    return addMonths(date, 1, date.getDate());
+  }
+
+  let year = date.getFullYear();
+  let month = date.getMonth();
+
+  for (let i = 0; i < 24; i++) {
+    const candidates = [
+      createSafeDate(year, month, firstDueDay),
+      createSafeDate(year, month, secondDueDay),
+    ].sort((a, b) => a - b);
+
+    const nextDate = candidates.find((candidate) => candidate > date);
+
+    if (nextDate) {
+      return nextDate;
+    }
+
+    month += 1;
+
+    if (month > 11) {
+      month = 0;
+      year += 1;
+    }
+  }
+
+  return addMonths(date, 1, date.getDate());
+}
+
+function getNextDueDateAfter(deal, date) {
+  if (isBiweeklyDeal(deal)) {
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + 14);
+    return nextDate;
+  }
+
+  if (isSemiMonthlyDeal(deal)) {
+    return getNextSemiMonthlyDateAfter(deal, date);
+  }
+
+  return addMonths(date, 1, deal?.due_day || date.getDate());
+}
+
+function applySkipsToSchedule(deal, baseSchedule, paymentSkips = []) {
+  const activeSkips = getActiveSkipsForDeal(deal, paymentSkips);
+
+  if (activeSkips.length === 0) {
+    return baseSchedule;
+  }
+
+  const skippedSchedule = baseSchedule.map((installment) => {
+    const skip = getSkipForInstallment(activeSkips, installment);
+
+    if (!skip) {
+      return installment;
+    }
+
+    return {
+      ...installment,
+      amountDue: Number(skip.amount_due || skip.amountDue || installment.amountDue || 0),
+      isSkipped: true,
+      skipId: skip.id,
+      skipReason: skip.skip_reason || skip.skipReason || "",
+      movedDueDate: skip.moved_due_date || skip.movedDueDate || "",
+      paymentFrequency: installment.paymentFrequency || normalizePaymentFrequency(deal),
+    };
+  });
+
+  let lastDueDate = baseSchedule.length
+    ? new Date(`${baseSchedule[baseSchedule.length - 1].dueDate}T00:00:00`)
+    : null;
+
+  const movedInstallments = activeSkips.map((skip, index) => {
+    let movedDueDate = skip.moved_due_date || skip.movedDueDate || "";
+
+    if (!movedDueDate) {
+      if (!lastDueDate || Number.isNaN(lastDueDate.getTime())) {
+        lastDueDate = new Date(`${skip.original_due_date || skip.originalDueDate}T00:00:00`);
+      }
+
+      lastDueDate = getNextDueDateAfter(deal, lastDueDate);
+      movedDueDate = formatDateLocal(lastDueDate);
+    } else {
+      lastDueDate = new Date(`${movedDueDate}T00:00:00`);
+    }
+
+    return {
+      installmentNumber:
+        Number(skip.moved_installment_no || skip.movedInstallmentNo) ||
+        baseSchedule.length + index + 1,
+      dueDate: movedDueDate,
+      amountDue: Number(skip.amount_due || skip.amountDue || getPaymentAmount(deal)),
+      paymentFrequency: normalizePaymentFrequency(deal),
+      isMovedFromSkip: true,
+      originalDueDate: skip.original_due_date || skip.originalDueDate,
+      skipId: skip.id,
+      skipReason: skip.skip_reason || skip.skipReason || "",
+    };
+  });
+
+  return [...skippedSchedule, ...movedInstallments];
+}
+
+export function getDealDueSchedule(deal, paymentSkips = []) {
+  const baseSchedule = getBaseDealDueSchedule(deal);
+
+  return applySkipsToSchedule(deal, baseSchedule, paymentSkips);
+}
+
 function getPaymentsForDeal(deal, payments) {
   return payments.filter(
     (payment) =>
@@ -311,6 +462,17 @@ function applyLegacyPaymentsToSchedule(schedule, dealPayments) {
 
   return schedule.map((installment) => {
     const amountDueCents = toCents(installment.amountDue);
+
+    if (installment.isSkipped) {
+      return {
+        ...installment,
+        amountDue: fromCents(amountDueCents),
+        paidForDueDate: 0,
+        remainingForDueDate: 0,
+        status: "Skipped",
+      };
+    }
+
     const exactPaidCents = getExactPaidCentsForDueDate(
       dealPayments,
       installment.dueDate
@@ -356,21 +518,25 @@ function applyLegacyPaymentsToSchedule(schedule, dealPayments) {
   });
 }
 
-function getScheduleWithPaymentStatus(deal, payments) {
-  const schedule = getDealDueSchedule(deal);
+function getScheduleWithPaymentStatus(deal, payments, paymentSkips = []) {
+  const schedule = getDealDueSchedule(deal, paymentSkips);
   const dealPayments = getPaymentsForDeal(deal, payments);
 
   return applyLegacyPaymentsToSchedule(schedule, dealPayments);
 }
 
-export function getDueDealsForDate(deals, payments, selectedDate) {
+export function getDueDealsForDate(deals, payments, selectedDate, paymentSkips = []) {
   return deals
     .filter(isScheduledDealReady)
     .flatMap((deal) => {
-      const scheduleWithStatus = getScheduleWithPaymentStatus(deal, payments);
+      const scheduleWithStatus = getScheduleWithPaymentStatus(
+        deal,
+        payments,
+        paymentSkips
+      );
 
       return scheduleWithStatus
-        .filter((item) => item.dueDate === selectedDate)
+        .filter((item) => item.dueDate === selectedDate && !item.isSkipped)
         .map((scheduleItem) => ({
           deal,
           installmentNumber: scheduleItem.installmentNumber,
@@ -380,17 +546,24 @@ export function getDueDealsForDate(deals, payments, selectedDate) {
           remainingForDueDate: scheduleItem.remainingForDueDate,
           status: scheduleItem.status,
           paymentFrequency: scheduleItem.paymentFrequency,
+          isMovedFromSkip: Boolean(scheduleItem.isMovedFromSkip),
+          originalDueDate: scheduleItem.originalDueDate || "",
+          skipId: scheduleItem.skipId || null,
         }));
     });
 }
 
-export function getPastDueScheduledPayments(deals, payments, todayDate) {
+export function getPastDueScheduledPayments(deals, payments, todayDate, paymentSkips = []) {
   const today = new Date(`${todayDate}T00:00:00`);
 
   return deals
     .filter(isScheduledDealReady)
     .flatMap((deal) => {
-      const scheduleWithStatus = getScheduleWithPaymentStatus(deal, payments);
+      const scheduleWithStatus = getScheduleWithPaymentStatus(
+        deal,
+        payments,
+        paymentSkips
+      );
 
       return scheduleWithStatus
         .filter((installment) => {
@@ -398,6 +571,7 @@ export function getPastDueScheduledPayments(deals, payments, todayDate) {
 
           return (
             dueDate < today &&
+            !installment.isSkipped &&
             toCents(installment.remainingForDueDate) > 0
           );
         })
@@ -421,6 +595,9 @@ export function getPastDueScheduledPayments(deals, payments, todayDate) {
             daysLate,
             status,
             paymentFrequency: installment.paymentFrequency,
+            isMovedFromSkip: Boolean(installment.isMovedFromSkip),
+            originalDueDate: installment.originalDueDate || "",
+            skipId: installment.skipId || null,
           };
         })
         .filter(Boolean);

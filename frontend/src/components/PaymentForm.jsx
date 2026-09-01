@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { getDeals } from "../api/dealsApi";
 import { getPayments, addPayment } from "../api/paymentsApi";
+import { getPaymentSkips } from "../api/paymentSkipsApi";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
 import { logActivity } from "../api/activityLogsApi";
@@ -23,6 +24,7 @@ const initialFormData = {
 function PaymentForm() {
   const [deals, setDeals] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [paymentSkips, setPaymentSkips] = useState([]);
   const [receipt, setReceipt] = useState(null);
   const [receiptPrompt, setReceiptPrompt] = useState(null);
   const [successDealLink, setSuccessDealLink] = useState(null);
@@ -111,9 +113,11 @@ function PaymentForm() {
 
       const dealsData = await getDeals();
       const paymentsData = await getPayments();
+      const paymentSkipsData = await getPaymentSkips();
 
       setDeals(dealsData || []);
       setPayments(paymentsData || []);
+      setPaymentSkips(paymentSkipsData || []);
     } catch (error) {
       setMessage(`Failed to load payment form data: ${error.message}`);
       setMessageType("error");
@@ -133,7 +137,7 @@ function PaymentForm() {
   );
 
   const installmentOptions = selectedDeal
-    ? getInstallmentOptions(selectedDeal, activePayments)
+    ? getInstallmentOptions(selectedDeal, activePayments, paymentSkips)
     : [];
 
   const selectedInstallment = installmentOptions.find(
@@ -509,6 +513,9 @@ function PaymentForm() {
               allocation.remainingForDueDate,
             amount_applied: allocation.amountApplied,
             remaining_after_payment: allocation.remainingAfterPayment,
+            is_moved_from_skip: Boolean(allocation.isMovedFromSkip),
+            original_due_date: allocation.originalDueDate || "",
+            skip_id: allocation.skipId || null,
           })),
         },
       });
@@ -767,7 +774,8 @@ function PaymentForm() {
                 <option key={item.dueDate} value={item.dueDate}>
                   {formatDisplayDate(item.dueDate)} -{" "}
                   {item.paymentFrequency || getPaymentFrequency(selectedDeal)}{" "}
-                  Installment {item.installmentNumber} - Remaining{" "}
+                  Installment {item.installmentNumber}
+                  {item.isMovedFromSkip ? " - Moved Skipped Payment" : ""} - Remaining{" "}
                   {formatMoney(item.remainingForDueDate)}
                 </option>
               ))}
@@ -957,7 +965,8 @@ function PaymentForm() {
             {formatDisplayDate(selectedInstallment.dueDate)} |{" "}
             {selectedInstallment.paymentFrequency ||
               getPaymentFrequency(selectedDeal)}{" "}
-            Installment {selectedInstallment.installmentNumber} | Remaining{" "}
+            Installment {selectedInstallment.installmentNumber}
+            {selectedInstallment.isMovedFromSkip ? " | Moved Skipped Payment" : ""} | Remaining{" "}
             {formatMoney(selectedInstallment.remainingForDueDate)}
           </div>
         )}
@@ -1216,12 +1225,25 @@ function getDealSearchLabel(deal) {
   return `#${deal.deal_tag || "—"} · ${customerName}${companyName}`;
 }
 
-function getInstallmentOptions(deal, payments) {
-  const schedule = getDealDueSchedule(deal);
+function getInstallmentOptions(deal, payments, paymentSkips = []) {
+  const schedule = getDealDueSchedule(deal, paymentSkips);
   const dealPaymentFrequency = getPaymentFrequency(deal);
 
   return schedule
     .map((installment) => {
+      const installmentAmountDue = roundMoney(installment.amountDue);
+
+      if (installment.isSkipped) {
+        return {
+          ...installment,
+          amountDue: installmentAmountDue,
+          paymentFrequency: installment.paymentFrequency || dealPaymentFrequency,
+          paidForDueDate: 0,
+          remainingForDueDate: 0,
+          status: "Skipped",
+        };
+      }
+
       const paidForDueDate = payments
         .filter(
           (payment) =>
@@ -1230,8 +1252,6 @@ function getInstallmentOptions(deal, payments) {
             payment.payment_status !== "Voided"
         )
         .reduce((sum, payment) => addMoney(sum, payment.amount_paid), 0);
-
-      const installmentAmountDue = roundMoney(installment.amountDue);
 
       const remainingForDueDate = moneyMax(
         subtractMoney(installmentAmountDue, paidForDueDate),
@@ -1323,6 +1343,12 @@ function buildAllocationNote({
   totalPayment,
   isSplitPayment,
 }) {
+  const movedSkipText = allocation.isMovedFromSkip
+    ? ` This payment is for a skipped installment moved from ${formatDisplayDate(
+        allocation.originalDueDate
+      )}.`
+    : "";
+
   const allocationNote = isSplitPayment
     ? `Auto-applied from total customer payment of ${formatMoney(
         totalPayment
@@ -1330,8 +1356,8 @@ function buildAllocationNote({
         allocation.paymentFrequency || "scheduled"
       } installment ${allocation.installmentNumber} due ${formatDisplayDate(
         allocation.dueDate
-      )}.`
-    : "";
+      )}.${movedSkipText}`
+    : movedSkipText.trim();
 
   return [allocationNote, originalNotes].filter(Boolean).join("\n");
 }

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
 import { getPromises, updateBrokenPromises } from "../api/promisesApi";
+import { getPaymentSkips } from "../api/paymentSkipsApi";
 import { formatMoney } from "../utils/moneyUtils";
 import {
   getDueDealsForDate,
@@ -14,6 +15,7 @@ function Dashboard() {
   const [deals, setDeals] = useState([]);
   const [payments, setPayments] = useState([]);
   const [promises, setPromises] = useState([]);
+  const [paymentSkips, setPaymentSkips] = useState([]);
   const [error, setError] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -33,10 +35,12 @@ function Dashboard() {
       const dealsData = await getDeals();
       const paymentsData = await getPayments();
       const promisesData = await getPromises();
+      const skipsData = await getPaymentSkips();
 
       setDeals(dealsData || []);
       setPayments(paymentsData || []);
       setPromises(promisesData || []);
+      setPaymentSkips(skipsData || []);
       setLastRefreshedAt(new Date());
     } catch (error) {
       setError(error.message);
@@ -56,7 +60,8 @@ function Dashboard() {
   const dueToday = getDueDealsForDate(
     collectionDeals,
     activePayments,
-    today
+    today,
+    paymentSkips
   ).map((item) => normalizeScheduledItem(item, today));
 
   const scheduledDueToday = dueToday.filter((item) =>
@@ -82,7 +87,8 @@ function Dashboard() {
   const pastDueScheduled = getPastDueScheduledPayments(
     collectionDeals,
     activePayments,
-    today
+    today,
+    paymentSkips
   )
     .map((item) => normalizeScheduledItem(item, today))
     .filter((item) => hasRemainingBalance(item));

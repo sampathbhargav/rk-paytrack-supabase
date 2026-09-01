@@ -8,6 +8,7 @@ const welcomeMessage = {
   text:
     "Hi, I am RK Assistant. Ask me about customer balances, company names, payments, maintenance, collections, promises, follow-up notes, referral info, reports, or deal history.",
   rows: [],
+  suggestions: [],
 };
 
 function AIAssistant() {
@@ -70,13 +71,15 @@ function AIAssistant() {
         role: "user",
         text,
         rows: [],
+        suggestions: [],
       },
     ]);
 
     try {
       setLoading(true);
 
-      const result = await askRkAssistant(text);
+      const contextualQuestion = buildContextualQuestion(text, messages);
+      const result = await askRkAssistant(contextualQuestion);
 
       setMessages((prev) => [
         ...prev,
@@ -84,6 +87,7 @@ function AIAssistant() {
           role: "assistant",
           text: result.answer || "I could not find an answer for that.",
           rows: result.rows || [],
+          suggestions: buildFollowUpSuggestions(text, result),
         },
       ]);
     } catch (error) {
@@ -93,6 +97,7 @@ function AIAssistant() {
           role: "assistant",
           text: `I had trouble answering that: ${error.message}`,
           rows: [],
+          suggestions: [],
         },
       ]);
     } finally {
@@ -227,6 +232,31 @@ function AIAssistant() {
                   {message.rows && message.rows.length > 0 && (
                     <ResultTable rows={message.rows} isMobile={isMobile} />
                   )}
+
+                  {message.role === "assistant" &&
+                    message.suggestions &&
+                    message.suggestions.length > 0 && (
+                      <div style={followUpSection}>
+                        <div style={followUpLabel}>You can also ask</div>
+
+                        <div style={followUpButtons}>
+                          {message.suggestions.map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              type="button"
+                              onClick={() => submitQuestion(suggestion)}
+                              disabled={loading}
+                              style={{
+                                ...followUpButton,
+                                ...(loading ? disabledFollowUpButton : {}),
+                              }}
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                 </div>
               </div>
             ))}
@@ -342,6 +372,9 @@ function AIAssistant() {
 }
 
 function ResultTable({ rows, isMobile }) {
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
   const hiddenColumns = [
     "customer_id",
     "deal_id",
@@ -357,64 +390,125 @@ function ResultTable({ rows, isMobile }) {
 
   if (columns.length === 0) return null;
 
-  return (
-    <div style={isMobile ? mobileResultTableWrapper : resultTableWrapper}>
-      <table style={isMobile ? mobileResultTable : resultTable}>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column} style={resultTh}>
-                {formatColumnName(column)}
-              </th>
-            ))}
+  const visibleRows = rows.slice(0, visibleCount);
+  const hasMore = visibleCount < rows.length;
+  const remainingCount = Math.max(rows.length - visibleCount, 0);
 
-            <th style={resultTh}>Actions</th>
-          </tr>
-        </thead>
+  const showMore = () => {
+    setVisibleCount((current) => Math.min(current + PAGE_SIZE, rows.length));
+  };
 
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
+  if (isMobile) {
+    return (
+      <div style={mobileResultCardWrapper}>
+        <div style={resultCountText}>
+          Showing {visibleRows.length} of {rows.length} result
+          {rows.length === 1 ? "" : "s"}
+        </div>
+
+        <div style={mobileResultCardList}>
+          {visibleRows.map((row, rowIndex) => (
+            <div key={rowIndex} style={mobileResultCard}>
               {columns.map((column) => (
-                <td key={column} style={resultTd}>
-                  {formatCellValue(column, row[column])}
-                </td>
+                <div key={column} style={mobileResultField}>
+                  <span style={mobileResultLabel}>
+                    {formatColumnName(column)}
+                  </span>
+                  <strong style={mobileResultValue}>
+                    {formatCellValue(column, row[column])}
+                  </strong>
+                </div>
               ))}
 
-              <td style={resultTd}>
-                <div style={resultActions}>
-                  {row.customer_id && (
-                    <Link
-                      to={`/customers/${row.customer_id}`}
-                      style={resultActionLink}
-                    >
-                      Customer
-                    </Link>
-                  )}
-
-                  {row.deal_id && (
-                    <Link to={`/deals/${row.deal_id}`} style={resultActionLink}>
-                      Deal
-                    </Link>
-                  )}
-
-                  {row.maintenance_job_id && (
-                    <Link to="/maintenance" style={resultActionLink}>
-                      Maintenance
-                    </Link>
-                  )}
-
-                  {!row.customer_id &&
-                    !row.deal_id &&
-                    !row.maintenance_job_id && (
-                      <span style={noActionText}>—</span>
-                    )}
-                </div>
-              </td>
-            </tr>
+              <div style={mobileResultActionsSection}>
+                <span style={mobileResultLabel}>Actions</span>
+                <ResultActions row={row} />
+              </div>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+
+        {hasMore && (
+          <button type="button" onClick={showMore} style={showMoreButton}>
+            Show {Math.min(PAGE_SIZE, remainingCount)} More
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={resultCountText}>
+        Showing {visibleRows.length} of {rows.length} result
+        {rows.length === 1 ? "" : "s"}
+      </div>
+
+      <div style={resultTableWrapper}>
+        <table style={resultTable}>
+          <thead>
+            <tr>
+              {columns.map((column) => (
+                <th key={column} style={resultTh}>
+                  {formatColumnName(column)}
+                </th>
+              ))}
+
+              <th style={resultTh}>Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {visibleRows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {columns.map((column) => (
+                  <td key={column} style={resultTd}>
+                    {formatCellValue(column, row[column])}
+                  </td>
+                ))}
+
+                <td style={resultTd}>
+                  <ResultActions row={row} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {hasMore && (
+        <button type="button" onClick={showMore} style={showMoreButton}>
+          Show {Math.min(PAGE_SIZE, remainingCount)} More
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ResultActions({ row }) {
+  return (
+    <div style={resultActions}>
+      {row.customer_id && (
+        <Link to={`/customers/${row.customer_id}`} style={resultActionLink}>
+          Customer
+        </Link>
+      )}
+
+      {row.deal_id && (
+        <Link to={`/deals/${row.deal_id}`} style={resultActionLink}>
+          Deal
+        </Link>
+      )}
+
+      {row.maintenance_job_id && (
+        <Link to="/maintenance" style={resultActionLink}>
+          Maintenance
+        </Link>
+      )}
+
+      {!row.customer_id && !row.deal_id && !row.maintenance_job_id && (
+        <span style={noActionText}>—</span>
+      )}
     </div>
   );
 }
@@ -462,6 +556,268 @@ function formatDisplayDate(dateString) {
   if (!year || !month || !day) return dateString;
 
   return `${month}/${day}/${year}`;
+}
+
+
+function buildContextualQuestion(question, messages = []) {
+  const text = String(question || "").trim();
+
+  if (!text || !needsConversationContext(text)) {
+    return text;
+  }
+
+  const hint = findLatestConversationEntity(messages);
+
+  if (!hint) {
+    return text;
+  }
+
+  if (hint.type === "deal") {
+    return `${text} Deal ${hint.value}`;
+  }
+
+  if (hint.type === "invoice") {
+    return `${text} Invoice ${hint.value}`;
+  }
+
+  return `${text} Customer ${hint.value}`;
+}
+
+function needsConversationContext(question) {
+  const q = String(question || "").toLowerCase();
+
+  const contextWords = [
+    " he ",
+    " him ",
+    " his ",
+    " she ",
+    " her ",
+    " they ",
+    " them ",
+    " their ",
+    " this customer",
+    " that customer",
+    " the customer",
+    " this deal",
+    " that deal",
+    " the deal",
+    " this invoice",
+    " that invoice",
+    " the invoice",
+    " this account",
+    " that account",
+    " their account",
+  ];
+
+  const padded = ` ${q} `;
+
+  return contextWords.some((word) => padded.includes(word));
+}
+
+function findLatestConversationEntity(messages = []) {
+  const recentMessages = [...messages].reverse();
+
+  for (const message of recentMessages) {
+    if (message.role !== "assistant" || !Array.isArray(message.rows)) {
+      continue;
+    }
+
+    const rows = message.rows || [];
+
+    if (rows.length === 0) continue;
+
+    const customers = [
+      ...new Set(
+        rows
+          .map((row) => row.customer || row.customer_name)
+          .filter(
+            (value) =>
+              value &&
+              String(value).trim() &&
+              String(value).toLowerCase() !== "unknown"
+          )
+          .map((value) => String(value).trim())
+      ),
+    ];
+
+    if (customers.length === 1) {
+      return {
+        type: "customer",
+        value: customers[0],
+      };
+    }
+
+    const dealReferences = [
+      ...new Set(
+        rows
+          .filter(
+            (row) =>
+              row.deal_id ||
+              String(row.type || "").toLowerCase() === "deal" ||
+              row.deal_tag
+          )
+          .map((row) => row.deal_tag || row.reference)
+          .filter(Boolean)
+          .map((value) => String(value).trim())
+      ),
+    ];
+
+    if (dealReferences.length === 1) {
+      return {
+        type: "deal",
+        value: dealReferences[0],
+      };
+    }
+
+    const invoiceReferences = [
+      ...new Set(
+        rows
+          .filter(
+            (row) =>
+              row.maintenance_job_id ||
+              String(row.type || "").toLowerCase() === "maintenance" ||
+              row.invoice_no
+          )
+          .map((row) => row.invoice_no || row.reference)
+          .filter(Boolean)
+          .map((value) => String(value).trim())
+      ),
+    ];
+
+    if (invoiceReferences.length === 1) {
+      return {
+        type: "invoice",
+        value: invoiceReferences[0],
+      };
+    }
+  }
+
+  for (const message of recentMessages) {
+    if (message.role !== "user") continue;
+
+    const text = String(message.text || "");
+
+    const dealMatch = text.match(/\bdeal\s+#?\s*([a-z0-9-]+)\b/i);
+    if (dealMatch) {
+      return {
+        type: "deal",
+        value: dealMatch[1],
+      };
+    }
+
+    const invoiceMatch = text.match(/\binvoice\s+#?\s*([a-z0-9-]+)\b/i);
+    if (invoiceMatch) {
+      return {
+        type: "invoice",
+        value: invoiceMatch[1],
+      };
+    }
+
+    const customerPatterns = [
+      /what is (.+?)'?s?\s+balance\b/i,
+      /customer summary for (.+)$/i,
+      /when did (.+?)\s+last pay\b/i,
+      /show (?:the )?payment history for (.+)$/i,
+      /show payments for (.+)$/i,
+      /follow-up notes for (.+)$/i,
+    ];
+
+    for (const pattern of customerPatterns) {
+      const match = text.match(pattern);
+
+      if (match?.[1]) {
+        const value = match[1]
+          .replace(/[?.!]+$/g, "")
+          .trim();
+
+        if (value) {
+          return {
+            type: "customer",
+            value,
+          };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function buildFollowUpSuggestions(question, result = {}) {
+  const q = String(question || "").toLowerCase();
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+
+  if (
+    q.includes("balance") ||
+    q.includes("customer summary") ||
+    q.includes("last pay") ||
+    q.includes("payment history")
+  ) {
+    return [
+      "When did this customer last pay?",
+      "Show this customer's payment history",
+      "Is this customer past due?",
+    ];
+  }
+
+  if (
+    q.includes("past due") ||
+    q.includes("due today") ||
+    q.includes("collection priority") ||
+    q.includes("not paid this month")
+  ) {
+    return [
+      "Who has broken promises?",
+      "Collection priority list",
+      "Who has not paid this month?",
+    ];
+  }
+
+  if (
+    q.includes("collected") ||
+    q.includes("payment") ||
+    q.includes("paid today") ||
+    q.includes("paid last week")
+  ) {
+    return [
+      "Show partial payments",
+      "Show extra payments",
+      "Show payment method breakdown",
+    ];
+  }
+
+  if (q.includes("maintenance") || q.includes("invoice")) {
+    return [
+      "Who owes maintenance money?",
+      "Maintenance past due",
+      "Show broken maintenance promises",
+    ];
+  }
+
+  if (q.includes("referral") || q.includes("referred")) {
+    return [
+      "Show unpaid referrals",
+      "How much referral money was paid?",
+      "Show referrals by customer",
+    ];
+  }
+
+  if (
+    q.includes("deal") ||
+    rows.some((row) => row.deal_id || row.deal_tag)
+  ) {
+    return [
+      "When did this customer last pay?",
+      "Show this customer's payment history",
+      "Is this customer past due?",
+    ];
+  }
+
+  return [
+    "Who is past due?",
+    "How much collected today?",
+    "Who owes the most?",
+  ];
 }
 
 const quickQuestionGroups = [
@@ -1026,6 +1382,112 @@ const shortcutsBox = {
   color: "#78350f",
   fontSize: "13px",
   lineHeight: "1.45",
+};
+
+
+const followUpSection = {
+  marginTop: "12px",
+  paddingTop: "10px",
+  borderTop: "1px solid #e5e7eb",
+};
+
+const followUpLabel = {
+  color: "#667085",
+  fontSize: "11px",
+  fontWeight: "900",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  marginBottom: "7px",
+};
+
+const followUpButtons = {
+  display: "flex",
+  gap: "7px",
+  flexWrap: "wrap",
+};
+
+const followUpButton = {
+  background: "#f8fafc",
+  color: "#334155",
+  border: "1px solid #dbe3ee",
+  borderRadius: "999px",
+  padding: "7px 10px",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: "800",
+  textAlign: "left",
+};
+
+const disabledFollowUpButton = {
+  opacity: 0.55,
+  cursor: "not-allowed",
+};
+
+const resultCountText = {
+  marginTop: "10px",
+  marginBottom: "7px",
+  color: "#667085",
+  fontSize: "11px",
+  fontWeight: "800",
+};
+
+const showMoreButton = {
+  marginTop: "10px",
+  background: "white",
+  color: "#0A1A2F",
+  border: "1px solid #cbd5e1",
+  borderRadius: "999px",
+  padding: "8px 12px",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
+const mobileResultCardWrapper = {
+  marginTop: "10px",
+  width: "100%",
+};
+
+const mobileResultCardList = {
+  display: "grid",
+  gap: "9px",
+};
+
+const mobileResultCard = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "11px",
+  display: "grid",
+  gap: "8px",
+  minWidth: 0,
+};
+
+const mobileResultField = {
+  display: "grid",
+  gap: "2px",
+  minWidth: 0,
+};
+
+const mobileResultLabel = {
+  color: "#667085",
+  fontSize: "10px",
+  fontWeight: "900",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+};
+
+const mobileResultValue = {
+  color: "#111827",
+  fontSize: "13px",
+  overflowWrap: "anywhere",
+};
+
+const mobileResultActionsSection = {
+  display: "grid",
+  gap: "6px",
+  paddingTop: "3px",
+  borderTop: "1px solid #e5e7eb",
 };
 
 const resultTableWrapper = {

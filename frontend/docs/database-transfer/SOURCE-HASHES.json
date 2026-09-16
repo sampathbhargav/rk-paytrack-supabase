@@ -1,0 +1,5 @@
+{
+  "docs/payment-integrity/proposed-migration.sql": "c5a8284a0330ed2911cdd4e40cc98d031223dfd74d3910a9176ddf15c9a73618",
+  "supabase/migrations/20260916022937_payment_skip_schedule_compatibility.sql": "203d65633866843263151fd28bd674e6f8bb15f9f008d8ee9784ba64a954162e",
+  "docs/deal-stories/schema.sql": "d74ca5066b50a48cd1517db19bb1dfae0a9dbb1a778b2ba0751ef94a3ab538fc"
+}

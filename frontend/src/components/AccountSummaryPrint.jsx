@@ -1,3 +1,4 @@
+import { getActivePromises } from "../utils/promiseUtils";
 import { useEffect, useState } from "react";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
@@ -142,13 +143,7 @@ function AccountSummaryPrint({
     )
     .slice(0, 6);
 
-  const activePromises = promises
-    .filter(
-      (promise) =>
-        promise.promise_status !== "Paid" &&
-        promise.promise_status !== "Cancelled" &&
-        promise.promise_status !== "Rescheduled"
-    )
+  const activePromises = getActivePromises(promises)
     .sort((a, b) =>
       String(a.promised_date || "").localeCompare(String(b.promised_date || ""))
     )

@@ -1,3 +1,4 @@
+import { getActivePromises, getCombinedDueAmount } from "../utils/promiseUtils";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getDeals } from "../api/dealsApi";
@@ -54,15 +55,11 @@ function DuePayments() {
     (item) => item.status === "Due" || item.status === "Partial"
   );
 
-  const promisesDue = promises.filter((promise) => {
-    return (
-      promise.promised_date === selectedDate &&
-      promise.promise_status !== "Paid" &&
-      promise.promise_status !== "Rescheduled" &&
-      promise.promise_status !== "Cancelled" &&
-      promise.promise_status !== "Partial Paid"
-    );
-  });
+  const activePromises = getActivePromises(promises);
+
+  const promisesDue = activePromises.filter(
+    (promise) => promise.promised_date === selectedDate
+  );
 
   const brokenPromisesDue = promisesDue.filter(
     (promise) => promise.promise_status === "Broken"
@@ -89,7 +86,7 @@ function DuePayments() {
     0
   );
 
-  const totalDue = totalScheduledDue + totalPromiseDue;
+  const totalDue = getCombinedDueAmount(scheduledUnpaidOrPartial, promisesDue);
 
   const isToday = selectedDate === today;
   const pageDateLabel = isToday ? "Today" : formatDisplayDate(selectedDate);
@@ -239,7 +236,7 @@ function DuePayments() {
           icon="🚨"
           title="Total Due"
           value={formatMoney(totalDue)}
-          subtitle="Scheduled + promises"
+          subtitle="Scheduled dues and promises, without counting an installment twice"
           tone="danger"
         />
 

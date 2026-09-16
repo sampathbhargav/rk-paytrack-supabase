@@ -1,7 +1,8 @@
+import { acknowledgePaymentOperation } from "../api/paymentOperationsApi";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { getDeals } from "../api/dealsApi";
-import { getPayments, addPayment } from "../api/paymentsApi";
+import { getPayments, savePaymentAllocations } from "../api/paymentsApi";
 import { getPaymentSkips } from "../api/paymentSkipsApi";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
@@ -37,6 +38,7 @@ function PaymentForm() {
   const [messageType, setMessageType] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  const savingRef = useRef(false);
   const messageAreaRef = useRef(null);
   const dealSearchWrapperRef = useRef(null);
 
@@ -332,6 +334,7 @@ function PaymentForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (savingRef.current) return;
 
     setMessage("");
     setMessageType("");
@@ -363,7 +366,9 @@ function PaymentForm() {
 
     if (!confirmed) return;
 
+    let committed = false;
     try {
+      savingRef.current = true;
       setIsSaving(true);
 
       const selectedDealData = deals.find(
@@ -372,56 +377,26 @@ function PaymentForm() {
 
       const selectedDealPaymentFrequency = getPaymentFrequency(selectedDealData);
 
-      const savedPaymentRecords = [];
-
-      for (const allocation of paymentAllocations) {
-        const isSelectedInstallment = allocation.dueDate === formData.dueDate;
-        const isPartialSelectedInstallment =
-          isSelectedInstallment && isMoneyGreaterThan(amountDue, amountPaid);
-
-        const allocationPaymentFrequency =
-          allocation.paymentFrequency || selectedDealPaymentFrequency;
-
-        const paymentPayload = {
-          ...formData,
-          paymentFrequency: allocationPaymentFrequency,
-          payment_frequency: allocationPaymentFrequency,
+      const operation = await savePaymentAllocations({
+        dealId: formData.dealId,
+        paymentDate: formData.paymentDate,
+        paymentMethod: formData.paymentMethod,
+        allocations: paymentAllocations.map(allocation => ({
           dueDate: allocation.dueDate,
-          amountDue: roundMoney(allocation.remainingForDueDate),
           amountPaid: roundMoney(allocation.amountApplied),
-          promisedDate: isPartialSelectedInstallment
-            ? formData.promisedDate
-            : "",
-          notes: buildAllocationNote({
-            originalNotes: formData.notes,
-            allocation,
-            totalPayment: amountPaid,
-            isSplitPayment: paymentAllocations.length > 1,
-          }),
-        };
-
-        const savedPayment = await addPayment(paymentPayload);
-        const savedPaymentRecord = Array.isArray(savedPayment)
-          ? savedPayment[0]
-          : savedPayment;
-
-        if (savedPaymentRecord) {
-          savedPaymentRecords.push(savedPaymentRecord);
-        }
-      }
-
-      const firstSavedPayment = savedPaymentRecords[0] || null;
-
-      const totalPaidForDealBeforeThisPayment = activePayments
-        .filter((payment) => String(payment.deal_id) === String(formData.dealId))
-        .reduce((sum, payment) => addMoney(sum, payment.amount_paid), 0);
-
-      const newTotalPaid = addMoney(totalPaidForDealBeforeThisPayment, amountPaid);
-
-      const remainingBalance = moneyMax(
-        subtractMoney(selectedDealData?.total_amount, newTotalPaid),
-        0
-      );
+          expectedPaid: roundMoney(allocation.paidForDueDate),
+          expectedRemaining: roundMoney(allocation.remainingForDueDate),
+          promisedDate: allocation.dueDate === formData.dueDate && isMoneyGreaterThan(amountDue, amountPaid)
+            ? formData.promisedDate : "",
+          notes: buildAllocationNote({ originalNotes: formData.notes, allocation,
+            totalPayment: amountPaid, isSplitPayment: paymentAllocations.length > 1 }),
+        })),
+      });
+      committed = true;
+      const savedPaymentRecords = operation.payments;
+      const firstSavedPayment = savedPaymentRecords[0];
+      const newTotalPaid = Number(operation.totalPaid);
+      const remainingBalance = Number(operation.balance);
 
       const paymentType =
         paymentAllocations.length > 1
@@ -464,6 +439,7 @@ function PaymentForm() {
             : formData.notes || "",
       };
 
+      let logWarning = "";
       await logActivity({
         action: "PAYMENT",
         module: "Payments",
@@ -524,7 +500,7 @@ function PaymentForm() {
             skip_id: allocation.skipId || null,
           })),
         },
-      });
+      }).catch(() => { logWarning = " Payment saved, but the activity log could not be updated."; });
 
       setReceiptPrompt(receiptData);
 
@@ -542,7 +518,7 @@ function PaymentForm() {
           paymentAllocations.length > 1
             ? "Extra payment was applied to the next installment(s)."
             : ""
-        }`
+        }${logWarning}${operation.legacyStatusPreserved ? " Historical deal status was preserved." : ""}`
       );
 
       setMessageType("success");
@@ -552,13 +528,15 @@ function PaymentForm() {
       setDealSearchText("");
       setDealSearchOpen(false);
 
+      await acknowledgePaymentOperation(operation.requestId);
       await loadData({ clearMessages: false });
     } catch (error) {
-      setMessage(`Failed to save payment: ${error.message}`);
+      setMessage(`${committed ? "Payment recorded; follow-up needs recovery" : "Payment was not confirmed"}: ${error.message}`);
       setMessageType("error");
       setSuccessDealLink(null);
       scrollToMessageArea();
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   };

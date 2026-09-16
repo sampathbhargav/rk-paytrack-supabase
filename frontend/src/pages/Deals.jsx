@@ -1,3 +1,4 @@
+import { getActivePromises } from "../utils/promiseUtils";
 import { useEffect, useState } from "react";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
@@ -136,12 +137,7 @@ function Deals() {
           })
           .join(" | ");
 
-        const activePromises = dealPromises.filter(
-          (promise) =>
-            promise.promise_status !== "Paid" &&
-            promise.promise_status !== "Cancelled" &&
-            promise.promise_status !== "Rescheduled"
-        );
+        const activePromises = getActivePromises(dealPromises);
 
         const promiseHistory = dealPromises
           .map((promise) => {

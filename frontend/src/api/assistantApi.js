@@ -1,3 +1,4 @@
+import { getActivePromises } from "../utils/promiseUtils";
 import { supabase } from "../supabaseClient";
 import { getPromises } from "./promisesApi";
 
@@ -1356,7 +1357,7 @@ if (
       }
     });
 
-    promises.forEach((promise) => {
+    getActivePromises(promises).forEach((promise) => {
       if (
         promise.promise_status !== "Paid" &&
         promise.promise_status !== "Cancelled" &&
@@ -1413,7 +1414,7 @@ if (
   if (q.includes("broken promise") || q.includes("broken promises")) {
     const rows = [];
 
-    promises.forEach((promise) => {
+    getActivePromises(promises).forEach((promise) => {
       if (promise.promise_status === "Broken") {
         const deal = deals.find((item) => item.id === promise.deal_id);
 

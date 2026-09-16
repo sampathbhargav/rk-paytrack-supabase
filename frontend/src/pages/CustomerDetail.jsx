@@ -1,9 +1,9 @@
+import { getActivePromises } from "../utils/promiseUtils";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { getDealByIdOrTag } from "../api/dealsApi";
 import {
   getPaymentsByDealId,
-  updateDealPaidOffStatus,
 } from "../api/paymentsApi";
 import { getPromisesByDealId, updateBrokenPromises } from "../api/promisesApi";
 import { getPaymentSkipsByDealId } from "../api/paymentSkipsApi";
@@ -24,6 +24,7 @@ import { openDealContractPdf } from "../utils/openDealContractPdf";
 function CustomerDetail() {
   const { dealId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [deal, setDeal] = useState(null);
   const [payments, setPayments] = useState([]);
@@ -38,7 +39,7 @@ function CustomerDetail() {
   useEffect(() => {
     loadCustomerDetail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dealId]);
+  }, [dealId, location.key]);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -86,7 +87,6 @@ function CustomerDetail() {
         throw new Error("Deal was found, but the deal ID is missing.");
       }
 
-      await updateDealPaidOffStatus(dealData.id);
 
       const paymentsData = await getPaymentsByDealId(dealData.id);
       const promisesData = await getPromisesByDealId(dealData.id);
@@ -162,22 +162,20 @@ function CustomerDetail() {
   const paidPercent =
     totalAmount > 0 ? Math.min((totalPaid / totalAmount) * 100, 100) : 0;
 
-  const pendingPromises = promises.filter(
+  const activePromises = getActivePromises(promises);
+
+  const pendingPromises = activePromises.filter(
     (promise) => promise.promise_status === "Pending"
   );
 
-  const brokenPromises = promises.filter(
+  const brokenPromises = activePromises.filter(
     (promise) => promise.promise_status === "Broken"
   );
 
-  const activePromiseBalance = promises
-    .filter(
-      (promise) =>
-        promise.promise_status !== "Paid" &&
-        promise.promise_status !== "Cancelled" &&
-        promise.promise_status !== "Rescheduled"
-    )
-    .reduce((sum, promise) => sum + Number(promise.remaining_amount || 0), 0);
+  const activePromiseBalance = activePromises.reduce(
+    (sum, promise) => sum + Number(promise.remaining_amount || 0),
+    0
+  );
 
   const openPaymentReceipt = (payment, paymentGroup = null) => {
     if (!payment || !deal) return;

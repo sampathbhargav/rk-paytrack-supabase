@@ -1,6 +1,13 @@
 import { supabase } from "../supabaseClient";
 import { logActivity } from "./activityLogsApi";
 
+/*
+  ============================================================
+  GET FOLLOW-UPS FOR ONE CUSTOMER
+  Used by the existing CustomerFollowUps.jsx component.
+  KEEP THIS AS-IS.
+  ============================================================
+*/
 export async function getCustomerFollowUps(customerId) {
   if (!customerId) return [];
 
@@ -16,6 +23,51 @@ export async function getCustomerFollowUps(customerId) {
   return data || [];
 }
 
+/*
+  ============================================================
+  GET ALL CUSTOMER INTERACTIONS
+  Used ONLY by the new standalone CustomerInteractions.jsx page.
+
+  This does NOT change how CustomerFollowUps.jsx works.
+  ============================================================
+*/
+export async function getAllCustomerFollowUps() {
+  const pageSize = 1000;
+
+  let from = 0;
+  let allFollowUps = [];
+
+  while (true) {
+    const to = from + pageSize - 1;
+
+    const { data, error } = await supabase
+      .from("customer_followups")
+      .select("*")
+      .order("followup_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    allFollowUps = [...allFollowUps, ...(data || [])];
+
+    if (!data || data.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return allFollowUps;
+}
+
+/*
+  ============================================================
+  CREATE FOLLOW-UP / CUSTOMER INTERACTION
+  ============================================================
+*/
 export async function createCustomerFollowUp(payload) {
   const {
     data: { user },
@@ -75,6 +127,11 @@ export async function createCustomerFollowUp(payload) {
   return data;
 }
 
+/*
+  ============================================================
+  UPDATE FOLLOW-UP STATUS
+  ============================================================
+*/
 export async function updateCustomerFollowUpStatus(id, status) {
   const { data, error } = await supabase
     .from("customer_followups")
@@ -104,6 +161,11 @@ export async function updateCustomerFollowUpStatus(id, status) {
   return data;
 }
 
+/*
+  ============================================================
+  GET DUE / OVERDUE FOLLOW-UPS
+  ============================================================
+*/
 export async function getDueCustomerFollowUps() {
   const today = new Date().toISOString().split("T")[0];
 
@@ -120,6 +182,11 @@ export async function getDueCustomerFollowUps() {
   return data || [];
 }
 
+/*
+  ============================================================
+  UPDATE FOLLOW-UP
+  ============================================================
+*/
 export async function updateCustomerFollowUp(id, updates) {
   const { data, error } = await supabase
     .from("customer_followups")
@@ -141,6 +208,11 @@ export async function updateCustomerFollowUp(id, updates) {
   return data;
 }
 
+/*
+  ============================================================
+  DELETE FOLLOW-UP
+  ============================================================
+*/
 export async function deleteCustomerFollowUp(id) {
   const { error } = await supabase
     .from("customer_followups")

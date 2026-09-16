@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { acknowledgePaymentOperation } from "../api/paymentOperationsApi";
+import { useRef, useState } from "react";
 import { voidPayment } from "../api/paymentsApi";
 import { formatMoney } from "../utils/moneyUtils";
 
 function PaymentHistory({ payments = [], onPaymentUpdated, openPaymentReceipt }) {
+  const savingRef = useRef(false);
   const [voidReason, setVoidReason] = useState("");
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [message, setMessage] = useState("");
@@ -39,6 +41,7 @@ function PaymentHistory({ payments = [], onPaymentUpdated, openPaymentReceipt })
   };
 
   const handleVoidPayment = async () => {
+    if (savingRef.current) return;
     if (!selectedPayment) return;
 
     if (!voidReason.trim()) {
@@ -52,18 +55,24 @@ function PaymentHistory({ payments = [], onPaymentUpdated, openPaymentReceipt })
 
     if (!confirmed) return;
 
+    let committed = false;
+    savingRef.current = true;
     try {
-      await voidPayment(selectedPayment.id, voidReason);
+      const operation = await voidPayment(selectedPayment, voidReason);
+      committed = true;
 
       setSelectedPayment(null);
       setVoidReason("");
       setMessage("Payment voided successfully.");
 
+      await acknowledgePaymentOperation(operation.requestId);
       if (onPaymentUpdated) {
-        onPaymentUpdated();
+        await onPaymentUpdated();
       }
     } catch (error) {
-      setMessage(`Failed to void payment: ${error.message}`);
+      setMessage(`${committed ? "Operation recorded; follow-up needs recovery" : "Operation was not confirmed"}: ${error.message}`);
+    } finally {
+      savingRef.current = false;
     }
   };
 

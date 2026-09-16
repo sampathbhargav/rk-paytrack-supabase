@@ -14,8 +14,16 @@ export async function logActivity(activity = {}) {
       entity_label,
       description,
       metadata,
-      user_email,
     } = activity;
+
+    /*
+      Always identify the user from the active Supabase Auth session.
+
+      We intentionally do NOT trust activity.user_email or localStorage for
+      audit attribution. This ensures the activity log reflects the user who
+      is actually authenticated in RK PayTrack.
+    */
+    const authenticatedUserEmail = await getAuthenticatedUserEmail();
 
     const payload = {
       action: normalizeAction(action),
@@ -25,7 +33,7 @@ export async function logActivity(activity = {}) {
       entity_label: entity_label || "",
       description: description || "",
       metadata: cleanActivityMetadata(metadata || {}),
-      user_email: user_email || getCurrentUserEmail(),
+      user_email: authenticatedUserEmail,
     };
 
     const { data, error } = await supabase
@@ -448,10 +456,35 @@ function cleanActivityMetadata(metadata = {}) {
   return allowedMetadata;
 }
 
-function getCurrentUserEmail() {
+/*
+  Get the actual authenticated RK PayTrack user.
+
+  This replaces the previous localStorage-based attribution:
+      localStorage.getItem("rk_user_email")
+
+  Supabase Auth is now the source of truth for audit-log user attribution.
+*/
+async function getAuthenticatedUserEmail() {
   try {
-    return localStorage.getItem("rk_user_email") || "system";
-  } catch {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error) {
+      console.warn(
+        "Unable to determine authenticated user for activity log:",
+        error.message
+      );
+      return "system";
+    }
+
+    return user?.email || "system";
+  } catch (error) {
+    console.warn(
+      "Unable to determine authenticated user for activity log:",
+      error.message
+    );
     return "system";
   }
 }

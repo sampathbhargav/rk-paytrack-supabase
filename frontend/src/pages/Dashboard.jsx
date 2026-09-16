@@ -1,3 +1,4 @@
+import { getActivePromises } from "../utils/promiseUtils";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getDeals } from "../api/dealsApi";
@@ -55,6 +56,7 @@ function Dashboard() {
     (payment) => payment.payment_status !== "Voided"
   );
 
+  const activeDealCount = deals.filter((deal) => deal.status === "Active").length;
   const collectionDeals = deals.filter((deal) => isCollectionEligibleDeal(deal));
 
   const dueToday = getDueDealsForDate(
@@ -68,17 +70,13 @@ function Dashboard() {
     hasRemainingBalance(item)
   );
 
-  const promisesDueToday = promises.filter((promise) => {
-    return (
-      promise.promised_date === today &&
-      promise.promise_status !== "Paid" &&
-      promise.promise_status !== "Rescheduled" &&
-      promise.promise_status !== "Cancelled" &&
-      promise.promise_status !== "Partial Paid"
-    );
-  });
+  const activePromises = getActivePromises(promises);
 
-  const pastDuePromises = promises.filter(
+  const promisesDueToday = activePromises.filter(
+    (promise) => promise.promised_date === today
+  );
+
+  const pastDuePromises = activePromises.filter(
     (promise) => promise.promise_status === "Broken"
   );
 
@@ -125,7 +123,7 @@ function Dashboard() {
 
   const pendingBalance = totalFinanced - totalCollected;
 
-  const pendingPromises = promises.filter(
+  const pendingPromises = activePromises.filter(
     (promise) => promise.promise_status === "Pending"
   );
 
@@ -274,7 +272,7 @@ function Dashboard() {
           </div>
 
           <div style={summaryStrip}>
-            <SummaryItem label="Active Deals" value={deals.length} />
+            <SummaryItem label="Active Deals" value={activeDealCount} />
             <SummaryItem label="Monthly Deals" value={monthlyDeals.length} />
             <SummaryItem label="Biweekly Deals" value={biweeklyDeals.length} />
             <SummaryItem
@@ -374,7 +372,7 @@ function Dashboard() {
               </div>
 
               <div style={smallMetricGrid}>
-                <MiniCard title="Active Deals" value={deals.length} />
+                <MiniCard title="Active Deals" value={activeDealCount} />
                 <MiniCard
                   title="Total Financed"
                   value={formatMoney(totalFinanced)}

@@ -1,3 +1,4 @@
+import PaymentRecovery from "./components/PaymentRecovery";
 import { useEffect, useRef, useState } from "react";
 import {
   BrowserRouter,
@@ -10,6 +11,7 @@ import {
 
 import Dashboard from "./pages/Dashboard";
 import Deals from "./pages/Deals";
+import DealStories from "./pages/DealStories";
 import AddPayment from "./pages/AddPayment";
 import AddDeal from "./pages/AddDeal";
 import DuePayments from "./pages/DuePayments";
@@ -22,6 +24,7 @@ import HelpCenter from "./pages/HelpCenter";
 import Maintenance from "./pages/Maintenance";
 import CustomerProfile from "./pages/CustomerProfile";
 import Customers from "./pages/Customers";
+import CustomerInteractions from "./pages/CustomerInteractions";
 import AIAssistant from "./pages/AIAssistant";
 import Login from "./pages/Login";
 import ActivityLogs from "./pages/ActivityLogs";
@@ -127,7 +130,9 @@ const showMobileSearchRow = isMobile && showFullSearch;
   const navItems = [
     { label: "Dashboard", path: "/" },
     { label: "Customers", path: "/customers" },
+    { label: "Customer Interactions", path: "/customer-interactions" },
     { label: "Deals", path: "/deals" },
+    { label: "Deal Stories", path: "/deal-stories" },
     { label: "Add Deal", path: "/add-deal" },
     { label: "Add Payment", path: "/add-payment" },
     { label: "Due Payments", path: "/due-payments" },
@@ -344,11 +349,13 @@ const showMobileSearchRow = isMobile && showFullSearch;
         </div>
 
         <ConnectionStatus />
+        <PaymentRecovery />
 
         <ErrorBoundary>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/deals" element={<Deals />} />
+            <Route path="/deal-stories" element={<DealStories />} />
             <Route path="/deals/:dealId" element={<CustomerDetail />} />
             <Route path="/deals/:dealId/edit" element={<EditDeal />} />
             <Route path="/add-deal" element={<AddDeal />} />
@@ -358,6 +365,10 @@ const showMobileSearchRow = isMobile && showFullSearch;
             <Route path="/maintenance" element={<Maintenance />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/customers/:customerId" element={<CustomerProfile />} />
+            <Route
+              path="/customer-interactions"
+              element={<CustomerInteractions />}
+            />
             <Route path="/reports" element={<Reports />} />
             <Route path="/business-insights" element={<BusinessInsights />} />
             <Route path="/ai-assistant" element={<AIAssistant />} />
@@ -396,12 +407,14 @@ function getIcon(label) {
   const icons = {
     Dashboard: "📊",
     Deals: "🚚",
+    "Deal Stories": "📖",
     "Add Deal": "➕",
     "Add Payment": "💵",
     "Due Payments": "📅",
     Promises: "🤝",
     Maintenance: "🔧",
     Customers: "👥",
+    "Customer Interactions": "📞",
     Reports: "📈",
     "Business Insights": "💡",
     "AI Assistant": "🤖",

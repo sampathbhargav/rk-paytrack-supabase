@@ -1,3 +1,4 @@
+import { getActivePromises } from "../utils/promiseUtils";
 import { useState } from "react";
 import { addPaymentSkip, cancelPaymentSkip } from "../api/paymentSkipsApi";
 import { getDealDueSchedule } from "../utils/duePaymentsUtils";
@@ -18,6 +19,8 @@ function DueSchedule({
   const [isCancellingSkip, setIsCancellingSkip] = useState(false);
   const schedule = getDealDueSchedule(deal, paymentSkips);
   const dealPaymentFrequency = getPaymentFrequency(deal);
+
+  const activePromises = getActivePromises(promises);
 
   const scheduleWithStatus = schedule.map((installment) => {
     const paymentsForDueDate = payments.filter(
@@ -43,7 +46,7 @@ function DueSchedule({
     const paidForDueDate = fromCents(paidForDueDateCents);
     const remaining = fromCents(remainingCents);
 
-    const relatedPromises = promises.filter(
+    const relatedPromises = activePromises.filter(
       (promise) =>
         String(promise.deal_id) === String(deal.id) &&
         promise.original_due_date === installment.dueDate

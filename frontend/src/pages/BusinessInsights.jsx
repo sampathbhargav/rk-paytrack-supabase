@@ -1,3 +1,5 @@
+import { getPromises } from "../api/promisesApi";
+import { getActivePromises } from "../utils/promiseUtils";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { formatMoney } from "../utils/moneyUtils";
@@ -54,10 +56,7 @@ function BusinessInsights() {
           .select("*")
           .order("payment_date", { ascending: false }),
 
-        supabase
-          .from("payment_promises")
-          .select("*")
-          .order("promised_date", { ascending: false }),
+        getPromises().then(data => ({ data })),
 
         supabase
           .from("payment_skips")
@@ -807,11 +806,13 @@ function buildBusinessInsights({
     (deal) => !hasRealPrincipalAmount(deal)
   ).length;
 
-  const pendingPromisesCount = promises
+  const activePromises = getActivePromises(promises);
+
+  const pendingPromisesCount = activePromises
     .filter((promise) => filteredDealIds.has(String(promise.deal_id)))
     .filter((promise) => isPendingPromise(promise)).length;
 
-  const brokenPromisesCount = promises
+  const brokenPromisesCount = activePromises
     .filter((promise) => filteredDealIds.has(String(promise.deal_id)))
     .filter((promise) => isBrokenPromise(promise)).length;
 

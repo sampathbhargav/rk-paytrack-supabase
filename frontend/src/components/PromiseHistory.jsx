@@ -1,4 +1,6 @@
-import { Fragment, useMemo, useState } from "react";
+import { acknowledgePaymentOperation } from "../api/paymentOperationsApi";
+import { getActivePromises } from "../utils/promiseUtils";
+import { Fragment, useMemo, useRef, useState } from "react";
 import {
   markPromisePaidAndCreatePayment,
   reschedulePromise,
@@ -20,6 +22,7 @@ const paymentMethodOptions = [
 ];
 
 function PromiseHistory({ promises = [], onPromiseUpdated }) {
+  const savingRef = useRef(false);
   const [selectedPromise, setSelectedPromise] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [paymentDate, setPaymentDate] = useState(todayString);
@@ -40,11 +43,13 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
   const [expandedPromiseId, setExpandedPromiseId] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
 
-  const summary = useMemo(() => {
-    const activePromises = promises.filter((promise) =>
-      isActionablePromise(promise.promise_status)
-    );
+  const activePromises = useMemo(() => getActivePromises(promises), [promises]);
+  const activePromiseIds = useMemo(
+    () => new Set(activePromises.map((promise) => promise.id)),
+    [activePromises]
+  );
 
+  const summary = useMemo(() => {
     const dueToday = activePromises.filter(
       (promise) => promise.promised_date === todayString
     );
@@ -54,7 +59,7 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
         promise.promised_date && String(promise.promised_date) < todayString
     );
 
-    const broken = promises.filter(
+    const broken = activePromises.filter(
       (promise) => promise.promise_status === "Broken"
     );
 
@@ -71,7 +76,7 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
       broken: broken.length,
       activeBalance,
     };
-  }, [promises]);
+  }, [promises, activePromises]);
 
   const filteredPromises = useMemo(() => {
     return promises
@@ -81,16 +86,19 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
         if (statusFilter === "All") return true;
 
         if (statusFilter === "Active") {
-          return isActionablePromise(status);
+          return activePromiseIds.has(promise.id);
         }
 
         if (statusFilter === "Due Today") {
-          return isActionablePromise(status) && promise.promised_date === todayString;
+          return (
+            activePromiseIds.has(promise.id) &&
+            promise.promised_date === todayString
+          );
         }
 
         if (statusFilter === "Past Due") {
           return (
-            isActionablePromise(status) &&
+            activePromiseIds.has(promise.id) &&
             promise.promised_date &&
             String(promise.promised_date) < todayString
           );
@@ -98,8 +106,8 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
 
         return status === statusFilter;
       })
-      .sort(sortPromisesByPriority);
-  }, [promises, statusFilter]);
+      .sort((a, b) => sortPromisesByPriority(a, b, activePromiseIds));
+  }, [promises, statusFilter, activePromiseIds]);
 
   const openMarkPaidForm = (promise) => {
     setSelectedPromise(promise);
@@ -112,6 +120,7 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
   };
 
   const handleConfirmPaid = async () => {
+    if (savingRef.current) return;
     if (!selectedPromise) return;
 
     if (!paymentDate) {
@@ -125,22 +134,28 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
 
     if (!confirmed) return;
 
+    let committed = false;
+    savingRef.current = true;
     try {
-      await markPromisePaidAndCreatePayment({
+      const operation = await markPromisePaidAndCreatePayment({
         promise: selectedPromise,
         paymentDate,
         paymentMethod,
         notes,
       });
 
+      committed = true;
       setMessage("Promise payment recorded successfully.");
       setSelectedPromise(null);
 
+      await acknowledgePaymentOperation(operation.requestId);
       if (onPromiseUpdated) {
-        onPromiseUpdated();
+        await onPromiseUpdated();
       }
     } catch (error) {
-      setMessage(`Failed to record promise payment: ${error.message}`);
+      setMessage(`${committed ? "Operation recorded; follow-up needs recovery" : "Operation was not confirmed"}: ${error.message}`);
+    } finally {
+      savingRef.current = false;
     }
   };
 
@@ -156,6 +171,7 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
   };
 
   const handleReschedulePromise = async () => {
+    if (savingRef.current) return;
     if (!reschedulePromiseItem) return;
 
     if (!newPromisedDate) {
@@ -169,23 +185,29 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
 
     if (!confirmed) return;
 
+    let committed = false;
+    savingRef.current = true;
     try {
-      await reschedulePromise({
+      const operation = await reschedulePromise({
         promise: reschedulePromiseItem,
         newPromisedDate,
         reason: rescheduleReason,
       });
 
+      committed = true;
       setReschedulePromiseItem(null);
       setNewPromisedDate("");
       setRescheduleReason("");
       setMessage("Promise rescheduled successfully.");
 
+      await acknowledgePaymentOperation(operation.requestId);
       if (onPromiseUpdated) {
-        onPromiseUpdated();
+        await onPromiseUpdated();
       }
     } catch (error) {
-      setMessage(`Failed to reschedule promise: ${error.message}`);
+      setMessage(`${committed ? "Operation recorded; follow-up needs recovery" : "Operation was not confirmed"}: ${error.message}`);
+    } finally {
+      savingRef.current = false;
     }
   };
 
@@ -202,6 +224,7 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
   };
 
   const handlePartialPromisePayment = async () => {
+    if (savingRef.current) return;
     if (!partialPromiseItem) return;
 
     const amountPaid = Number(partialAmountPaid || 0);
@@ -235,8 +258,10 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
 
     if (!confirmed) return;
 
+    let committed = false;
+    savingRef.current = true;
     try {
-      await partialPayPromiseAndCreateNewPromise({
+      const operation = await partialPayPromiseAndCreateNewPromise({
         promise: partialPromiseItem,
         paymentDate: partialPaymentDate,
         amountPaid: partialAmountPaid,
@@ -245,17 +270,21 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
         notes: partialNotes,
       });
 
+      committed = true;
       setPartialPromiseItem(null);
       setPartialAmountPaid("");
       setPartialNewPromisedDate("");
       setPartialNotes("");
       setMessage("Partial promise payment recorded successfully.");
 
+      await acknowledgePaymentOperation(operation.requestId);
       if (onPromiseUpdated) {
-        onPromiseUpdated();
+        await onPromiseUpdated();
       }
     } catch (error) {
-      setMessage(`Failed to record partial promise payment: ${error.message}`);
+      setMessage(`${committed ? "Operation recorded; follow-up needs recovery" : "Operation was not confirmed"}: ${error.message}`);
+    } finally {
+      savingRef.current = false;
     }
   };
 
@@ -517,9 +546,9 @@ function PromiseHistory({ promises = [], onPromiseUpdated }) {
                 const companyName = getPromiseCompanyName(promise);
                 const paymentFrequency = getPromisePaymentFrequency(promise);
                 const status = promise.promise_status || "Pending";
-                const risk = getPromiseRisk(promise);
+                const risk = getPromiseRisk(promise, activePromiseIds.has(promise.id));
                 const isExpanded = expandedPromiseId === promise.id;
-                const actionable = isActionablePromise(status);
+                const actionable = activePromiseIds.has(promise.id);
 
                 return (
                   <Fragment key={promise.id}>
@@ -776,21 +805,14 @@ function formatDisplayDate(dateString) {
   return `${month}/${day}/${year}`;
 }
 
-function isActionablePromise(status) {
-  return (
-    status !== "Paid" &&
-    status !== "Rescheduled" &&
-    status !== "Cancelled" &&
-    status !== "Partial Paid"
-  );
-}
-
-function getPromiseRisk(promise) {
+function getPromiseRisk(promise, active = true) {
   const status = promise.promise_status || "Pending";
 
   if (status === "Paid") return "Completed";
   if (status === "Rescheduled") return "Rescheduled";
   if (status === "Cancelled") return "Cancelled";
+  if (status === "Partial Paid") return "Partial Paid";
+  if (!active) return "Historical";
   if (status === "Broken") return "Broken";
 
   if (promise.promised_date === todayString) {
@@ -804,7 +826,7 @@ function getPromiseRisk(promise) {
   return "Active";
 }
 
-function sortPromisesByPriority(a, b) {
+function sortPromisesByPriority(a, b, activeIds) {
   const priority = {
     Broken: 1,
     "Past Due": 2,
@@ -817,8 +839,8 @@ function sortPromisesByPriority(a, b) {
     Cancelled: 8,
   };
 
-  const aRisk = getPromiseRisk(a);
-  const bRisk = getPromiseRisk(b);
+  const aRisk = getPromiseRisk(a, activeIds.has(a.id));
+  const bRisk = getPromiseRisk(b, activeIds.has(b.id));
 
   const riskSort = (priority[aRisk] || 99) - (priority[bRisk] || 99);
 

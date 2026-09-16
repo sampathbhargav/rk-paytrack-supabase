@@ -1,3 +1,4 @@
+import { getActivePromises } from "../utils/promiseUtils";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getPromises, updateBrokenPromises } from "../api/promisesApi";
@@ -52,11 +53,13 @@ function Promises() {
     return matchesSearch && matchesStatus;
   });
 
-  const pendingPromises = promises.filter(
+  const activePromises = getActivePromises(promises);
+
+  const pendingPromises = activePromises.filter(
     (promise) => promise.promise_status === "Pending"
   );
 
-  const brokenPromises = promises.filter(
+  const brokenPromises = activePromises.filter(
     (promise) => promise.promise_status === "Broken"
   );
 

@@ -1,3 +1,4 @@
+import { getActivePromises, isPromiseCoveredBySchedule } from "../utils/promiseUtils";
 import { useEffect, useMemo, useState } from "react";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
@@ -227,7 +228,9 @@ function Reports() {
     (item) => item.status === "Due" || item.status === "Partial"
   );
 
-  const brokenPromises = promises.filter(
+  const activePromises = getActivePromises(promises);
+
+  const brokenPromises = activePromises.filter(
     (promise) => promise.promise_status === "Broken"
   );
 
@@ -238,11 +241,8 @@ function Reports() {
     0
   );
 
-  const pastDueDealPromises = promises.filter(
+  const pastDueDealPromises = activePromises.filter(
     (promise) =>
-      promise.promise_status !== "Paid" &&
-      promise.promise_status !== "Cancelled" &&
-      promise.promise_status !== "Rescheduled" &&
       promise.promised_date &&
       promise.promised_date < today
   );
@@ -390,12 +390,7 @@ function Reports() {
           })
           .join(" | ");
 
-        const activeDealPromises = dealPromises.filter(
-          (promise) =>
-            promise.promise_status !== "Paid" &&
-            promise.promise_status !== "Cancelled" &&
-            promise.promise_status !== "Rescheduled"
-        );
+        const activeDealPromises = getActivePromises(dealPromises);
 
         const activePromiseAmount = activeDealPromises.reduce(
           (sum, promise) => sum + Number(promise.remaining_amount || 0),
@@ -2126,6 +2121,7 @@ function buildCollectionPriorityRows({
   });
 
   pastDueDealPromises.forEach((promise) => {
+    const covered = isPromiseCoveredBySchedule(promise, pastDueScheduled);
     rows.push({
       Priority_Type: "Past Due Deal Promise",
       Customer: promise.deals?.customers?.customer_name || "",
@@ -2134,7 +2130,12 @@ function buildCollectionPriorityRows({
       Reference: promise.deals?.deal_tag || "",
       Date: promise.promised_date || "",
       Days_Past_Due: daysBetween(promise.promised_date, today),
-      Amount: promise.remaining_amount || 0,
+      Amount: covered ? 0 : promise.remaining_amount || 0,
+      Promise_Remaining: promise.remaining_amount || 0,
+      Original_Due_Date: promise.original_due_date || "",
+      Amount_Explanation: covered
+        ? "Included in scheduled installment row; promise amount is not additional debt."
+        : "Promise obligation not represented by a scheduled row in this report.",
       Status: promise.promise_status || "",
       Notes: promise.notes || "",
     });
@@ -2170,7 +2171,14 @@ function buildCollectionPriorityRows({
     });
   });
 
-  return rows.sort(
+  // exportToCsv takes headers from the first row: include these on every row.
+  return rows.map(row => ({
+    ...row,
+    Original_Due_Date: row.Original_Due_Date ||
+      (row.Priority_Type === "Past Due Deal Installment" ? row.Date : ""),
+    Promise_Remaining: row.Promise_Remaining ?? "",
+    Amount_Explanation: row.Amount_Explanation || "Outstanding amount for this follow-up.",
+  })).sort(
     (a, b) => Number(b.Days_Past_Due || 0) - Number(a.Days_Past_Due || 0)
   );
 }

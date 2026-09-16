@@ -1,3 +1,4 @@
+import { getActivePromises } from "../utils/promiseUtils";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -352,7 +353,7 @@ function CustomerProfile() {
                 </tr>
               ) : (
                 dealsWithTotals.map((deal) => {
-                  const pendingPromises = deal.promises.filter(
+                  const pendingPromises = getActivePromises(deal.promises).filter(
                     (promise) => promise.promise_status === "Pending"
                   );
 

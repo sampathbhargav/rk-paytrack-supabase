@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import "./CustomerInteractions.css";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { getCustomers } from "../api/customersApi";
 import {
@@ -22,7 +23,15 @@ const getLocalDateString = (dateValue = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-const todayString = getLocalDateString();
+const isOpen = (item) => ["Open", "Needs Follow-up"].includes(item.status);
+
+function followUpStage(item, today) {
+  if (!isOpen(item)) return "Closed";
+  if (!item.next_followup_date) return "Unscheduled";
+  if (item.next_followup_date < today) return "Overdue";
+  if (item.next_followup_date === today) return "Due today";
+  return "Upcoming";
+}
 
 const initialForm = {
   customer_id: "",
@@ -30,7 +39,7 @@ const initialForm = {
   followup_type: "Spoke with customer",
   contact_method: "Phone",
   note: "",
-  followup_date: todayString,
+  followup_date: getLocalDateString(),
   next_followup_date: "",
   priority: "Normal",
   status: "Completed",
@@ -89,10 +98,15 @@ const quickNotes = [
 ];
 
 function CustomerFollowUpsPage() {
+  const [todayString, setTodayString] = useState(getLocalDateString);
+  useEffect(() => {
+    const timer = window.setInterval(() => setTodayString(getLocalDateString()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [followUps, setFollowUps] = useState([]);
   const [customers, setCustomers] = useState([]);
 
-  const [activeView, setActiveView] = useState("Today");
+  const [activeView, setActiveView] = useState("Needs Follow-Up");
   const [search, setSearch] = useState("");
   const [employeeFilter, setEmployeeFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -103,7 +117,7 @@ function CustomerFollowUpsPage() {
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
 
   const [expandedNotes, setExpandedNotes] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
@@ -118,7 +132,6 @@ function CustomerFollowUpsPage() {
   const loadPage = async () => {
     try {
       setLoading(true);
-      setMessage("");
 
       const [followUpRows, customerRows] = await Promise.all([
         getAllCustomerFollowUps(),
@@ -170,22 +183,15 @@ function CustomerFollowUpsPage() {
       );
     }).length;
 
-    const promisesToday = todayRows.filter(
-      (item) => item.followup_type === "Customer promised payment"
-    ).length;
-
-    const noAnswersToday = todayRows.filter((item) =>
-      ["Customer did not answer", "Left voicemail"].includes(item.followup_type)
-    ).length;
-
     return {
       today: todayRows.length,
       customersToday: uniqueCustomersToday,
       needsFollowUp,
-      promisesToday,
-      noAnswersToday,
+      overdue: enrichedFollowUps.filter((item) => followUpStage(item, todayString) === "Overdue").length,
+      unscheduled: enrichedFollowUps.filter((item) => followUpStage(item, todayString) === "Unscheduled").length,
+      upcoming: enrichedFollowUps.filter((item) => followUpStage(item, todayString) === "Upcoming").length,
     };
-  }, [enrichedFollowUps]);
+  }, [enrichedFollowUps, todayString]);
 
   const employeeOptions = useMemo(() => {
     return [
@@ -207,14 +213,13 @@ function CustomerFollowUpsPage() {
 
       if (
         activeView === "Needs Follow-Up" &&
-        !(
-          item.next_followup_date &&
-          item.next_followup_date <= todayString &&
-          ["Open", "Needs Follow-up"].includes(item.status)
-        )
+        !["Overdue", "Due today", "Unscheduled"].includes(followUpStage(item, todayString))
       ) {
         return false;
       }
+
+      if (["Overdue", "Unscheduled", "Upcoming"].includes(activeView) &&
+          followUpStage(item, todayString) !== activeView) return false;
 
       if (
         activeView === "Promises" &&
@@ -268,8 +273,19 @@ function CustomerFollowUpsPage() {
       }
 
       return true;
+    }).sort((a, b) => {
+      if (["Needs Follow-Up", "Overdue", "Unscheduled", "Upcoming"].includes(activeView)) {
+        const rank = { Overdue: 0, "Due today": 1, Unscheduled: 2, Upcoming: 3 };
+        return rank[followUpStage(a, todayString)] - rank[followUpStage(b, todayString)] ||
+          (a.next_followup_date || "").localeCompare(b.next_followup_date || "") ||
+          Number(b.priority === "High") - Number(a.priority === "High") ||
+          (b.created_at || "").localeCompare(a.created_at || "");
+      }
+      return (b.followup_date || "").localeCompare(a.followup_date || "") ||
+        (b.created_at || "").localeCompare(a.created_at || "");
     });
   }, [
+    todayString,
     enrichedFollowUps,
     activeView,
     search,
@@ -319,14 +335,14 @@ function CustomerFollowUpsPage() {
   }, [customers, form.customer_id]);
 
   const resetForm = () => {
-    setForm(initialForm);
+    setForm({ ...initialForm, followup_date: getLocalDateString() });
     setEditingId(null);
     setShowForm(false);
     setCustomerSearchOpen(false);
   };
 
   const openAddForm = () => {
-    setForm(initialForm);
+    setForm({ ...initialForm, followup_date: getLocalDateString() });
     setEditingId(null);
     setShowForm(true);
     setCustomerSearchOpen(false);
@@ -349,7 +365,7 @@ function CustomerFollowUpsPage() {
       }
 
       if (field === "next_followup_date") {
-        next.status = value ? "Needs Follow-up" : "Completed";
+        if (value) next.status = "Needs Follow-up";
       }
 
       if (field === "followup_type") {
@@ -358,6 +374,7 @@ function CustomerFollowUpsPage() {
             "Customer did not answer",
             "Left voicemail",
             "Customer requested callback",
+            "Customer promised payment",
           ].includes(value)
         ) {
           next.status = "Needs Follow-up";
@@ -382,7 +399,7 @@ function CustomerFollowUpsPage() {
       ...prev,
       followup_type: template.type,
       contact_method: template.method,
-      note: template.note,
+      note: !prev.note.trim() || quickNotes.some((item) => item.note === prev.note) ? template.note : prev.note,
       status: template.status,
     }));
   };
@@ -425,7 +442,6 @@ function CustomerFollowUpsPage() {
     setCustomerSearchOpen(false);
     setMessage("");
     setMessageType("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleSubmit = async (event) => {
@@ -439,6 +455,17 @@ function CustomerFollowUpsPage() {
 
     if (!form.note.trim()) {
       setMessage("Interaction note is required.");
+      setMessageType("error");
+      return;
+    }
+
+    if (!form.followup_date || form.followup_date > todayString) {
+      setMessage("Choose an interaction date on or before today. Schedule future work using Next Follow-Up.");
+      setMessageType("error");
+      return;
+    }
+    if (form.next_followup_date && form.next_followup_date < form.followup_date) {
+      setMessage("Next follow-up cannot be before the interaction date.");
       setMessageType("error");
       return;
     }
@@ -524,6 +551,14 @@ function CustomerFollowUpsPage() {
     }));
   };
 
+  const openQueueView = (view) => {
+    setActiveView(view);
+    setSearch("");
+    setEmployeeFilter("");
+    setTypeFilter("");
+    setCurrentPage(1);
+  };
+
   const clearFilters = () => {
     setActiveView("All");
     setSearch("");
@@ -535,50 +570,47 @@ function CustomerFollowUpsPage() {
     <div style={pageWrapper}>
       <div style={heroCard}>
         <div>
-          <div style={eyebrow}>Customer Communication</div>
+          <div style={eyebrow}>RK PayTrack · Customer care & collections</div>
           <h1 style={pageTitle}>Customer Interaction Center</h1>
           <p style={pageDescription}>
-            See who was contacted, what happened, what needs another call, and
-            keep customer conversation notes in one place.
+            Turn every conversation into a clear next step. Work overdue callbacks,
+            resolve disputes, and keep a reliable customer contact history.
           </p>
         </div>
 
-        <button type="button" onClick={openAddForm} style={primaryButton}>
-          + Add Interaction
-        </button>
+        <div style={rowActions}>
+          <button type="button" disabled={loading || saving} onClick={() => { setMessage(""); loadPage(); }} style={secondaryButton}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+          <button type="button" disabled={saving} onClick={openAddForm} style={primaryButton}>
+            + Add Interaction
+          </button>
+        </div>
       </div>
 
       <div style={statsGrid}>
-        <StatCard
-          label="Interactions Today"
-          value={stats.today}
-          helper={`${stats.customersToday} customer${
-            stats.customersToday === 1 ? "" : "s"
-          } contacted`}
-        />
-
-        <StatCard
-          label="Needs Follow-Up"
-          value={stats.needsFollowUp}
-          helper="Due or overdue callbacks"
-          danger={stats.needsFollowUp > 0}
-        />
-
-        <StatCard
-          label="Promises Today"
-          value={stats.promisesToday}
-          helper="Customer payment promises"
-        />
-
-        <StatCard
-          label="No Answer Today"
-          value={stats.noAnswersToday}
-          helper="No answer / voicemail"
-        />
+        <StatCard label="Overdue callbacks" value={loading ? "—" : stats.overdue}
+          helper="Oldest follow-up dates first" danger={stats.overdue > 0} onClick={() => openQueueView("Overdue")} />
+        <StatCard label="Due today & overdue" value={loading ? "—" : stats.needsFollowUp}
+          helper="Open the follow-up work queue" onClick={() => openQueueView("Needs Follow-Up")} />
+        <StatCard label="Needs a date" value={loading ? "—" : stats.unscheduled}
+          helper="Open items without a scheduled callback" onClick={() => openQueueView("Unscheduled")} />
+        <StatCard label="Interactions today" value={loading ? "—" : stats.today}
+          helper={`${stats.customersToday} customers with logged activity`} onClick={() => openQueueView("Today")} />
       </div>
 
-      {message && (
+      <div style={workQueueNotice}>
+        <div><strong>Make the next contact count</strong><div style={formHelp}>
+          Review the account before calling. Log the outcome, set a next date, and close the follow-up when the work is complete.
+        </div></div>
+        <button type="button" style={secondaryButton} onClick={() => openQueueView("Upcoming")}>
+          Upcoming · {loading ? "—" : stats.upcoming}
+        </button>
+      </div>
+
+      {message && !showForm && (
         <div
+          role={messageType === "error" ? "alert" : "status"}
           style={{
             ...messageBox,
             ...(messageType === "success" ? successMessage : errorMessage),
@@ -589,10 +621,11 @@ function CustomerFollowUpsPage() {
       )}
 
       {showForm && (
+        <InteractionModal onClose={resetForm} saving={saving}>
         <form onSubmit={handleSubmit} style={formCard}>
           <div style={formHeader}>
             <div>
-              <h2 style={formTitle}>
+              <h2 id="interaction-dialog-title" style={formTitle}>
                 {editingId ? "Edit Interaction" : "Add Customer Interaction"}
               </h2>
               <div style={formHelp}>
@@ -611,6 +644,13 @@ function CustomerFollowUpsPage() {
             </button>
           </div>
 
+          {message && (
+            <div role={messageType === "error" ? "alert" : "status"}
+              style={{ ...messageBox, marginTop: 12, ...(messageType === "success" ? successMessage : errorMessage) }}>
+              {message}
+            </div>
+          )}
+          <fieldset disabled={saving} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
           <div style={quickNoteSection}>
             <div style={quickNoteLabel}>Quick outcomes</div>
 
@@ -630,7 +670,7 @@ function CustomerFollowUpsPage() {
 
           <div style={formGrid}>
             <div style={customerSearchWrapper}>
-              <label style={labelStyle}>
+              <label htmlFor="interaction-customer" style={labelStyle}>
                 Customer <span style={requiredMark}>*</span>
               </label>
 
@@ -663,6 +703,8 @@ function CustomerFollowUpsPage() {
               ) : (
                 <>
                   <input
+                    id="interaction-customer"
+                    disabled={Boolean(editingId)}
                     value={form.customer_search}
                     onChange={(event) => {
                       updateForm("customer_search", event.target.value);
@@ -746,11 +788,12 @@ function CustomerFollowUpsPage() {
           </div>
 
           <div style={noteSection}>
-            <label style={labelStyle}>
+            <label htmlFor="interaction-note" style={labelStyle}>
               Interaction Note <span style={requiredMark}>*</span>
             </label>
 
             <textarea
+              id="interaction-note"
               value={form.note}
               onChange={(event) => updateForm("note", event.target.value)}
               placeholder="Example: Called customer. He answered and said he will make the payment Friday."
@@ -758,6 +801,15 @@ function CustomerFollowUpsPage() {
               required
             />
 
+            {isOpen(form) && !form.next_followup_date && (
+              <div style={paymentNotice}>No callback date yet. This item will stay visible in Needs a date until scheduled or completed.</div>
+            )}
+            {form.followup_type === "Customer promised payment" && (
+              <div style={paymentNotice}>
+                This is a conversation note, not a tracked promise to pay. Open the customer account to record the promise against the correct deal and installment.
+                {form.customer_id && <Link to={`/customers/${form.customer_id}`} style={{ marginLeft: 6 }}>Open account</Link>}
+              </div>
+            )}
             {form.followup_type === "Payment taken" && (
               <div style={paymentNotice}>
                 This note records the conversation only. Use the regular Add
@@ -766,6 +818,7 @@ function CustomerFollowUpsPage() {
             )}
           </div>
 
+          </fieldset>
           <div style={formActions}>
             <button type="submit" disabled={saving} style={primaryButton}>
               {saving
@@ -785,6 +838,7 @@ function CustomerFollowUpsPage() {
             </button>
           </div>
         </form>
+        </InteractionModal>
       )}
 
       <div style={toolbarCard}>
@@ -792,6 +846,9 @@ function CustomerFollowUpsPage() {
           {[
             "Today",
             "Needs Follow-Up",
+            "Overdue",
+            "Unscheduled",
+            "Upcoming",
             "All",
             "Promises",
             "No Answer",
@@ -800,19 +857,21 @@ function CustomerFollowUpsPage() {
             <button
               key={view}
               type="button"
+              aria-pressed={activeView === view}
               onClick={() => setActiveView(view)}
               style={{
                 ...tabButton,
                 ...(activeView === view ? activeTabButton : {}),
               }}
             >
-              {view}
+              {view === "Promises" ? "Promise notes" : view === "Payments" ? "Payment notes" : view === "Unscheduled" ? "Needs a date" : view}
             </button>
           ))}
         </div>
 
         <div style={filtersGrid}>
           <input
+            aria-label="Search interactions"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search customer, company, note, phone..."
@@ -820,6 +879,7 @@ function CustomerFollowUpsPage() {
           />
 
           <select
+            aria-label="Filter by employee"
             value={employeeFilter}
             onChange={(event) => setEmployeeFilter(event.target.value)}
             style={inputStyle}
@@ -834,6 +894,7 @@ function CustomerFollowUpsPage() {
           </select>
 
           <select
+            aria-label="Filter by outcome"
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
             style={inputStyle}
@@ -855,7 +916,7 @@ function CustomerFollowUpsPage() {
 
       <div style={sectionHeader}>
         <div>
-          <h2 style={sectionTitle}>{activeView}</h2>
+          <h2 style={sectionTitle}>{activeView === "Needs Follow-Up" ? "Your follow-up work queue" : activeView === "Unscheduled" ? "Needs a date" : activeView === "Promises" ? "Promise conversation notes" : activeView === "Payments" ? "Payment conversation notes" : activeView}</h2>
           <div style={sectionSubtitle}>
             {filteredFollowUps.length} interaction
             {filteredFollowUps.length === 1 ? "" : "s"}
@@ -863,6 +924,7 @@ function CustomerFollowUpsPage() {
         </div>
 
         <select
+          aria-label="Interactions per page"
           value={pageSize}
           onChange={(event) => setPageSize(Number(event.target.value))}
           style={pageSizeSelect}
@@ -880,7 +942,9 @@ function CustomerFollowUpsPage() {
         />
       ) : filteredFollowUps.length === 0 ? (
         <div style={emptyState}>
-          No customer interactions found for this view.
+          <strong>No interactions in this view.</strong>
+          <p style={formHelp}>Try another view or clear your filters to see more customer activity.</p>
+          <button type="button" onClick={clearFilters} style={secondaryButton}>View all interactions</button>
         </div>
       ) : (
         <div style={timeline}>
@@ -945,7 +1009,9 @@ function CustomerFollowUpsPage() {
                       <span style={highPriorityBadge}>High Priority</span>
                     )}
 
-                    {due && <span style={dueBadge}>Follow-Up Due</span>}
+                    {isOpen(item) && <span style={due ? dueBadge : neutralBadge}>
+                      {followUpStage(item, todayString) === "Unscheduled" ? "Needs a callback date" : followUpStage(item, todayString)}
+                    </span>}
                   </div>
 
                   <div
@@ -971,12 +1037,17 @@ function CustomerFollowUpsPage() {
 
                       {item.next_followup_date && (
                         <span>
-                          Next follow-up: {formatDate(item.next_followup_date)}
+                          {isOpen(item) ? "Next follow-up" : "Previous follow-up date"}: {formatDate(item.next_followup_date)}
                         </span>
                       )}
                     </div>
 
                     <div style={rowActions}>
+                      {item.phone && <a href={`tel:${item.phone.replace(/[^+\d]/g, "")}`} style={actionLink}>Call customer</a>}
+                      <button type="button" disabled={saving} style={miniButton} onClick={() => {
+                        openAddForm();
+                        setForm({ ...initialForm, followup_date: getLocalDateString(), customer_id: item.customer_id, customer_search: item.customer_name });
+                      }}>Log new contact</button>
                       <Link
                         to={`/customers/${item.customer_id}`}
                         style={actionLink}
@@ -986,6 +1057,7 @@ function CustomerFollowUpsPage() {
 
                       <button
                         type="button"
+                        disabled={saving}
                         onClick={() => handleEdit(item)}
                         style={miniButton}
                       >
@@ -1058,23 +1130,60 @@ function CustomerFollowUpsPage() {
   );
 }
 
-function StatCard({ label, value, helper, danger = false }) {
+function InteractionModal({ children, onClose, saving }) {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    dialog.showModal();
+    document.body.style.overflow = "hidden";
+    (dialog.querySelector("#interaction-customer") || dialog.querySelector("#interaction-note"))?.focus();
+
+    return () => {
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, []);
+
   return (
-    <div style={statCard}>
+    <dialog
+      ref={dialogRef}
+      className="interaction-dialog"
+      aria-labelledby="interaction-dialog-title"
+      aria-modal="true"
+      aria-busy={saving}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!saving) onClose();
+      }}
+    >
+      {children}
+    </dialog>
+  );
+}
+
+function StatCard({ label, value, helper, danger = false, onClick }) {
+  return (
+    <button type="button" onClick={onClick} style={{ ...statCard, textAlign: "left", cursor: "pointer", font: "inherit" }}>
       <div style={statLabel}>{label}</div>
       <div style={{ ...statValue, ...(danger ? { color: "#b42318" } : {}) }}>
         {value}
       </div>
       <div style={statHelper}>{helper}</div>
-    </div>
+    </button>
   );
 }
 
 function InputField({ label, type = "text", value, onChange }) {
+  const id = useId();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
+      <label htmlFor={id} style={labelStyle}>{label}</label>
       <input
+        id={id}
         type={type}
         value={value || ""}
         onChange={(event) => onChange(event.target.value)}
@@ -1085,10 +1194,12 @@ function InputField({ label, type = "text", value, onChange }) {
 }
 
 function SelectField({ label, value, onChange, options }) {
+  const id = useId();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
+      <label htmlFor={id} style={labelStyle}>{label}</label>
       <select
+        id={id}
         value={value || ""}
         onChange={(event) => onChange(event.target.value)}
         style={inputStyle}
@@ -1231,6 +1342,12 @@ function statusBadge(status) {
     borderColor: "#fecaca",
   };
 }
+
+const workQueueNotice = {
+  display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap",
+  gap: "12px", padding: "16px 18px", borderRadius: "12px", background: "#eff6ff",
+  border: "1px solid #bfdbfe", color: "#183b62",
+};
 
 const pageWrapper = {
   padding: "20px",

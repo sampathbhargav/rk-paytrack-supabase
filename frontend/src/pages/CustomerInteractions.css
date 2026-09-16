@@ -1,0 +1,25 @@
+.interaction-dialog {
+  width: min(920px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: white;
+  color: #111827;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 28%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.interaction-dialog::backdrop {
+  background: rgb(10 26 47 / 58%);
+  backdrop-filter: blur(3px);
+}
+
+@media (max-width: 480px) {
+  .interaction-dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+}

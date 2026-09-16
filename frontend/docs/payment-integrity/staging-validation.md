@@ -624,3 +624,11 @@ User authorized committing the completed changes; push remains unapproved. All 7
 Lint completed using the identical application source and copied repository ESLint configuration in `/private/tmp/rk-production-build-source`: 99 errors / 5 warnings, unchanged from the known baseline (exit 1). This supersedes the earlier stalled-lint limitation; it is not a clean lint result. A pattern scan of 54 changed/untracked files found no embedded JWTs, private keys, service tokens, or quoted password assignments. This is a targeted scan, not a security audit. Supabase CLI temporary files are ignored; credentials, env files, customer CSV exports, backups and generated build/installers are excluded from the commit.
 
 Production was published through an explicit Vercel CLI prebuilt deployment, which does not require a Git commit or push. A later Git push may independently trigger Vercel; inspect the production branch/build/environment configuration before that push. Committing locally does not deploy or apply SQL.
+
+## Conditional recovery banner — local UI follow-up
+
+Replaced the permanently visible recovery button with a responsive contextual banner. When there is no saved operation and saves are available, no recovery UI is rendered. A pending operation or failure to inspect recovery state shows an amber banner; confirmed results show a green review banner. The action is disabled while recovery/acknowledgement runs. The banner updates after operation completion/acknowledgement, navigation, browser focus, tab visibility, and cross-tab storage changes. An unavailable backend still displays the existing availability notice; recovery of saved requests remains possible.
+
+Files: `src/components/PaymentRecovery.jsx`, new scoped `PaymentRecovery.css`, and `src/api/paymentOperationsApi.js` (UI notification events only). No changes to RPC payloads, request persistence, database schema, production data, or financial calculations.
+
+Validation: 20/20 payment/request tests passed. Production build passed using the local validation mirror with the three changed files copied in; existing bundle-size warning remains. Lint on that mirror returned the unchanged 99 errors / 5 warnings. No new authenticated browser acceptance is claimed for the banner states. This follow-up is local and uncommitted; not pushed or deployed.

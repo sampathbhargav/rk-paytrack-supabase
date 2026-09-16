@@ -1,0 +1,41 @@
+.payment-recovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 12px 0 20px;
+  padding: 16px 20px;
+  border: 1px solid #f0d38c;
+  border-left: 4px solid #b7791f;
+  border-radius: 12px;
+  background: #fffbeb;
+  color: #713f12;
+}
+.payment-recovery--confirmed {
+  border-color: #a7d8bf;
+  background: #f0fdf4;
+  color: #14532d;
+}
+.payment-recovery__content { min-width: 0; overflow-wrap: anywhere; }
+.payment-recovery__content strong { font-size: 15px; }
+.payment-recovery__content p { margin: 5px 0 0; font-size: 14px; line-height: 1.5; }
+.payment-recovery__action {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.payment-recovery__action:hover { background: #00000008; }
+.payment-recovery__action:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.payment-recovery__action:disabled { opacity: 0.65; cursor: wait; }
+@media (max-width: 640px) {
+  .payment-recovery { align-items: stretch; flex-direction: column; padding: 14px; gap: 12px; }
+  .payment-recovery__action { width: 100%; }
+}

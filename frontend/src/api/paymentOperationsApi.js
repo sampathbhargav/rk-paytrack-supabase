@@ -2,6 +2,10 @@ import { supabase } from "../supabaseClient";
 import { createPaymentRequests } from "../utils/paymentRequests.js";
 
 const clients = new Map();
+export const PAYMENT_OPERATION_CHANGED = "rk-payment-operation-changed";
+const notifyPaymentChange = () => {
+  globalThis.window?.dispatchEvent(new Event(PAYMENT_OPERATION_CHANGED));
+};
 
 async function getClient() {
   const { data, error } = await supabase.auth.getSession();
@@ -39,19 +43,27 @@ async function getClient() {
 
 export async function runPaymentOperation(operation, payload) {
   const client = await getClient();
-  const result = await client.run(operation, payload);
-  return result;
+  try {
+    return await client.run(operation, payload);
+  } finally {
+    notifyPaymentChange();
+  }
 }
 
 export async function acknowledgePaymentOperation(requestId) {
   const client = await getClient();
   client.acknowledge(requestId);
+  notifyPaymentChange();
 }
 
 export async function recoverPaymentOperation() {
   const client = await getClient();
   if (!client.pending()) return null;
-  return client.run(null, null, true);
+  try {
+    return await client.run(null, null, true);
+  } finally {
+    notifyPaymentChange();
+  }
 }
 
 export async function hasPendingPaymentOperation() {

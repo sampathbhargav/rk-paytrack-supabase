@@ -1,0 +1,15 @@
+.maintenance-overview { display: grid; gap: 14px; }
+.maintenance-section-heading { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; color: #243b53; }
+.maintenance-section-heading > span { color: #64748b; font-size: 12px; line-height: 1.5; }
+.maintenance-extra-summary summary { color: #475569; font-size: 13px; cursor: pointer; padding: 6px 0; width: fit-content; }
+.maintenance-extra-summary[open] summary { margin-bottom: 12px; }
+.maintenance-filters { display: grid; gap: 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; }
+.maintenance-filter-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.maintenance-search-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.maintenance-search-row input { min-width: 0; }
+.maintenance-search-row select { max-width: 100%; }
+.maintenance-row-more { flex-basis: 100%; }
+.maintenance-row-more summary { cursor: pointer; color: #475569; font-size: 12px; padding: 7px 0; width: fit-content; }
+.maintenance-secondary-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 6px; }
+.maintenance-page button:focus-visible, .maintenance-page select:focus-visible, .maintenance-page input:focus-visible, .maintenance-page summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+@media (max-width: 600px) { .maintenance-search-row > input { flex-basis: 100% !important; width: 100%; } .maintenance-search-row > select { flex: 1 1 140px; min-width: 0; } }

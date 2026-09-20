@@ -15,6 +15,7 @@ import { logActivity } from "../api/activityLogsApi";
 import { exportToCsv } from "../utils/exportUtils";
 import { formatMoney } from "../utils/moneyUtils";
 import LoadingSpinner from "../components/LoadingSpinner";
+import "./Maintenance.css";
 
 const todayString = new Date().toISOString().split("T")[0];
 
@@ -57,6 +58,7 @@ const quickFilters = [
   "Broken Promises",
   "Completed Not Paid",
   "Closed/Paid",
+  "Paid",
 ];
 
 
@@ -140,7 +142,7 @@ function calculateMaintenanceTotals(job) {
 function Maintenance() {
   const [jobs, setJobs] = useState([]);
   const [search, setSearch] = useState("");
-  const [quickFilter, setQuickFilter] = useState("All");
+  const [quickFilter, setQuickFilter] = useState("Open Balance");
   const [sortBy, setSortBy] = useState("due_date");
   const [sortDirection, setSortDirection] = useState("asc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -327,7 +329,7 @@ function Maintenance() {
 
   const clearFilters = () => {
     setSearch("");
-    setQuickFilter("All");
+    setQuickFilter("Open Balance");
     setSortBy("due_date");
     setSortDirection("asc");
     setCurrentPage(1);
@@ -474,7 +476,7 @@ function Maintenance() {
   };
 
   return (
-    <div style={pageWrapper}>
+    <div style={pageWrapper} className="maintenance-page">
       <style>
         {`
           @keyframes rkSlideInAlert {
@@ -533,17 +535,10 @@ function Maintenance() {
           <div style={eyebrow}>Service & Repair Ledger</div>
           <h1 style={pageTitle}>Maintenance</h1>
           <p style={pageDescription}>
-            Track repair invoices, customer balances, technician work, payments,
-            scheduled promises, receipts, and open service balances.
+            Manage service invoices and follow up on outstanding balances.
           </p>
 
-          <div style={heroPills}>
-            <span style={heroPill}>Invoices</span>
-            <span style={heroPill}>Payments</span>
-            <span style={heroPill}>Promises</span>
-            <span style={heroPill}>Receipts</span>
-            <span style={heroPill}>Reports</span>
-          </div>
+
         </div>
 
         <div style={heroActions}>
@@ -558,6 +553,7 @@ function Maintenance() {
           <button
             type="button"
             onClick={loadMaintenance}
+            disabled={loading}
             style={secondaryButton}
           >
             ↻ Refresh
@@ -568,7 +564,7 @@ function Maintenance() {
             onClick={exportFilteredMaintenance}
             style={secondaryButton}
           >
-            Export CSV
+            Export current view
           </button>
         </div>
       </div>
@@ -584,59 +580,35 @@ function Maintenance() {
         </div>
       )}
 
-      <div style={metricGrid}>
-        <MetricCard
-          label="Total Maintenance"
-          value={formatMoney(stats.totalAmount)}
-        />
-        <MetricCard
-          label="Total Paid"
-          value={formatMoney(stats.totalPaid)}
-          tone="success"
-        />
-        <MetricCard
-          label="Open Balance"
-          value={formatMoney(stats.totalBalance)}
-          tone="danger"
-        />
-        <MetricCard
-          label="Active Jobs"
-          value={stats.activeJobs.length}
-          tone="info"
-        />
-        <MetricCard
-          label="Due Today"
-          value={stats.dueToday.length}
-          tone="warning"
-        />
-        <MetricCard
-          label="Past Due"
-          value={stats.pastDue.length}
-          tone="danger"
-        />
-        <MetricCard
-          label="Scheduled Promises"
-          value={stats.pendingPromises.length}
-          tone="warning"
-        />
-        <MetricCard
-          label="Broken Promises"
-          value={stats.brokenPromises.length}
-          tone="danger"
-        />
-        <MetricCard
-          label="Completed Not Paid"
-          value={stats.completedNotPaid.length}
-          tone="danger"
-        />
-      </div>
+      <section aria-label="Maintenance overview" className="maintenance-overview">
+        <div className="maintenance-section-heading"><strong>Overview</strong><span>All maintenance records · totals do not change with filters</span></div>
+        <div style={metricGrid}>
+          <MetricCard label="Open Balance" value={formatMoney(stats.totalBalance)} tone="danger" />
+          <MetricCard label="Due Today" value={stats.dueToday.length} />
+          <MetricCard label="Past Due" value={stats.pastDue.length} tone="warning" />
+          <MetricCard label="Completed Not Paid" value={stats.completedNotPaid.length} />
+        </div>
+        <details className="maintenance-extra-summary">
+          <summary>More overview totals</summary>
+          <div style={metricGrid}>
+            <MetricCard label="Total Maintenance" value={formatMoney(stats.totalAmount)} />
+            <MetricCard label="Total Paid" value={formatMoney(stats.totalPaid)} />
+            <MetricCard label="Active Jobs" value={stats.activeJobs.length} />
+            <MetricCard label="Scheduled Promises" value={stats.pendingPromises.length} />
+            <MetricCard label="Broken Promises" value={stats.brokenPromises.length} />
+          </div>
+        </details>
+      </section>
 
-      <div style={quickFilterBar}>
-        {quickFilters.map((filter) => (
+      <section className="maintenance-filters" aria-label="Find maintenance records">
+      <div className="maintenance-section-heading"><strong>Find records</strong><span>Open balances shown by default. Choose Paid or All to see settled invoices.</span></div>
+      <div className="maintenance-filter-tabs">
+        {["Open Balance", "Past Due", "Paid", "All"].map((filter) => (
           <button
             key={filter}
             type="button"
             onClick={() => updateFilter(setQuickFilter, filter)}
+            aria-pressed={quickFilter === filter}
             style={{
               ...quickFilterButton,
               ...(quickFilter === filter ? quickFilterButtonActive : {}),
@@ -645,10 +617,15 @@ function Maintenance() {
             {filter}
           </button>
         ))}
+        <select aria-label="More maintenance views" value={!["Open Balance", "Past Due", "Paid", "All"].includes(quickFilter) ? quickFilter : ""} onChange={(event) => updateFilter(setQuickFilter, event.target.value)} style={selectStyle}>
+          <option value="" disabled>More views…</option>
+          {quickFilters.filter(filter => !["Open Balance", "Past Due", "Paid", "All"].includes(filter)).map(filter => <option key={filter}>{filter}</option>)}
+        </select>
       </div>
 
-      <div style={filterBar}>
+      <div className="maintenance-search-row">
         <input
+          aria-label="Search maintenance records"
           value={search}
           onChange={(e) => updateFilter(setSearch, e.target.value)}
           placeholder="Search invoice, customer, company, phone, vehicle/truck, VIN, technician, work title..."
@@ -656,6 +633,7 @@ function Maintenance() {
         />
 
         <select
+          aria-label="Sort maintenance by"
           value={sortBy}
           onChange={(e) => updateFilter(setSortBy, e.target.value)}
           style={selectStyle}
@@ -669,6 +647,7 @@ function Maintenance() {
         </select>
 
         <select
+          aria-label="Sort direction"
           value={sortDirection}
           onChange={(e) => updateFilter(setSortDirection, e.target.value)}
           style={selectStyle}
@@ -678,7 +657,7 @@ function Maintenance() {
         </select>
 
         <button type="button" onClick={clearFilters} style={clearButton}>
-          Clear
+          Reset view
         </button>
       </div>
 
@@ -697,13 +676,15 @@ function Maintenance() {
         </span>
       </div>
 
+      </section>
+
       {loading ? (
         <LoadingSpinner message="Loading maintenance records..." />
       ) : (
         <div style={tableCard}>
           <div style={tableHeader}>
             <div>
-              <h2 style={sectionTitle}>Maintenance Records</h2>
+              <h2 style={sectionTitle}>{quickFilter === "All" ? "All maintenance records" : `${quickFilter} records`}</h2>
               <p style={sectionDescription}>
                 Showing {pageStart}-{pageEnd} of {filteredJobs.length} filtered
                 records. Total records: {jobs.length}.
@@ -740,7 +721,9 @@ function Maintenance() {
                 {paginatedJobs.length === 0 ? (
                   <tr>
                     <td style={emptyCell} colSpan="10">
-                      No maintenance records found.
+                      <strong>No records in this view.</strong>
+                      <p>Try another search or choose All to include paid and no-charge records.</p>
+                      <button type="button" style={clearButton} onClick={() => { setSearch(""); setQuickFilter("All"); setCurrentPage(1); }}>Show all records</button>
                     </td>
                   </tr>
                 ) : (
@@ -869,6 +852,9 @@ function Maintenance() {
                               Payment
                             </button>
 
+                            <details className="maintenance-row-more">
+                              <summary>More actions</summary>
+                              <div className="maintenance-secondary-actions">
                             <button
                               type="button"
                               onClick={() => setPromiseJob(job)}
@@ -896,6 +882,8 @@ function Maintenance() {
                             >
                               Edit
                             </button>
+                              </div>
+                            </details>
                           </div>
                         </td>
                       </tr>
@@ -2596,6 +2584,7 @@ function applyQuickFilter(job, filter) {
     (promise) => promise.promise_status === "Broken"
   );
 
+  if (filter === "Paid") return job.totals.balanceStatus === "Paid";
   if (filter === "Open Balance") return balance > 0;
   if (filter === "Due Today") return balance > 0 && job.due_date === todayString;
   if (filter === "Past Due") {
@@ -3263,23 +3252,6 @@ const pageDescription = {
   lineHeight: "1.5",
 };
 
-const heroPills = {
-  display: "flex",
-  gap: "8px",
-  flexWrap: "wrap",
-  marginTop: "14px",
-};
-
-const heroPill = {
-  background: "rgba(255,255,255,0.12)",
-  border: "1px solid rgba(255,255,255,0.25)",
-  color: "#e0f2fe",
-  borderRadius: "999px",
-  padding: "6px 10px",
-  fontSize: "12px",
-  fontWeight: "900",
-};
-
 const heroActions = {
   display: "flex",
   gap: "10px",
@@ -3426,17 +3398,6 @@ const metricValue = {
   fontSize: "20px",
 };
 
-const quickFilterBar = {
-  background: "white",
-  border: "1px solid #e5e7eb",
-  borderRadius: "18px",
-  padding: "13px",
-  display: "flex",
-  gap: "8px",
-  flexWrap: "wrap",
-  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
-};
-
 const quickFilterButton = {
   border: "1px solid #d1d5db",
   background: "#f8fafc",
@@ -3452,17 +3413,6 @@ const quickFilterButtonActive = {
   background: "#0A1A2F",
   color: "white",
   borderColor: "#0A1A2F",
-};
-
-const filterBar = {
-  background: "white",
-  border: "1px solid #e5e7eb",
-  borderRadius: "18px",
-  padding: "14px",
-  display: "flex",
-  gap: "10px",
-  flexWrap: "wrap",
-  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
 };
 
 const filteredSummaryBar = {

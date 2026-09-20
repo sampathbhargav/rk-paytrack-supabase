@@ -1,3 +1,6 @@
+import CustomerAccountLoading from "../components/CustomerAccountLoading";
+import AccountBalanceGuide from "../components/AccountBalanceGuide";
+import { getAccountCollectionSummary } from "../utils/accountCollectionSummary";
 import { getActivePromises } from "../utils/promiseUtils";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -21,7 +24,7 @@ import PaymentReceipt from "../components/PaymentReceipt";
 import CustomerFollowUps from "../components/CustomerFollowUps";
 import { openDealContractPdf } from "../utils/openDealContractPdf";
 
-function CustomerDetail() {
+function CustomerDetail({ onLoadingChange }) {
   const { dealId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,6 +43,11 @@ function CustomerDetail() {
     loadCustomerDetail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId, location.key]);
+
+  useEffect(() => {
+    onLoadingChange?.(!deal && !error);
+    return () => onLoadingChange?.(false);
+  }, [deal, error, onLoadingChange]);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -114,17 +122,7 @@ function CustomerDetail() {
   }
 
   if (!deal) {
-    return (
-      <div style={pageWrapper}>
-        <div style={loadingCard}>
-          <div style={loadingIcon}>⏳</div>
-          <strong>Loading customer account...</strong>
-          <p style={{ margin: "6px 0 0", color: "#667085" }}>
-            Please wait while RK PayTrack loads the deal details.
-          </p>
-        </div>
-      </div>
-    );
+    return <CustomerAccountLoading onBack={handleBack} />;
   }
 
   const customerCompanyName = deal.customers?.company_name?.trim() || "";
@@ -176,6 +174,10 @@ function CustomerDetail() {
     (sum, promise) => sum + Number(promise.remaining_amount || 0),
     0
   );
+
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const collectionSummary = getAccountCollectionSummary(deal, payments, promises, paymentSkips, today);
 
   const openPaymentReceipt = (payment, paymentGroup = null) => {
     if (!payment || !deal) return;
@@ -648,21 +650,23 @@ function CustomerDetail() {
             </div>
           </div>
 
+          <AccountBalanceGuide deal={deal} collectionSummary={collectionSummary} />
+
           <div style={metricGrid}>
             <MetricCard
-              label="Total Amount"
+              label="Total Financed"
               value={formatMoney(totalAmount)}
               tone="default"
             />
 
             <MetricCard
-              label="Total Paid"
+              label="Applied to Balance"
               value={formatMoney(totalPaid)}
               tone="success"
             />
 
             <MetricCard
-              label="Balance"
+              label="Total Deal Balance"
               value={formatMoney(balance)}
               tone={balance > 0 ? "danger" : "success"}
             />
@@ -692,7 +696,7 @@ function CustomerDetail() {
             />
 
             <MetricCard
-              label="Open Promise Balance"
+              label="Active Promised Amount"
               value={formatMoney(activePromiseBalance)}
               tone="warning"
             />
@@ -1798,21 +1802,6 @@ const sectionDescription = {
 const sectionContent = {
   maxWidth: "100%",
   overflow: "hidden",
-};
-
-const loadingCard = {
-  background: "white",
-  border: "1px solid #e5e7eb",
-  borderRadius: "18px",
-  padding: "28px",
-  textAlign: "center",
-  color: "#111827",
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.07)",
-};
-
-const loadingIcon = {
-  fontSize: "34px",
-  marginBottom: "10px",
 };
 
 const dangerPageWrapper = {

@@ -1,0 +1,14 @@
+.payment-review { margin-top: 22px; border: 1px solid #b8cce3; border-radius: 14px; overflow: hidden; color: #142b46; background: #f7faff; }
+.payment-review header { padding: 18px 20px 0; }
+.payment-review-eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 11px; font-weight: 800; color: #466b94; }
+.payment-review h3 { margin: 6px 0; font-size: 20px; }
+.payment-review p { font-size: 13px; line-height: 1.6; }
+.payment-review-details { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 16px; margin: 0; padding: 16px 20px; }
+.payment-review dt, .payment-review-balances span { display: block; font-size: 12px; color: #4b6078; margin-bottom: 6px; }
+.payment-review dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.payment-review-balances { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 1px; background: #dbe5f0; border-block: 1px solid #dbe5f0; }
+.payment-review-balances > div { background: white; padding: 18px 20px; }
+.payment-review-balances strong { display: block; font-size: 21px; }
+.payment-review-balances small { display: block; margin-top: 6px; color: #596b80; line-height: 1.5; }
+.payment-review-note { margin: 0; padding: 12px 20px; }
+@media (max-width: 480px) { .payment-review-details, .payment-review-balances { grid-template-columns: 1fr; } }

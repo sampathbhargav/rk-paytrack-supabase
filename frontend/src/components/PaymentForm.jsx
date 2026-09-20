@@ -8,6 +8,7 @@ import { getDealDueSchedule } from "../utils/duePaymentsUtils";
 import { formatMoney } from "../utils/moneyUtils";
 import { logActivity } from "../api/activityLogsApi";
 import PaymentReceipt from "./PaymentReceipt";
+import PaymentReviewPanel from "./PaymentReviewPanel";
 // import LoadingSpinner from "../components/LoadingSpinner";
 import LoadingSpinner from "./LoadingSpinner";
 
@@ -361,7 +362,7 @@ function PaymentForm() {
       .join("\n");
 
     const confirmed = window.confirm(
-      `Are you sure you want to save this payment?\n\nThis payment will be applied like this:\n\n${allocationText}`
+      `Save ${formatMoney(amountPaid)} for ${selectedDeal?.customers?.customer_name || "customer"} (deal #${selectedDeal?.deal_tag || "—"})?\n\nPayment date: ${formatDisplayDate(formData.paymentDate)}\nMethod: ${formData.paymentMethod}\n\n${allocationText}\n\nSelected installment remaining: ${formatMoney(selectedInstallmentRemainingAfterPayment)}${isMoneyGreaterThan(amountDue, amountPaid) ? `\nPromised date: ${formatDisplayDate(formData.promisedDate)}` : ""}\n\nEstimated total deal balance after: ${formatMoney(moneyMax(subtractMoney(selectedDealRemainingBalance, amountPaid), 0))}`
     );
 
     if (!confirmed) return;
@@ -1051,35 +1052,26 @@ function PaymentForm() {
         />
       </Section>
 
-      <div style={paymentSummaryBox}>
-        <div>
-          <span style={summaryLabel}>Selected Installment Balance</span>
-          <strong>{formatMoney(amountDue)}</strong>
-        </div>
-
-        <div>
-          <span style={summaryLabel}>Paid Today</span>
-          <strong>{formatMoney(amountPaid)}</strong>
-        </div>
-
-        <div>
-          <span style={summaryLabel}>Total Remaining After Payment</span>
-          <strong
-            style={{
-              color: isMoneyGreaterThan(totalRemainingAfterPayment, 0)
-                ? "#991b1b"
-                : "#166534",
-            }}
-          >
-            {formatMoney(totalRemainingAfterPayment)}
-          </strong>
-        </div>
-      </div>
+      {selectedDeal && selectedInstallment && (
+        <PaymentReviewPanel
+          customer={selectedDeal.customers?.customer_name || "Customer"}
+          dealTag={selectedDeal.deal_tag}
+          date={formatDisplayDate(formData.paymentDate)}
+          method={formData.paymentMethod}
+          amount={amountPaid}
+          balanceBefore={selectedDealRemainingBalance}
+          balanceAfter={moneyMax(subtractMoney(selectedDealRemainingBalance, amountPaid), 0)}
+          installmentAfter={selectedInstallmentRemainingAfterPayment}
+          promisedDate={formData.promisedDate ? formatDisplayDate(formData.promisedDate) : ""}
+          valid={isMoneyGreaterThan(amountPaid, 0) && !isOverpayingDealBalance}
+          allocations={paymentAllocations.length}
+        />
+      )}
 
       {isMoneyGreaterThan(amountDue, amountPaid) && (
         <div style={partialWarningBox}>
-          This is a partial payment. A promise will be created for the remaining
-          amount when a promised date is entered.
+          This is a partial payment. The remaining amount will be tracked by a
+          new or updated promise using the promised date.
         </div>
       )}
 
@@ -1371,11 +1363,12 @@ function Input({
 }) {
   return (
     <div>
-      <label style={labelStyle}>
+      <label htmlFor={`payment-${name}`} style={labelStyle}>
         {label} {required && <span style={requiredMark}>*</span>}
       </label>
 
       <input
+        id={`payment-${name}`}
         name={name}
         type={type}
         value={value}
@@ -1799,24 +1792,6 @@ const notesInput = {
   background: "#fffbeb",
   border: "1px solid #fde68a",
   lineHeight: "1.5",
-};
-
-const paymentSummaryBox = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: "14px",
-  background: "#f9fafb",
-  padding: "16px",
-  borderRadius: "12px",
-  marginTop: "22px",
-  border: "1px solid #e5e7eb",
-};
-
-const summaryLabel = {
-  display: "block",
-  color: "#667085",
-  fontSize: "12px",
-  marginBottom: "5px",
 };
 
 const partialWarningBox = {

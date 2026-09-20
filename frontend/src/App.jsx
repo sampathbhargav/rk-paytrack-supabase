@@ -65,6 +65,7 @@ function AppLayout() {
   );
 
   const [searchMinimized, setSearchMinimized] = useState(false);
+  const [accountLoading, setAccountLoading] = useState(false);
   const [searchHovered, setSearchHovered] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
 
@@ -72,8 +73,7 @@ function AppLayout() {
   const location = useLocation();
 
   const searchActive = searchHovered || searchFocused;
-  // const showFullSearch = isMobile ? true : !searchMinimized || searchActive;
-  const showFullSearch = !searchMinimized || searchActive;
+  const showFullSearch = !(searchMinimized || accountLoading) || searchActive;
 const showMobileSearchRow = isMobile && showFullSearch;
   const showSidebarLabels = isMobile || !collapsed;
 
@@ -356,7 +356,7 @@ const showMobileSearchRow = isMobile && showFullSearch;
             <Route path="/" element={<Dashboard />} />
             <Route path="/deals" element={<Deals />} />
             <Route path="/deal-stories" element={<DealStories />} />
-            <Route path="/deals/:dealId" element={<CustomerDetail />} />
+            <Route path="/deals/:dealId" element={<CustomerDetail onLoadingChange={setAccountLoading} />} />
             <Route path="/deals/:dealId/edit" element={<EditDeal />} />
             <Route path="/add-deal" element={<AddDeal />} />
             <Route path="/add-payment" element={<AddPayment />} />

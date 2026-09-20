@@ -58,7 +58,9 @@ function App() {
 }
 
 function AppLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [sidebarKeyboardFocused, setSidebarKeyboardFocused] = useState(false);
+  const collapsed = !sidebarHovered && !sidebarKeyboardFocused;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= 820 : false
@@ -179,7 +181,22 @@ const showMobileSearchRow = isMobile && showFullSearch;
         />
       )}
 
-      <aside style={computedSidebarStyle}>
+      <aside
+        style={computedSidebarStyle}
+        aria-label="Main navigation"
+        onMouseEnter={() => { if (!isMobile) setSidebarHovered(true); }}
+        onMouseLeave={() => setSidebarHovered(false)}
+        onFocusCapture={(event) => {
+          if (!isMobile && event.target.matches(":focus-visible")) {
+            setSidebarKeyboardFocused(true);
+          }
+        }}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            setSidebarKeyboardFocused(false);
+          }
+        }}
+      >
         <div
           style={{
             ...sidebarHeaderStyle,
@@ -207,17 +224,13 @@ const showMobileSearchRow = isMobile && showFullSearch;
               if (isMobile) {
                 setMobileNavOpen(false);
               } else {
-                setCollapsed(!collapsed);
+                setSidebarHovered(true);
               }
             }}
             style={collapseButton}
-            title={
-              isMobile
-                ? "Close menu"
-                : collapsed
-                ? "Expand menu"
-                : "Collapse menu"
-            }
+            aria-label={isMobile ? "Close menu" : "Expand navigation"}
+            aria-expanded={isMobile ? mobileNavOpen : !collapsed}
+            title={isMobile ? "Close menu" : "Hover or focus to expand navigation"}
           >
             {isMobile ? "×" : "☰"}
           </button>
@@ -232,6 +245,8 @@ const showMobileSearchRow = isMobile && showFullSearch;
                 key={item.path}
                 to={item.path}
                 title={!showSidebarLabels ? item.label : ""}
+                aria-label={item.label}
+                aria-current={active ? "page" : undefined}
                 onClick={() => {
                   if (isMobile) {
                     setMobileNavOpen(false);
@@ -378,6 +393,10 @@ const showMobileSearchRow = isMobile && showFullSearch;
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>
+
+        <footer style={{ background: "transparent", textAlign: "center", color: "#64748b", fontSize: "12px", padding: "24px 12px 8px", marginTop: "16px" }}>
+          © Daily Transport Inc
+        </footer>
 
         {location.pathname !== "/ai-assistant" && (
           <Link

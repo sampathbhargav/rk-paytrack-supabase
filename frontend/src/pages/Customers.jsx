@@ -3,10 +3,13 @@ import { Link } from "react-router-dom";
 import { getCustomerDashboardRows } from "../api/customersApi";
 import { formatMoney } from "../utils/moneyUtils";
 import LoadingSpinner from "../components/LoadingSpinner";
+import "./Customers.css";
 
 function Customers() {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -44,6 +47,11 @@ function Customers() {
     });
   }, [customers, search]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const visibleCustomers = filteredCustomers.slice(startIndex, startIndex + pageSize);
+
   const totalBalance = filteredCustomers.reduce(
     (sum, customer) => sum + Number(customer.total_balance || 0),
     0
@@ -79,10 +87,11 @@ function Customers() {
       </div>
 
       <div style={filterCard}>
-        <label style={labelStyle}>Search Customers</label>
+        <label htmlFor="customers-search" style={labelStyle}>Search Customers</label>
         <input
+          id="customers-search"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           placeholder="Search customer name, company name, phone, email, or address..."
           style={inputStyle}
         />
@@ -116,7 +125,7 @@ function Customers() {
                     </td>
                   </tr>
                 ) : (
-                  filteredCustomers.map((customer) => (
+                  visibleCustomers.map((customer) => (
                     <tr key={customer.id}>
                       <td style={tdStyle}>
                         <Link
@@ -172,6 +181,24 @@ function Customers() {
               </tbody>
             </table>
           </div>
+          <nav className="customers-pagination" aria-label="Customer table pagination">
+            <span className="customers-pagination-summary" role="status">
+              Showing {filteredCustomers.length ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, filteredCustomers.length)} of {filteredCustomers.length} customers
+            </span>
+            <label className="customers-page-size">
+              Rows per page
+              <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>
+                {[10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
+              </select>
+            </label>
+            <div className="customers-page-buttons">
+              <button type="button" disabled={currentPage === 1} onClick={() => setPage(1)} aria-label="First customer page">First</button>
+              <button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} aria-label="Previous customer page">Previous</button>
+              <span>Page {currentPage} of {totalPages}</span>
+              <button type="button" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Next customer page">Next</button>
+              <button type="button" disabled={currentPage === totalPages} onClick={() => setPage(totalPages)} aria-label="Last customer page">Last</button>
+            </div>
+          </nav>
         </div>
       )}
     </div>

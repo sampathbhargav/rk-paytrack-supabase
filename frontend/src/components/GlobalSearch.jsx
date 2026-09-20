@@ -6,7 +6,7 @@ import { getPayments } from "../api/paymentsApi";
 import { getPromises } from "../api/promisesApi";
 import { formatMoney } from "../utils/moneyUtils";
 
-function GlobalSearch() {
+function GlobalSearch({ autoFocus = false }) {
   const [search, setSearch] = useState("");
   const [customers, setCustomers] = useState([]);
   const [deals, setDeals] = useState([]);
@@ -240,6 +240,8 @@ function GlobalSearch() {
         <span style={searchIcon}>⌕</span>
 
         <input
+          autoFocus={autoFocus}
+          aria-label="Search customers, deals, payments and promises"
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
           onFocus={() => {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 
-function UserMenu() {
+function UserMenu({ compact = false }) {
   const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -36,13 +36,15 @@ function UserMenu() {
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         style={userButton}
+        aria-label={`Account menu for ${displayName}`}
+        aria-expanded={open}
       >
         <span style={avatarStyle}>{initials || "RK"}</span>
 
-        <span style={userText}>
-          <strong>{displayName}</strong>
+        {!compact && <span style={{ ...userText, maxWidth: "160px" }}>
+          <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</strong>
           <small>Signed in</small>
-        </span>
+        </span>}
       </button>
 
       {open && (

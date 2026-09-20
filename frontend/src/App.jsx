@@ -1,5 +1,6 @@
+import "./AppHeader.css";
 import PaymentRecovery from "./components/PaymentRecovery";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -66,18 +67,33 @@ function AppLayout() {
     typeof window !== "undefined" ? window.innerWidth <= 820 : false
   );
 
-  const [searchMinimized, setSearchMinimized] = useState(false);
+  const [searchMinimized, setSearchMinimized] = useState(true);
   const [accountLoading, setAccountLoading] = useState(false);
   const [searchHovered, setSearchHovered] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [headerScrolledAway, setHeaderScrolledAway] = useState(false);
+  const [headerHovered, setHeaderHovered] = useState(false);
+  const [headerFocused, setHeaderFocused] = useState(false);
+  const previousScrollTop = useRef(0);
+  const headerRef = useRef(null);
 
   const searchWrapperRef = useRef(null);
+  const mainScrollRef = useRef(null);
   const location = useLocation();
+
+  useLayoutEffect(() => {
+    if (/^\/deals\/[^/]+\/?$/.test(location.pathname) && mainScrollRef.current) {
+      mainScrollRef.current.scrollTop = 0;
+      mainScrollRef.current.scrollLeft = 0;
+    }
+  }, [location.pathname, location.key]);
 
   const searchActive = searchHovered || searchFocused;
   const showFullSearch = !(searchMinimized || accountLoading) || searchActive;
-const showMobileSearchRow = isMobile && showFullSearch;
+
   const showSidebarLabels = isMobile || !collapsed;
+  const headerHidden = headerScrolledAway && !headerHovered && !headerFocused;
+  const headerLeft = isMobile ? 0 : collapsed ? 72 : 250;
 
   useEffect(() => {
     const handleResize = () => {
@@ -101,9 +117,14 @@ const showMobileSearchRow = isMobile && showFullSearch;
 
   useEffect(() => {
     setMobileNavOpen(false);
-    setSearchMinimized(false);
+    setSearchMinimized(true);
     setSearchHovered(false);
     setSearchFocused(false);
+    setHeaderHovered(false);
+    setHeaderFocused(false);
+    const top = mainScrollRef.current?.scrollTop || 0;
+    previousScrollTop.current = top;
+    setHeaderScrolledAway(top > 40);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -117,9 +138,13 @@ const showMobileSearchRow = isMobile && showFullSearch;
   }, [isMobile, mobileNavOpen]);
 
   const handleMainScroll = (event) => {
-    if (searchActive) return;
-  
     const scrollTop = event.currentTarget.scrollTop;
+    const previous = previousScrollTop.current;
+    previousScrollTop.current = scrollTop;
+    if (scrollTop <= 40) setHeaderScrolledAway(false);
+    else if (!isMobile) setHeaderScrolledAway(true);
+    else if (Math.abs(scrollTop - previous) > 2) setHeaderScrolledAway(scrollTop > previous);
+    if (searchActive) return;
     const minimizeAfter = isMobile ? 45 : 80;
     const shouldMinimize = scrollTop > minimizeAfter;
   
@@ -147,6 +172,14 @@ const showMobileSearchRow = isMobile && showFullSearch;
     { label: "Policy Center", path: "/legal-policies" },
     { label: "Activity Logs", path: "/activity-logs" },
   ];
+
+  const dealDetail = /^\/deals\/[^/]+\/?$/.test(location.pathname);
+  const dealEdit = /^\/deals\/[^/]+\/edit\/?$/.test(location.pathname);
+  const customerDetail = /^\/customers\/[^/]+\/?$/.test(location.pathname);
+  const pageParent = dealDetail || dealEdit ? { label: "Deals", path: "/deals" }
+    : customerDetail ? { label: "Customers", path: "/customers" } : null;
+  const pageTitle = dealEdit ? "Edit deal" : dealDetail ? "Customer deal" : customerDetail ? "Customer profile"
+    : navItems.find(item => item.path === location.pathname)?.label || "RK PayTrack";
 
   const isActive = (path) => {
     if (path === "/") {
@@ -270,98 +303,56 @@ const showMobileSearchRow = isMobile && showFullSearch;
       </aside>
 
       <main
-        style={isMobile ? mobileMainStyle : mainStyle}
+        ref={mainScrollRef}
+        style={{ ...(isMobile ? mobileMainStyle : mainStyle), paddingTop: isMobile && showFullSearch ? "148px" : "96px" }}
         onScroll={handleMainScroll}
       >
-        <div
-          style={{
-            ...topHeaderStyle,
-            ...(showFullSearch
-              ? topHeaderExpandedStyle
-              : topHeaderMinimizedStyle),
-            ...(isMobile ? mobileTopHeaderStyle : {}),
-          }}
-        >
-          <div
-            style={{
-              ...topHeaderContent,
-              ...(isMobile ? mobileTopHeaderContent : {}),
-            }}
-          >
-            {isMobile && (
-              <button
-                type="button"
-                onClick={() => setMobileNavOpen(true)}
-                style={mobileMenuButton}
-              >
-                <span style={mobileMenuIcon}>☰</span>
-                <span>Menu</span>
-              </button>
-            )}
-
-              <div
-                style={{
-                  ...topSearchArea,
-                  ...(isMobile
-                    ? showMobileSearchRow
-                      ? mobileTopSearchArea
-                      : mobileTopSearchAreaHidden
-                    : {}),
-                  justifyContent: showFullSearch ? "center" : "flex-end",
-                }}
-              >
-              {showFullSearch ? (
-                <div
-                  ref={searchWrapperRef}
-                  style={{
-                    ...searchExpandedWrapper,
-                    ...(isMobile ? mobileSearchExpandedWrapper : {}),
-                  }}
-                  onMouseEnter={() => setSearchHovered(true)}
-                  onMouseLeave={() => setSearchHovered(false)}
-                  onFocusCapture={() => setSearchFocused(true)}
-                  onBlurCapture={() => {
-                    setTimeout(() => {
-                      const activeElement = document.activeElement;
-
-                      if (
-                        searchWrapperRef.current &&
-                        !searchWrapperRef.current.contains(activeElement)
-                      ) {
-                        setSearchFocused(false);
-                      }
-                    }, 150);
-                  }}
-                >
-                  <GlobalSearch />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  style={searchMiniPill}
-                  onMouseEnter={() => setSearchHovered(true)}
-                  onFocus={() => setSearchFocused(true)}
-                  onClick={() => {
-                    setSearchHovered(true);
-                    setSearchFocused(true);
-                  }}
-                >
-                  <span style={searchMiniIcon}>⌕</span>
-                  <span>Search</span>
-                </button>
-              )}
-            </div>
-
-            <div
-              style={{
-                ...userMenuWrapper,
-                ...(isMobile ? mobileUserMenuWrapper : {}),
-              }}
-            >
-              <UserMenu />
+        <button type="button" className="app-header-reveal" style={{ left: headerLeft }}
+          aria-label="Show page header" aria-controls="page-header"
+          onMouseEnter={() => setHeaderHovered(true)}
+          onMouseLeave={(event) => { if (!headerRef.current?.contains(event.relatedTarget)) setHeaderHovered(false); }}
+          onFocus={() => setHeaderFocused(true)}
+          onBlur={() => setHeaderFocused(false)}
+          onClick={() => headerRef.current?.querySelector("button, a, input")?.focus()} />
+        <header id="page-header" ref={headerRef}
+          className={`app-header${showFullSearch ? " app-header--search-open" : ""}${headerHidden ? " app-header--hidden" : ""}`}
+          style={{ left: headerLeft }}
+          onMouseEnter={() => setHeaderHovered(true)}
+          onMouseLeave={() => setHeaderHovered(false)}
+          onFocusCapture={() => setHeaderFocused(true)}
+          onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setHeaderFocused(false); }}>
+          <div className="app-header-context">
+            {isMobile && <button type="button" className="app-header-menu" aria-label="Open navigation menu" onClick={() => setMobileNavOpen(true)}>☰</button>}
+            <div className="app-header-page">
+              <span className="app-header-eyebrow">RK PayTrack</span>
+              <nav aria-label="Breadcrumb" className="app-header-breadcrumb">
+                {pageParent && <><Link to={pageParent.path}>{pageParent.label}</Link><span aria-hidden="true">/</span></>}
+                <strong aria-current="page">{pageTitle}</strong>
+              </nav>
             </div>
           </div>
-        </div>
+          <div className="app-header-search">
+            {showFullSearch ? (
+              <div ref={searchWrapperRef} className="app-header-search-expanded"
+                onMouseEnter={() => setSearchHovered(true)}
+                onMouseLeave={() => setSearchHovered(false)}
+                onFocusCapture={() => setSearchFocused(true)}
+                onBlurCapture={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setSearchFocused(false);
+                }}
+              >
+                <GlobalSearch autoFocus={searchFocused} />
+              </div>
+            ) : (
+              <button type="button" className="app-header-search-button" aria-label="Search customers, deals and payments"
+                onClick={() => { setSearchFocused(true); setSearchHovered(false); }}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+                <span>Search</span>
+              </button>
+            )}
+          </div>
+          <div className="app-header-user"><UserMenu compact={isMobile} /></div>
+        </header>
 
         <ConnectionStatus />
         <PaymentRecovery />
@@ -567,141 +558,6 @@ const mobileMainStyle = {
   overflowX: "hidden",
   overflowY: "auto",
   boxSizing: "border-box",
-};
-
-const topHeaderStyle = {
-  width: "100%",
-  display: "flex",
-  alignItems: "center",
-  position: "sticky",
-  top: 0,
-  zIndex: 60,
-  background: "transparent",
-  pointerEvents: "none",
-  minHeight: "58px",
-  marginBottom: "18px",
-  transition: "justify-content 0.2s ease",
-};
-
-const mobileTopHeaderStyle = {
-  background: "transparent",
-  borderBottom: "none",
-  pointerEvents: "auto",
-  minHeight: "auto",
-  marginBottom: "10px",
-  padding: "0",
-  justifyContent: "flex-start",
-};
-
-const topHeaderExpandedStyle = {
-  justifyContent: "center",
-  padding: "0 0 12px",
-};
-
-const topHeaderMinimizedStyle = {
-  justifyContent: "flex-end",
-  padding: "0 0 12px",
-};
-
-const topHeaderContent = {
-  width: "100%",
-  display: "flex",
-  alignItems: "center",
-  gap: "14px",
-  pointerEvents: "none",
-};
-
-const mobileTopHeaderContent = {
-  flexWrap: "wrap",
-  gap: "10px",
-  pointerEvents: "auto",
-  background: "white",
-  border: "1px solid #e5e7eb",
-  borderRadius: "16px",
-  padding: "10px",
-  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.08)",
-};
-
-const mobileMenuButton = {
-  order: 1,
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "8px",
-  background: "#0A1A2F",
-  color: "white",
-  border: "none",
-  borderRadius: "999px",
-  padding: "10px 13px",
-  fontWeight: "900",
-  cursor: "pointer",
-  boxShadow: "0 8px 20px rgba(15, 23, 42, 0.16)",
-};
-
-const mobileMenuIcon = {
-  fontSize: "18px",
-  lineHeight: 1,
-};
-
-const topSearchArea = {
-  flex: 1,
-  minWidth: 0,
-  display: "flex",
-  alignItems: "center",
-  pointerEvents: "none",
-};
-
-const mobileTopSearchArea = {
-  order: 3,
-  flex: "1 0 100%",
-  width: "100%",
-  marginTop: "2px",
-};
-
-const mobileTopSearchAreaHidden = {
-  display: "none",
-};
-
-const userMenuWrapper = {
-  pointerEvents: "auto",
-  flexShrink: 0,
-};
-
-const mobileUserMenuWrapper = {
-  order: 2,
-  marginLeft: "auto",
-  maxWidth: "calc(100% - 120px)",
-};
-
-const searchExpandedWrapper = {
-  width: "100%",
-  maxWidth: "620px",
-  pointerEvents: "auto",
-  transition: "opacity 0.18s ease, transform 0.18s ease",
-};
-
-const mobileSearchExpandedWrapper = {
-  maxWidth: "100%",
-};
-
-const searchMiniPill = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "7px",
-  background: "#0A1A2F",
-  color: "white",
-  borderRadius: "999px",
-  padding: "9px 14px",
-  fontWeight: "900",
-  cursor: "pointer",
-  boxShadow: "0 8px 20px rgba(15, 23, 42, 0.18)",
-  border: "1px solid #1e293b",
-  pointerEvents: "auto",
-  fontFamily: "Arial",
-};
-
-const searchMiniIcon = {
-  fontSize: "18px",
-  fontWeight: "900",
 };
 
 const simpleLogoWrapper = {

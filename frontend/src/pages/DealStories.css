@@ -1,4 +1,4 @@
-.deal-stories { max-width: 1200px; margin: 0 auto; color: #10243d; padding-bottom: 60px; }
+.deal-stories { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; margin: 0; color: #10243d; padding-bottom: 60px; }
 .stories-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
 .stories-header h1 { font-size: 32px; margin: 6px 0 10px; }
 .stories-header p { color: #536277; line-height: 1.5; }

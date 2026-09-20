@@ -1350,11 +1350,13 @@ const workQueueNotice = {
 };
 
 const pageWrapper = {
-  padding: "20px",
+  width: "100%",
+  minWidth: 0,
+  maxWidth: "100%",
+  boxSizing: "border-box",
   display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr)",
   gap: "16px",
-  maxWidth: "1500px",
-  margin: "0 auto",
 };
 
 const heroCard = {

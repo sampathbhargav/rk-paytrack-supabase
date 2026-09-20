@@ -61,7 +61,13 @@ function App() {
 function AppLayout() {
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [sidebarKeyboardFocused, setSidebarKeyboardFocused] = useState(false);
-  const collapsed = !sidebarHovered && !sidebarKeyboardFocused;
+  const [isWideDesktop, setIsWideDesktop] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth > 1512 : false
+  );
+  const [wideSidebarCollapsed, setWideSidebarCollapsed] = useState(false);
+  const collapsed = isWideDesktop
+    ? wideSidebarCollapsed
+    : !sidebarHovered && !sidebarKeyboardFocused;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= 820 : false
@@ -77,6 +83,7 @@ function AppLayout() {
   const previousScrollTop = useRef(0);
   const headerRef = useRef(null);
 
+  const sidebarRef = useRef(null);
   const searchWrapperRef = useRef(null);
   const mainScrollRef = useRef(null);
   const location = useLocation();
@@ -96,14 +103,26 @@ function AppLayout() {
   const headerLeft = isMobile ? 0 : collapsed ? 72 : 250;
 
   useEffect(() => {
+    let hoverFrame;
     const handleResize = () => {
       const nextIsMobile = window.innerWidth <= 820;
 
       setIsMobile(nextIsMobile);
+      setIsWideDesktop(window.innerWidth > 1512);
 
       if (!nextIsMobile) {
         setMobileNavOpen(false);
       }
+      // Resizing can put the sidebar under an existing pointer without a new
+      // enter event. Recheck after the responsive layout has been applied.
+      cancelAnimationFrame(hoverFrame);
+      hoverFrame = requestAnimationFrame(() => {
+        setSidebarHovered(!nextIsMobile && Boolean(sidebarRef.current?.matches(":hover")));
+        const focused = document.activeElement;
+        setSidebarKeyboardFocused(!nextIsMobile && Boolean(
+          sidebarRef.current?.contains(focused) && focused?.matches(":focus-visible")
+        ));
+      });
     };
 
     handleResize();
@@ -112,6 +131,7 @@ function AppLayout() {
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      cancelAnimationFrame(hoverFrame);
     };
   }, []);
 
@@ -215,10 +235,16 @@ function AppLayout() {
       )}
 
       <aside
+        ref={sidebarRef}
         style={computedSidebarStyle}
         aria-label="Main navigation"
-        onMouseEnter={() => { if (!isMobile) setSidebarHovered(true); }}
-        onMouseLeave={() => setSidebarHovered(false)}
+        onPointerEnter={(event) => {
+          if (!isMobile && event.pointerType !== "touch") setSidebarHovered(true);
+        }}
+        onPointerMove={(event) => {
+          if (!isMobile && event.pointerType !== "touch" && !sidebarHovered) setSidebarHovered(true);
+        }}
+        onPointerLeave={() => setSidebarHovered(false)}
         onFocusCapture={(event) => {
           if (!isMobile && event.target.matches(":focus-visible")) {
             setSidebarKeyboardFocused(true);
@@ -256,14 +282,16 @@ function AppLayout() {
             onClick={() => {
               if (isMobile) {
                 setMobileNavOpen(false);
+              } else if (isWideDesktop) {
+                setWideSidebarCollapsed((previous) => !previous);
               } else {
                 setSidebarHovered(true);
               }
             }}
             style={collapseButton}
-            aria-label={isMobile ? "Close menu" : "Expand navigation"}
+            aria-label={isMobile ? "Close menu" : isWideDesktop && !collapsed ? "Collapse navigation" : "Expand navigation"}
             aria-expanded={isMobile ? mobileNavOpen : !collapsed}
-            title={isMobile ? "Close menu" : "Hover or focus to expand navigation"}
+            title={isMobile ? "Close menu" : isWideDesktop ? collapsed ? "Expand navigation" : "Collapse navigation" : "Hover or focus to expand navigation"}
           >
             {isMobile ? "×" : "☰"}
           </button>

@@ -7,10 +7,10 @@ import {
   Route,
   Link,
   useLocation,
-  Navigate,
 } from "react-router-dom";
 
 import Dashboard from "./pages/Dashboard";
+import NotFound from "./pages/NotFound";
 import Deals from "./pages/Deals";
 import DealStories from "./pages/DealStories";
 import AddPayment from "./pages/AddPayment";
@@ -409,7 +409,7 @@ function AppLayout() {
             <Route path="/help-center" element={<HelpCenter />} />
             <Route path="/legal-policies" element={<LegalPolicies />} />
             <Route path="/activity-logs" element={<ActivityLogs />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </ErrorBoundary>
 

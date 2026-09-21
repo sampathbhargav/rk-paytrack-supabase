@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
+import useSessionLock from "./useSessionLock";
 
 const AuthContext = createContext(null);
 
@@ -7,6 +8,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const sessionStatus = useSessionLock(session);
 
   const applySession = (nextSession) => {
     setSession(nextSession || null);
@@ -75,8 +77,8 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
+  const signOut = async ({ allDevices = false } = {}) => {
+    const { error } = await supabase.auth.signOut({ scope: allDevices ? "global" : "local" });
 
     if (error) throw new Error(error.message);
 
@@ -89,11 +91,12 @@ export function AuthProvider({ children }) {
       session,
       user,
       loading,
-      isLoggedIn: Boolean(session?.user),
+      isLoggedIn: Boolean(session?.user) && !["expired", "inactive"].includes(sessionStatus),
+      sessionStatus,
       signIn,
       signOut,
     }),
-    [session, user, loading]
+    [session, user, loading, sessionStatus]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

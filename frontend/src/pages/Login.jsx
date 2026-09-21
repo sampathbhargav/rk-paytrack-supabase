@@ -8,7 +8,9 @@ function Login() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const redirectTo = location.state?.from?.pathname || "/";
+  const from = location.state?.from;
+  const redirectTo = from?.pathname?.startsWith("/") && !from.pathname.startsWith("//")
+    ? `${from.pathname}${from.search || ""}${from.hash || ""}` : "/";
 
   const [form, setForm] = useState({
     email: "",
@@ -126,7 +128,10 @@ function Login() {
             </p>
           </div>
 
-          {error && <div style={errorBox}>{error}</div>}
+          {["expired", "inactive"].includes(location.state?.sessionReason) && <div role="status" style={loginNote}>
+            {location.state.sessionReason === "inactive" ? "Your application locked after 1 hour of inactivity." : "Your session reached its time limit."} Please sign in again. If a payment was not confirmed, use Recover Payment after login before entering it again. Unsaved form changes may need to be re-entered.
+          </div>}
+          {error && <div role="alert" style={errorBox}>{error}</div>}
 
           <div style={fieldGroup}>
             <label style={labelStyle}>Email Address</label>

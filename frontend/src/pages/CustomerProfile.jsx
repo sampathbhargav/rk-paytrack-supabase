@@ -13,6 +13,7 @@ import { updateCustomer } from "../api/customersApi";
 import { calculateMaintenanceTotals } from "../api/maintenanceApi";
 import { formatMoney } from "../utils/moneyUtils";
 import CustomerFollowUps from "../components/CustomerFollowUps";
+import CustomerAccountLoading from "../components/CustomerAccountLoading";
 
 function CustomerProfile() {
   const { customerId } = useParams();
@@ -234,7 +235,7 @@ function CustomerProfile() {
   if (loading || !customer) {
     return (
       <div style={pageWrapper}>
-        <div style={loadingCard}>Loading customer profile...</div>
+        <CustomerAccountLoading profile onBack={() => navigate(-1)} />
       </div>
     );
   }
@@ -1084,15 +1085,6 @@ const badgeBase = {
   fontWeight: "900",
   border: "1px solid transparent",
   whiteSpace: "nowrap",
-};
-
-const loadingCard = {
-  background: "white",
-  border: "1px solid #e5e7eb",
-  borderRadius: "18px",
-  padding: "24px",
-  color: "#111827",
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.07)",
 };
 
 const errorBox = {

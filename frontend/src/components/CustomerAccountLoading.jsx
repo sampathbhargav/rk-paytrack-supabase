@@ -1,6 +1,6 @@
 import "./CustomerAccountLoading.css";
 
-export default function CustomerAccountLoading({ onBack }) {
+export default function CustomerAccountLoading({ onBack, profile = false }) {
   return (
     <div className="account-loading">
       <button type="button" className="account-loading-back" onClick={onBack}>← Back</button>
@@ -12,9 +12,9 @@ export default function CustomerAccountLoading({ onBack }) {
           </svg>
         </span>
         <div className="account-loading-status-copy">
-          <span className="account-loading-eyebrow">RK PayTrack · Deal overview</span>
-          <strong>Opening a customer deal</strong>
-          <p>Getting the details, payment history and promises ready.</p>
+          <span className="account-loading-eyebrow">RK PayTrack · {profile ? "Customer overview" : "Deal overview"}</span>
+          <strong>{profile ? "Opening a customer profile" : "Opening a customer deal"}</strong>
+          <p>{profile ? "Getting contact details, linked deals, payments and maintenance ready." : "Getting the details, payment history and promises ready."}</p>
         </div>
         <span className="account-loading-spinner" aria-hidden="true" />
       </div>

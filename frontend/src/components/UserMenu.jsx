@@ -1,10 +1,54 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { PAYMENT_OPERATION_CHANGED } from "../api/paymentOperationsApi";
 
 function UserMenu({ compact = false }) {
   const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [confirmAll, setConfirmAll] = useState(false);
+  const [error, setError] = useState("");
+  const [paymentNotice, setPaymentNotice] = useState("");
+  const busy = useRef(false);
+  const wrapper = useRef(null);
+  const trigger = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const refresh = () => {
+      try {
+        setPaymentNotice(localStorage.getItem(`rk-payment-intent-v1:${user.id}`)
+          ? "A payment needs confirmation. You can sign out safely. Sign back in with this account on this browser and use Recover Payment before entering it again."
+          : "");
+      } catch {
+        setPaymentNotice("Payment recovery status could not be checked. If a payment was unconfirmed, use Recover Payment after signing back in.");
+      }
+    };
+    const outside = event => {
+      if (!wrapper.current?.contains(event.target) && !busy.current) {
+        setOpen(false);
+        setConfirmAll(false);
+      }
+    };
+    const escape = event => {
+      if (event.key === "Escape" && !busy.current) {
+        setOpen(false);
+        setConfirmAll(false);
+        trigger.current?.focus();
+      }
+    };
+    refresh();
+    window.addEventListener("storage", refresh);
+    window.addEventListener(PAYMENT_OPERATION_CHANGED, refresh);
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener(PAYMENT_OPERATION_CHANGED, refresh);
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open, user?.id]);
 
   const displayName =
     user?.user_metadata?.full_name ||
@@ -19,22 +63,28 @@ function UserMenu({ compact = false }) {
     .slice(0, 2)
     .toUpperCase();
 
-  const handleSignOut = async () => {
+  const handleSignOut = async (allDevices = false) => {
+    if (busy.current) return;
+    busy.current = true;
     try {
       setSigningOut(true);
-      await signOut();
+      setError("");
+      await signOut({ allDevices });
     } catch (error) {
-      alert(error.message);
+      setError(`Sign-out was not confirmed. ${error.message || "Check your connection and try again."}`);
     } finally {
+      busy.current = false;
       setSigningOut(false);
     }
   };
 
   return (
-    <div style={wrapperStyle}>
+    <div ref={wrapper} style={wrapperStyle}>
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        ref={trigger}
+        disabled={signingOut}
+        onClick={() => { setOpen((prev) => !prev); setConfirmAll(false); setError(""); }}
         style={userButton}
         aria-label={`Account menu for ${displayName}`}
         aria-expanded={open}
@@ -48,20 +98,29 @@ function UserMenu({ compact = false }) {
       </button>
 
       {open && (
-        <div style={dropdownStyle}>
+        <div style={dropdownStyle} aria-label="Account actions" aria-busy={signingOut}>
           <div style={dropdownHeader}>
             <strong>{displayName}</strong>
             <span>{user?.email}</span>
           </div>
 
+          {paymentNotice && <p role="status" style={noticeStyle}>{paymentNotice}</p>}
+          {error && <p role="alert" style={{ ...noticeStyle, background: "#fef2f2", color: "#991b1b" }}>{error}</p>}
           <button
             type="button"
-            onClick={handleSignOut}
+            onClick={() => handleSignOut(false)}
             disabled={signingOut}
             style={logoutButton}
           >
-            {signingOut ? "Signing out..." : "Sign Out"}
+            <span aria-hidden="true">↪ </span>{signingOut ? "Signing out…" : "Sign out"}
           </button>
+          <p style={hintStyle}>This browser only, including its other tabs.</p>
+          {!confirmAll ? <button type="button" disabled={signingOut} style={secondaryButton} onClick={() => setConfirmAll(true)}>Sign out all devices</button> : <div style={noticeStyle}>
+            <strong>Sign out everywhere?</strong>
+            <p>This includes this browser. Other devices may remain active briefly until their access tokens expire. Unsaved form changes may be lost.</p>
+            <button type="button" disabled={signingOut} style={logoutButton} onClick={() => handleSignOut(true)}>{signingOut ? "Signing out…" : "Confirm sign out all devices"}</button>
+            <button type="button" disabled={signingOut} style={secondaryButton} onClick={() => setConfirmAll(false)}>Cancel</button>
+          </div>}
         </div>
       )}
     </div>
@@ -110,7 +169,11 @@ const dropdownStyle = {
   position: "absolute",
   right: 0,
   top: "48px",
-  width: "260px",
+  width: "300px",
+  maxWidth: "calc(100vw - 32px)",
+  maxHeight: "calc(100dvh - 100px)",
+  overflowY: "auto",
+  boxSizing: "border-box",
   background: "white",
   border: "1px solid #e5e7eb",
   borderRadius: "16px",
@@ -127,6 +190,7 @@ const dropdownHeader = {
   marginBottom: "10px",
   color: "#111827",
   fontSize: "13px",
+  overflowWrap: "anywhere",
 };
 
 const logoutButton = {
@@ -141,3 +205,7 @@ const logoutButton = {
 };
 
 export default UserMenu;
+
+const hintStyle = { fontSize: "12px", color: "#64748b", margin: "8px 0 16px", lineHeight: 1.5 };
+const noticeStyle = { padding: "12px", background: "#fffbeb", color: "#78350f", borderRadius: "10px", fontSize: "13px", lineHeight: 1.5 };
+const secondaryButton = { width: "100%", background: "transparent", border: "1px solid #cbd5e1", color: "#334155", borderRadius: "10px", padding: "10px", marginTop: "8px", cursor: "pointer", fontWeight: 600 };

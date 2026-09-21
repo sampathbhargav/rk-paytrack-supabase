@@ -419,7 +419,7 @@ function Deals() {
       </div>
 
       <div style={summaryStrip}>
-        <SummaryItem label="Showing" value={filteredDeals.length} />
+        <SummaryItem label="Matching Deals" value={filteredDeals.length} />
         <SummaryItem label="Search" value={search || "All Deals"} />
         <SummaryItem label="Status" value={statusFilter} />
         <SummaryItem label="Frequency" value={frequencyFilter} />
@@ -442,7 +442,7 @@ function Deals() {
           </div>
         </div>
 
-        <DealTable deals={filteredDeals} loading={loading} />
+        <DealTable deals={filteredDeals} loading={loading} paginate filterKey={JSON.stringify([search, statusFilter, frequencyFilter])} />
       </div>
     </div>
   );

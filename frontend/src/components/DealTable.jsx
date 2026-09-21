@@ -1,8 +1,15 @@
 import { Link } from "react-router-dom";
+import { useState } from "react";
+import "./DealTable.css";
 import { formatMoney } from "../utils/moneyUtils";
 import LoadingSpinner from "./LoadingSpinner";
 
-function DealTable({ deals, loading = false }) {
+function DealTable({ deals, loading = false, paginate = false, filterKey = "" }) {
+  const [pagination, setPagination] = useState({ page: 1, filterKey });
+  const [pageSize, setPageSize] = useState(25);
+  if (pagination.filterKey !== filterKey) {
+    setPagination({ page: 1, filterKey });
+  }
   if (loading) {
     return <LoadingSpinner message="Loading deals..." height="590px" />;
   }
@@ -30,14 +37,19 @@ function DealTable({ deals, loading = false }) {
     return String(b.deal_tag || "").localeCompare(String(a.deal_tag || ""));
   });
 
+  const totalPages = Math.max(1, Math.ceil(sortedDeals.length / pageSize));
+  const currentPage = pagination.filterKey === filterKey ? Math.min(pagination.page, totalPages) : 1;
+  const startIndex = paginate ? (currentPage - 1) * pageSize : 0;
+  const visibleDeals = paginate ? sortedDeals.slice(startIndex, startIndex + pageSize) : sortedDeals;
+  const changePage = page => setPagination({ page, filterKey });
+
   return (
     <div style={tableCard}>
       <div style={tableTopBar}>
         <div>
           <h3 style={tableTitle}>Deal List</h3>
           <p style={tableSubtitle}>
-            Showing {sortedDeals.length} customer deal
-            {sortedDeals.length === 1 ? "" : "s"}
+            {paginate ? `Showing ${startIndex + 1}–${startIndex + visibleDeals.length} of ${sortedDeals.length} deals` : `Showing ${sortedDeals.length} customer deal${sortedDeals.length === 1 ? "" : "s"}`}
           </p>
         </div>
 
@@ -80,7 +92,7 @@ function DealTable({ deals, loading = false }) {
             </thead>
 
             <tbody>
-              {sortedDeals.map((deal, index) => {
+              {visibleDeals.map((deal, index) => {
                 const customerId = deal.customer_id || deal.customers?.id;
                 const customerName = deal.customers?.customer_name || "—";
                 const companyName = deal.customers?.company_name || "";
@@ -200,6 +212,19 @@ function DealTable({ deals, loading = false }) {
           </table>
         </div>
       </div>
+      {paginate && <nav className="deals-pagination" aria-label="Deal table pagination">
+        <span role="status">Showing {startIndex + 1}–{startIndex + visibleDeals.length} of {sortedDeals.length} deals</span>
+        <label>Rows per page <select value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); changePage(1); }}>
+          {[10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
+        </select></label>
+        <div className="deals-page-buttons">
+          <button type="button" disabled={currentPage === 1} onClick={() => changePage(1)}>First</button>
+          <button type="button" disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)}>Previous</button>
+          <span>Page {currentPage} of {totalPages}</span>
+          <button type="button" disabled={currentPage === totalPages} onClick={() => changePage(currentPage + 1)}>Next</button>
+          <button type="button" disabled={currentPage === totalPages} onClick={() => changePage(totalPages)}>Last</button>
+        </div>
+      </nav>}
     </div>
   );
 }

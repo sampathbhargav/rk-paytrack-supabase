@@ -1,10 +1,11 @@
+import SlowRequestNotice from "./SlowRequestNotice";
 function LoadingSpinner({
     message = "Loading data...",
     height = "220px",
     size = 42,
   }) {
     return (
-      <div style={{ ...wrapperStyle, minHeight: height }}>
+      <div role="status" aria-live="polite" style={{ ...wrapperStyle, minHeight: height }}>
         <div
           style={{
             ...spinnerStyle,
@@ -14,6 +15,7 @@ function LoadingSpinner({
         />
   
         <div style={messageStyle}>{message}</div>
+        <SlowRequestNotice />
       </div>
     );
   }

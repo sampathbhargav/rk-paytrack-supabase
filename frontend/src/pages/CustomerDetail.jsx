@@ -1,8 +1,9 @@
+import RequestError from "../components/RequestError";
 import CustomerAccountLoading from "../components/CustomerAccountLoading";
 import AccountBalanceGuide from "../components/AccountBalanceGuide";
 import { getAccountCollectionSummary } from "../utils/accountCollectionSummary";
 import { getActivePromises } from "../utils/promiseUtils";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { getDealByIdOrTag } from "../api/dealsApi";
 import {
@@ -34,6 +35,14 @@ function CustomerDetail({ onLoadingChange }) {
   const [promises, setPromises] = useState([]);
   const [paymentSkips, setPaymentSkips] = useState([]);
   const [error, setError] = useState("");
+  const accountSummaryRef = useRef(null);
+
+  useEffect(() => {
+    if (deal && location.hash === "#account-summary") {
+      accountSummaryRef.current?.scrollIntoView({ block: "center" });
+      accountSummaryRef.current?.querySelector("button")?.focus({ preventScroll: true });
+    }
+  }, [deal, location.hash]);
 
   const [receipt, setReceipt] = useState(null);
   const [showReminderMenu, setShowReminderMenu] = useState(false);
@@ -116,7 +125,7 @@ function CustomerDetail({ onLoadingChange }) {
           ← Back
         </button>
 
-        <div style={errorBox}>{error}</div>
+        <div style={errorBox}><RequestError error={error} onRetry={loadCustomerDetail} /></div>
       </div>
     );
   }
@@ -465,6 +474,7 @@ function CustomerDetail({ onLoadingChange }) {
             )}
           </div>
 
+          <div id="account-summary" ref={accountSummaryRef}>
           <AccountSummaryPrint
             deal={deal}
             payments={payments}
@@ -472,6 +482,7 @@ function CustomerDetail({ onLoadingChange }) {
             totalPaid={totalPaid}
             balance={balance}
           />
+          </div>
         </div>
       </div>
 

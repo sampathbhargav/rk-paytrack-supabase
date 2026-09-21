@@ -1,5 +1,6 @@
+import RequestError from "../components/RequestError";
 import { getActivePromises } from "../utils/promiseUtils";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
@@ -26,7 +27,11 @@ function Dashboard() {
     loadDashboard();
   }, []);
 
+  const requestBusy = useRef(false);
+
   const loadDashboard = async () => {
+    if (requestBusy.current) return;
+    requestBusy.current = true;
     try {
       setLoading(true);
       setError("");
@@ -46,6 +51,7 @@ function Dashboard() {
     } catch (error) {
       setError(error.message);
     } finally {
+      requestBusy.current = false;
       setLoading(false);
     }
   };
@@ -204,7 +210,7 @@ function Dashboard() {
         </div>
       </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && <div style={errorBox}><RequestError error={error} onRetry={loadDashboard} busy={loading} /></div>}
 
       {loading && deals.length === 0 ? (
         <LoadingSpinner message="Loading dashboard data..." height="520px" />

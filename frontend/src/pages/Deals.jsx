@@ -1,5 +1,6 @@
+import RequestError from "../components/RequestError";
 import { getActivePromises } from "../utils/promiseUtils";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
 import { getPromises } from "../api/promisesApi";
@@ -22,7 +23,11 @@ function Deals() {
     loadDeals();
   }, []);
 
+  const requestBusy = useRef(false);
+
   const loadDeals = async () => {
+    if (requestBusy.current) return;
+    requestBusy.current = true;
     try {
       setLoading(true);
       setError("");
@@ -34,6 +39,7 @@ function Deals() {
     } catch (error) {
       setError(error.message);
     } finally {
+      requestBusy.current = false;
       setLoading(false);
     }
   };
@@ -268,7 +274,7 @@ function Deals() {
         </div>
       </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && <div style={errorBox}><RequestError error={error} onRetry={loadDeals} busy={loading} retryLabel="Reload deals" /></div>}
 
       <div style={cardGrid}>
         <MetricCard

@@ -1,5 +1,6 @@
+import RequestError from "../components/RequestError";
 import { getActivePromises, isPromiseCoveredBySchedule } from "../utils/promiseUtils";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
 import { getPromises } from "../api/promisesApi";
@@ -42,7 +43,11 @@ function Reports() {
     loadReportDashboard();
   }, []);
 
+  const requestBusy = useRef(false);
+
   const loadReportDashboard = async () => {
+    if (requestBusy.current) return;
+    requestBusy.current = true;
     try {
       setLoadingPage(true);
       setError("");
@@ -64,6 +69,7 @@ function Reports() {
     } catch (error) {
       setError(error.message || "Unable to load reports.");
     } finally {
+      requestBusy.current = false;
       setLoadingPage(false);
     }
   };
@@ -1178,7 +1184,7 @@ function Reports() {
         </div>
       </div>
 
-      {error && <div style={errorBox}>Report failed: {error}</div>}
+      {error && <div style={errorBox}><RequestError error={error} onRetry={loadReportDashboard} busy={loadingPage} title="The report request could not be completed" retryLabel="Reload report data" /></div>}
 
       <div style={summaryGrid}>
         <SummaryCard

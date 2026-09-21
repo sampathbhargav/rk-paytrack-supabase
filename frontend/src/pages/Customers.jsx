@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import RequestError from "../components/RequestError";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { getCustomerDashboardRows } from "../api/customersApi";
 import { formatMoney } from "../utils/moneyUtils";
@@ -17,7 +18,11 @@ function Customers() {
     loadCustomers();
   }, []);
 
+  const requestBusy = useRef(false);
+
   const loadCustomers = async () => {
+    if (requestBusy.current) return;
+    requestBusy.current = true;
     try {
       setLoading(true);
       setError("");
@@ -27,6 +32,7 @@ function Customers() {
     } catch (error) {
       setError(error.message || "Unable to load customers.");
     } finally {
+      requestBusy.current = false;
       setLoading(false);
     }
   };
@@ -69,12 +75,12 @@ function Customers() {
           </p>
         </div>
 
-        <button type="button" onClick={loadCustomers} style={refreshButton}>
+        <button type="button" onClick={loadCustomers} disabled={loading} style={refreshButton}>
           {loading ? "Refreshing..." : "↻ Refresh"}
         </button>
       </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && <div style={errorBox}><RequestError error={error} onRetry={loadCustomers} busy={loading} /></div>}
 
       <div style={metricGrid}>
         <MetricCard label="Customers" value={filteredCustomers.length} />

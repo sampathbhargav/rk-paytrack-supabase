@@ -1,5 +1,6 @@
+import RequestError from "../components/RequestError";
 import { getActivePromises, getCombinedDueAmount } from "../utils/promiseUtils";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
@@ -23,7 +24,11 @@ function DuePayments() {
     loadData();
   }, []);
 
+  const requestBusy = useRef(false);
+
   const loadData = async () => {
+    if (requestBusy.current) return;
+    requestBusy.current = true;
     try {
       setLoading(true);
       setError("");
@@ -41,6 +46,7 @@ function DuePayments() {
     } catch (error) {
       setError(error.message);
     } finally {
+      requestBusy.current = false;
       setLoading(false);
     }
   };
@@ -131,7 +137,7 @@ function DuePayments() {
         </div>
       </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && <div style={errorBox}><RequestError error={error} onRetry={loadData} busy={loading} /></div>}
 
       {missingScheduleDeals.length > 0 && (
         <div style={warningBox}>

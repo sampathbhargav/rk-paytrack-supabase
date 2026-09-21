@@ -1,3 +1,4 @@
+import SlowRequestNotice from "./SlowRequestNotice";
 import "./CustomerAccountLoading.css";
 
 export default function CustomerAccountLoading({ onBack, profile = false }) {
@@ -18,6 +19,7 @@ export default function CustomerAccountLoading({ onBack, profile = false }) {
         </div>
         <span className="account-loading-spinner" aria-hidden="true" />
       </div>
+      <SlowRequestNotice />
       <div className="account-loading-layout" aria-hidden="true">
         <div className="account-loading-card account-loading-sidebar">
           <div className="account-loading-placeholder account-loading-avatar" />

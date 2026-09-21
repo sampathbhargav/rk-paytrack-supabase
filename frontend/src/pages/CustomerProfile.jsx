@@ -1,3 +1,4 @@
+import RequestError from "../components/RequestError";
 import { getActivePromises } from "../utils/promiseUtils";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -227,7 +228,7 @@ function CustomerProfile() {
           ← Back
         </button>
 
-        <div style={errorBox}>{error}</div>
+        <div style={errorBox}><RequestError error={error} onRetry={loadCustomerProfile} busy={loading} /></div>
       </div>
     );
   }

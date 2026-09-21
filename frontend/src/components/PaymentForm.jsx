@@ -9,6 +9,7 @@ import { formatMoney } from "../utils/moneyUtils";
 import { logActivity } from "../api/activityLogsApi";
 import PaymentReceipt from "./PaymentReceipt";
 import PaymentReviewPanel from "./PaymentReviewPanel";
+import "./PaymentConfirmation.css";
 // import LoadingSpinner from "../components/LoadingSpinner";
 import LoadingSpinner from "./LoadingSpinner";
 
@@ -409,6 +410,18 @@ function PaymentForm() {
             });
 
       const receiptData = {
+        dealId: selectedDealData.id,
+        installments: paymentAllocations.map(allocation => {
+          const recorded = savedPaymentRecords
+            .filter(payment => payment.due_date === allocation.dueDate)
+            .reduce((sum, payment) => addMoney(sum, payment.amount_paid), 0);
+          return {
+            dueDate: allocation.dueDate,
+            number: allocation.installmentNumber,
+            recorded,
+            remaining: moneyMax(subtractMoney(allocation.remainingForDueDate, recorded), 0),
+          };
+        }),
         paymentId: firstSavedPayment?.id || "",
         customerName: selectedDealData?.customers?.customer_name || "",
         phone: selectedDealData?.customers?.phone || "",
@@ -426,7 +439,7 @@ function PaymentForm() {
         remainingBalance: roundMoney(remainingBalance),
 
         // This payment.
-        amountPaid,
+        amountPaid: savedPaymentRecords.reduce((sum, payment) => addMoney(sum, payment.amount_paid), 0),
         paymentMethod: formData.paymentMethod || "Other",
         paymentDate: formData.paymentDate || "",
         dueDate: formData.dueDate || "",
@@ -598,15 +611,28 @@ function PaymentForm() {
       )}
 
       {receiptPrompt && (
-        <div style={receiptPromptBox}>
+        <section className="payment-confirmation" aria-label="Confirmed payment">
           <div>
             <strong style={receiptPromptTitle}>
-              Payment recorded successfully.
+              ✓ Payment recorded
             </strong>
             <p style={receiptPromptText}>
-              Do you want to print or view the payment receipt now?
+              Deal #{receiptPrompt.dealTag || "—"} · {receiptPrompt.customerName} · {formatDisplayDate(receiptPrompt.paymentDate)} · {receiptPrompt.paymentMethod}
             </p>
           </div>
+
+          <div className="payment-confirmation-metrics" role="status">
+            <div><span>Amount recorded</span><strong>{formatMoney(receiptPrompt.amountPaid)}</strong></div>
+            <div><span>Total deal balance after payment</span><strong>{formatMoney(receiptPrompt.remainingBalance)}</strong></div>
+          </div>
+          <div className="payment-confirmation-installments">
+            {receiptPrompt.installments.map(item => <div key={item.dueDate}>
+              <span>Installment {item.number} · {formatDisplayDate(item.dueDate)}</span>
+              <span>Applied <strong>{formatMoney(item.recorded)}</strong></span>
+              <span>Remaining <strong>{formatMoney(item.remaining)}</strong>{item.remaining === 0 ? " · Paid" : " · Partial"}</span>
+            </div>)}
+          </div>
+          <p style={receiptPromptText}>Balances reflect this confirmed save. A promise represents the remaining obligation; it is not an additional charge.</p>
 
           <div style={receiptPromptActions}>
             <button
@@ -617,15 +643,17 @@ function PaymentForm() {
               Print / View Receipt
             </button>
 
+            <Link to={`/deals/${receiptPrompt.dealId}#account-summary`} style={goToDealButton}>Account Summary</Link>
+
             <button
               type="button"
               style={skipReceiptButton}
               onClick={() => setReceiptPrompt(null)}
             >
-              Not Now
+              Dismiss
             </button>
           </div>
-        </div>
+        </section>
       )}
 
       <Section
@@ -1885,20 +1913,6 @@ const goToDealButton = {
   fontWeight: "900",
   fontSize: "13px",
   marginTop: "2px",
-};
-
-const receiptPromptBox = {
-  background: "#f0fdf4",
-  border: "1px solid #86efac",
-  color: "#166534",
-  borderRadius: "14px",
-  padding: "15px",
-  marginBottom: "18px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "14px",
-  flexWrap: "wrap",
 };
 
 const receiptPromptTitle = {

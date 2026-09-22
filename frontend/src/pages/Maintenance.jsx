@@ -705,8 +705,8 @@ function Maintenance() {
               <thead>
                 <tr>
                   <th style={thStyle}>Invoice</th>
+                  <th style={thStyle}>Start Date</th>
                   <th style={thStyle}>Customer</th>
-                  <th style={thStyle}>Vehicle / Truck</th>
                   <th style={workThStyle}>Work</th>
                   <th style={thStyle}>Balance Status</th>
                   <th style={thStyle}>Total</th>
@@ -754,6 +754,10 @@ function Maintenance() {
                             {job.invoice_no || "View Invoice"}
                           </button>                        </td>
 
+                        <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                          {formatDate(job.start_date)}
+                        </td>
+
                         <td style={tdStyle}>
                           {job.customer_id ? (
                             <Link
@@ -773,11 +777,6 @@ function Maintenance() {
                           )}
 
                           <div style={smallText}>{job.phone || "No phone"}</div>
-                        </td>
-
-                        <td style={tdStyle}>
-                          {`${job.year || ""} ${getSimpleTruckName(job) || ""}`.trim() || "—"}
-                          <div style={smallText}>{job.vin || ""}</div>
                         </td>
 
                         <td style={workTdStyle}>

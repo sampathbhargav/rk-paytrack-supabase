@@ -315,7 +315,10 @@ const brandBadge = {
 
 const mobileBrandBadge = {
   ...brandBadge,
-  margin: "0 auto 10px",
+  marginTop: 0,
+  marginRight: "auto",
+  marginBottom: "10px",
+  marginLeft: "auto",
   fontSize: "11px",
   padding: "7px 10px",
 };

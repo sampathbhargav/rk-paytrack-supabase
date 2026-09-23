@@ -1,3 +1,4 @@
+import { containsEventTarget } from "./utils/domUtils";
 import "./AppHeader.css";
 import PaymentRecovery from "./components/PaymentRecovery";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -251,7 +252,7 @@ function AppLayout() {
           }
         }}
         onBlurCapture={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) {
+          if (!containsEventTarget(event.currentTarget, event.relatedTarget)) {
             setSidebarKeyboardFocused(false);
           }
         }}
@@ -338,7 +339,7 @@ function AppLayout() {
         <button type="button" className="app-header-reveal" style={{ left: headerLeft }}
           aria-label="Show page header" aria-controls="page-header"
           onMouseEnter={() => setHeaderHovered(true)}
-          onMouseLeave={(event) => { if (!headerRef.current?.contains(event.relatedTarget)) setHeaderHovered(false); }}
+          onMouseLeave={(event) => { if (!containsEventTarget(headerRef.current, event.relatedTarget)) setHeaderHovered(false); }}
           onFocus={() => setHeaderFocused(true)}
           onBlur={() => setHeaderFocused(false)}
           onClick={() => headerRef.current?.querySelector("button, a, input")?.focus()} />
@@ -348,7 +349,7 @@ function AppLayout() {
           onMouseEnter={() => setHeaderHovered(true)}
           onMouseLeave={() => setHeaderHovered(false)}
           onFocusCapture={() => setHeaderFocused(true)}
-          onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setHeaderFocused(false); }}>
+          onBlurCapture={(event) => { if (!containsEventTarget(event.currentTarget, event.relatedTarget)) setHeaderFocused(false); }}>
           <div className="app-header-context">
             {isMobile && <button type="button" className="app-header-menu" aria-label="Open navigation menu" onClick={() => setMobileNavOpen(true)}>☰</button>}
             <div className="app-header-page">
@@ -366,7 +367,7 @@ function AppLayout() {
                 onMouseLeave={() => setSearchHovered(false)}
                 onFocusCapture={() => setSearchFocused(true)}
                 onBlurCapture={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget)) setSearchFocused(false);
+                  if (!containsEventTarget(event.currentTarget, event.relatedTarget)) setSearchFocused(false);
                 }}
               >
                 <GlobalSearch autoFocus={searchFocused} />

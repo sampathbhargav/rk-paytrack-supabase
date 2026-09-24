@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { askRkAssistant } from "../api/assistantApi";
 import { formatMoney } from "../utils/moneyUtils";
+import "./AIAssistant.css";
 
 const welcomeMessage = {
   role: "assistant",
   text:
-    "Hi, I am RK Assistant. Ask me about customer balances, company names, payments, maintenance, collections, promises, follow-up notes, referral info, reports, or deal history.",
+    "What would you like to check? Ask about a deal balance, recent payments, promises, maintenance invoices, or customer follow-ups. Include a deal tag or invoice number for a more specific answer.",
   rows: [],
   suggestions: [],
 };
@@ -21,7 +22,12 @@ function AIAssistant() {
     typeof window !== "undefined" ? window.innerWidth <= 820 : false
   );
 
-  const messagesEndRef = useRef(null);
+  const messagesBoxRef = useRef(null);
+  const busyRef = useRef(false);
+  const requestRef = useRef(0);
+  const [copyError, setCopyError] = useState("");
+
+  useEffect(() => () => { requestRef.current += 1; }, []);
   const textareaRef = useRef(null);
 
   const activeQuickQuestions = useMemo(() => {
@@ -45,27 +51,27 @@ function AIAssistant() {
   }, []);
 
   useEffect(() => {
-    scrollToBottom();
+    const box = messagesBoxRef.current;
+    box?.scrollTo({ top: box.scrollHeight, behavior: "auto" });
   }, [messages, loading]);
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "end",
-      });
-    }, 80);
+  const chooseQuestion = text => {
+    setQuestion(text);
+    textareaRef.current?.focus();
   };
 
-  const submitQuestion = async (customQuestion) => {
+  const submitQuestion = async (customQuestion, retryContext = null) => {
     const text = String(customQuestion || question).trim();
 
-    if (!text || loading) return;
+    if (!text || busyRef.current) return;
+    busyRef.current = true;
+    const request = ++requestRef.current;
+    const contextualQuestion = retryContext || buildContextualQuestion(text, messages);
 
     setQuestion("");
     setCopiedIndex(null);
 
-    setMessages((prev) => [
+    if (!retryContext) setMessages((prev) => [
       ...prev,
       {
         role: "user",
@@ -78,42 +84,53 @@ function AIAssistant() {
     try {
       setLoading(true);
 
-      const contextualQuestion = buildContextualQuestion(text, messages);
       const result = await askRkAssistant(contextualQuestion);
+      if (request !== requestRef.current) return;
 
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
+          answeredAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           text: result.answer || "I could not find an answer for that.",
           rows: result.rows || [],
           suggestions: buildFollowUpSuggestions(text, result),
         },
       ]);
     } catch (error) {
+      if (request !== requestRef.current) return;
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          text: `I had trouble answering that: ${error.message}`,
+          text: "I couldn’t load an answer. Check your connection, then try this question again.",
+          errorDetail: error.message || "Request failed",
+          retryQuestion: text,
+          retryContext: contextualQuestion,
           rows: [],
           suggestions: [],
         },
       ]);
     } finally {
-      setLoading(false);
-      textareaRef.current?.focus();
+      if (request === requestRef.current) {
+        busyRef.current = false;
+        setLoading(false);
+        textareaRef.current?.focus();
+      }
     }
   };
 
   const handleKeyDown = (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       submitQuestion();
     }
   };
 
   const clearChat = () => {
+    if (busyRef.current) return;
+    if (messages.length > 1 && !window.confirm("Start a new conversation? This clears the current chat, not application records.")) return;
+    setCopyError("");
     setMessages([welcomeMessage]);
     setQuestion("");
     setCopiedIndex(null);
@@ -122,6 +139,7 @@ function AIAssistant() {
 
   const copyMessage = async (message, index) => {
     try {
+      setCopyError("");
       const rowText =
         message.rows && message.rows.length > 0
           ? `\n\nRows:\n${message.rows
@@ -141,12 +159,13 @@ function AIAssistant() {
       }, 1600);
     } catch {
       setCopiedIndex(null);
+      setCopyError("Copy was unavailable. You can select the answer text and copy it manually.");
     }
   };
 
   return (
-    <div style={isMobile ? mobilePageWrapper : pageWrapper}>
-      <div style={isMobile ? mobileHeroCard : heroCard}>
+    <div className="rk-assistant" style={isMobile ? mobilePageWrapper : pageWrapper}>
+      <div className="rk-assistant-hero" style={isMobile ? mobileHeroCard : heroCard}>
         <div>
           <div style={eyebrow}>RK PayTrack Assistant</div>
 
@@ -158,7 +177,7 @@ function AIAssistant() {
             notes, referral information, due dates, and deal history.
           </p>
 
-          <div style={isMobile ? mobileHeroPills : heroPills}>
+          <div className="rk-assistant-topics" style={isMobile ? mobileHeroPills : heroPills}>
             <span style={heroPill}>Collections</span>
             <span style={heroPill}>Deal Balances</span>
             <span style={heroPill}>Follow-Ups</span>
@@ -170,16 +189,16 @@ function AIAssistant() {
 
         <div style={isMobile ? mobileHeroRight : heroRight}>
           <div style={isMobile ? mobileStatusPill : statusPill}>
-            Private RK Data Assistant
+            Read-only record lookup
           </div>
 
-          <button type="button" onClick={clearChat} style={clearChatButton}>
-            Clear Chat
+          <button type="button" onClick={clearChat} disabled={loading || messages.length === 1} style={clearChatButton}>
+            New conversation
           </button>
         </div>
       </div>
 
-      <div style={isMobile ? mobileAssistantLayout : assistantLayout}>
+      <div className="rk-assistant-layout" style={isMobile ? mobileAssistantLayout : assistantLayout}>
         <div style={chatPanel}>
           <div style={isMobile ? mobileChatHeader : chatHeader}>
             <div>
@@ -195,7 +214,7 @@ function AIAssistant() {
             </div>
           </div>
 
-          <div style={isMobile ? mobileMessagesBox : messagesBox}>
+          <div ref={messagesBoxRef} className="rk-assistant-messages" role="region" aria-label="Conversation" aria-busy={loading} tabIndex={0} style={isMobile ? mobileMessagesBox : messagesBox}>
             {messages.map((message, index) => (
               <div
                 key={index}
@@ -228,6 +247,11 @@ function AIAssistant() {
                   </div>
 
                   <div style={messageText}>{message.text}</div>
+                  {message.answeredAt && <small className="rk-assistant-answer-time">Answered at {message.answeredAt} · Open the linked record to verify current details.</small>}
+                  {message.retryQuestion && <div className="rk-assistant-retry" role="alert">
+                    <details><summary>Technical details</summary>{message.errorDetail}</details>
+                    <button type="button" disabled={loading} onClick={() => submitQuestion(message.retryQuestion, message.retryContext)}>Try this question again</button>
+                  </div>}
 
                   {message.rows && message.rows.length > 0 && (
                     <ResultTable rows={message.rows} isMobile={isMobile} />
@@ -244,7 +268,7 @@ function AIAssistant() {
                             <button
                               key={suggestion}
                               type="button"
-                              onClick={() => submitQuestion(suggestion)}
+                              onClick={() => chooseQuestion(suggestion)}
                               disabled={loading}
                               style={{
                                 ...followUpButton,
@@ -270,26 +294,30 @@ function AIAssistant() {
                   }}
                 >
                   <div style={messageRole}>RK Assistant</div>
-                  <div style={typingBox}>
+                  <div style={typingBox} role="status">
                     <span style={typingDot}>●</span>
                     <span style={typingDot}>●</span>
                     <span style={typingDot}>●</span>
-                    <span style={typingText}>Thinking...</span>
+                    <span style={typingText}>Checking application records…</span>
                   </div>
                 </div>
               </div>
             )}
 
-            <div ref={messagesEndRef} />
+
           </div>
 
+          {copyError && <p role="status" className="rk-assistant-notice">{copyError}</p>}
+          <p className="rk-assistant-notice">Answers are lookups of application records, not financial advice. This assistant cannot save payments, change balances, or update records.</p>
           <div style={isMobile ? mobileInputBar : inputBar}>
             <textarea
               ref={textareaRef}
+              aria-label="Ask RK Assistant"
+              maxLength={2000}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask: Who owes the most? What is Peter balance? Show follow-up notes for Peter. Who referred customers? Show maintenance balance for invoice 1001..."
+              placeholder="Ask a question, or choose a prompt and replace its example name or deal number…"
               style={isMobile ? mobileTextareaStyle : textareaStyle}
               rows={isMobile ? 3 : 2}
             />
@@ -314,7 +342,7 @@ function AIAssistant() {
           <div style={sideHeader}>
             <h2 style={sideTitle}>Try asking</h2>
             <p style={sideDescription}>
-              Click a question to ask it immediately.
+              Choose a question, edit any example name or number, then press Ask.
             </p>
           </div>
 
@@ -324,6 +352,7 @@ function AIAssistant() {
                 key={group.title}
                 type="button"
                 onClick={() => setActiveCategory(group.title)}
+                aria-pressed={activeCategory === group.title}
                 style={{
                   ...categoryTab,
                   ...(activeCategory === group.title ? activeCategoryTab : {}),
@@ -340,7 +369,7 @@ function AIAssistant() {
                 key={item}
                 type="button"
                 style={quickButton}
-                onClick={() => submitQuestion(item)}
+                onClick={() => chooseQuestion(item)}
                 disabled={loading}
               >
                 {item}
@@ -943,7 +972,7 @@ const mobilePageWrapper = {
 };
 
 const heroCard = {
-  background: "linear-gradient(135deg, #0A1A2F 0%, #102A4C 55%, #7c3aed 100%)",
+  background: "linear-gradient(115deg, #0d2038, #193e6c)",
   borderRadius: "22px",
   padding: "26px",
   color: "white",
@@ -1120,7 +1149,7 @@ const chatStats = {
 };
 
 const messagesBox = {
-  height: "590px",
+  height: "clamp(360px, 55dvh, 760px)",
   overflowY: "auto",
   padding: "18px",
   background: "#f8fafc",

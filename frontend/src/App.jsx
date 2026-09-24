@@ -294,7 +294,11 @@ function AppLayout() {
             aria-expanded={isMobile ? mobileNavOpen : !collapsed}
             title={isMobile ? "Close menu" : isWideDesktop ? collapsed ? "Expand navigation" : "Collapse navigation" : "Hover or focus to expand navigation"}
           >
-            {isMobile ? "×" : "☰"}
+            {isMobile ? "×" : collapsed ? "☰" : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
+                <path d="m14 6-6 6 6 6" />
+              </svg>
+            )}
           </button>
         </div>
 
@@ -570,7 +574,9 @@ const mainStyle = {
   minWidth: 0,
   maxWidth: "100%",
   height: "100vh",
-  padding: "25px",
+  paddingLeft: "25px",
+  paddingRight: "25px",
+  paddingBottom: "25px",
   background: "#f4f6f8",
   overflowX: "hidden",
   overflowY: "auto",
@@ -581,7 +587,8 @@ const mobileMainStyle = {
   width: "100%",
   minWidth: 0,
   height: "100dvh",
-  padding: "12px",
+  paddingLeft: "12px",
+  paddingRight: "12px",
   paddingBottom: "84px",
   background: "#f4f6f8",
   overflowX: "hidden",

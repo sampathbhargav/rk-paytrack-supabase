@@ -1,4 +1,5 @@
 import { supabase } from "../supabaseClient";
+import { activityDateBoundary } from "../utils/activityDateRange";
 
 export async function logActivity(activity = {}) {
   try {
@@ -70,11 +71,11 @@ export async function getActivityLogs(filters = {}) {
   }
 
   if (filters.startDate) {
-    query = query.gte("created_at", `${filters.startDate}T00:00:00`);
+    query = query.gte("created_at", activityDateBoundary(filters.startDate));
   }
 
   if (filters.endDate) {
-    query = query.lte("created_at", `${filters.endDate}T23:59:59`);
+    query = query.lt("created_at", activityDateBoundary(filters.endDate, true));
   }
 
   const { data, error } = await query;

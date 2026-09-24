@@ -1353,7 +1353,9 @@ const mobileCategoryTabs = {
 const categoryTab = {
   background: "#f8fafc",
   color: "#334155",
-  border: "1px solid #e5e7eb",
+  borderWidth: "1px",
+  borderStyle: "solid",
+  borderColor: "#e5e7eb",
   borderRadius: "999px",
   padding: "7px 9px",
   cursor: "pointer",

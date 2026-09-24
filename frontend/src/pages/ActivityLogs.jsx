@@ -1,25 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { formatActivityDate, getActivityLogs } from "../api/activityLogsApi";
 import { formatMoney } from "../utils/moneyUtils";
 
-const todayString = getLocalDateString(new Date());
+function defaultFilters() {
+  return { search: "", module: "", action: "", startDate: "", endDate: getLocalDateString(new Date()) };
+}
 
 function ActivityLogs() {
   const [logs, setLogs] = useState([]);
-  const [filters, setFilters] = useState({
-    search: "",
-    module: "",
-    action: "",
-    startDate: "",
-    endDate: todayString,
-  });
+  const [filters, setFilters] = useState(defaultFilters);
+  const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const logsRequest = useRef(0);
+  const summaryRequest = useRef(0);
+  const filtersPending = JSON.stringify(filters) !== JSON.stringify(appliedFilters);
 
   const [selectedLog, setSelectedLog] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  const [dailySummaryDate, setDailySummaryDate] = useState(todayString);
+  const [dailySummaryDate, setDailySummaryDate] = useState(() => getLocalDateString(new Date()));
   const [dailySummaryLogs, setDailySummaryLogs] = useState([]);
   const [dailySummaryLoading, setDailySummaryLoading] = useState(false);
   const [dailySummaryMessage, setDailySummaryMessage] = useState("");
@@ -47,22 +48,31 @@ function ActivityLogs() {
 
   useEffect(() => {
     loadLogs();
+    return () => { logsRequest.current += 1; summaryRequest.current += 1; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadLogs = async () => {
+  const loadLogs = async (requestedFilters = filters) => {
+    if (requestedFilters.startDate && requestedFilters.endDate && requestedFilters.startDate > requestedFilters.endDate) {
+      setMessage("Start date must be on or before end date.");
+      return;
+    }
+    const request = ++logsRequest.current;
     try {
       setLoading(true);
       setMessage("");
 
-      const data = await getActivityLogs(filters);
-
+      const data = await getActivityLogs(requestedFilters);
+      if (request !== logsRequest.current) return;
+      setAppliedFilters({ ...requestedFilters });
+      setLastUpdated(new Date());
       setLogs(data || []);
       setCurrentPage(1);
     } catch (error) {
+      if (request !== logsRequest.current) return;
       setMessage(error.message || "Unable to load activity logs.");
     } finally {
-      setLoading(false);
+      if (request === logsRequest.current) setLoading(false);
     }
   };
 
@@ -74,20 +84,21 @@ function ActivityLogs() {
       return;
     }
 
+    const request = ++summaryRequest.current;
     try {
+      setDailySummaryLoaded(false);
       setDailySummaryLoading(true);
       setDailySummaryMessage("");
 
-      /*
-        Query a small buffer around the selected date, then filter by the
-        browser's local date. This avoids UTC/date-boundary errors during
-        evening end-of-day reporting.
-      */
       const data = await getActivityLogs({
-        startDate: shiftDateString(selectedDate, -1),
-        endDate: shiftDateString(selectedDate, 1),
+        startDate: selectedDate,
+        endDate: selectedDate,
       });
 
+      if (request !== summaryRequest.current) return;
+      if (data.length >= 1000) {
+        throw new Error("The activity query reached its 1,000-record limit. A complete daily summary cannot be confirmed; use Reports to review collections.");
+      }
       const localDayLogs = (data || []).filter(
         (log) => getLocalDateString(log.created_at) === selectedDate
       );
@@ -95,17 +106,19 @@ function ActivityLogs() {
       setDailySummaryLogs(localDayLogs);
       setDailySummaryLoaded(true);
     } catch (error) {
+      if (request !== summaryRequest.current) return;
       setDailySummaryLogs([]);
-      setDailySummaryLoaded(true);
+      setDailySummaryLoaded(false);
       setDailySummaryMessage(
         error.message || "Unable to load the daily activity summary."
       );
     } finally {
-      setDailySummaryLoading(false);
+      if (request === summaryRequest.current) setDailySummaryLoading(false);
     }
   };
 
   const loadTodaySummary = async () => {
+    const todayString = getLocalDateString(new Date());
     setDailySummaryDate(todayString);
     await loadDailySummary(todayString);
   };
@@ -132,15 +145,16 @@ function ActivityLogs() {
   };
 
   const clearFilters = () => {
-    setFilters({
-      search: "",
-      module: "",
-      action: "",
-      startDate: "",
-      endDate: todayString,
-    });
+    const nextFilters = defaultFilters();
+    setFilters(nextFilters);
+    loadLogs(nextFilters);
+  };
 
-    setCurrentPage(1);
+  const applyDatePreset = (days) => {
+    const today = getLocalDateString(new Date());
+    const nextFilters = { ...filters, startDate: shiftDateString(today, -(days - 1)), endDate: today };
+    setFilters(nextFilters);
+    loadLogs(nextFilters);
   };
 
   const stats = useMemo(() => {
@@ -184,7 +198,7 @@ function ActivityLogs() {
   };
 
   return (
-    <div style={isMobile ? mobilePageWrapper : pageWrapper}>
+    <div className="activity-logs-page" style={isMobile ? mobilePageWrapper : pageWrapper}>
       <div style={isMobile ? mobileHeroCard : heroCard}>
         <div>
           <div style={eyebrow}>System Monitoring</div>
@@ -199,23 +213,28 @@ function ActivityLogs() {
 
         <button
           type="button"
-          onClick={loadLogs}
+          onClick={() => loadLogs(appliedFilters)}
+          disabled={loading}
           style={isMobile ? mobileRefreshButton : refreshButton}
         >
-          Refresh Logs
+          {loading ? "Refreshing…" : "Refresh Logs"}
         </button>
       </div>
 
       <div style={isMobile ? mobileStatsGrid : statsGrid}>
-        <StatCard title="Total Logs" value={stats.total} icon="📋" />
-        <StatCard title="Today" value={stats.today} icon="📅" />
+        <StatCard title="Matching loaded logs" value={stats.total} icon="📋" />
+        <StatCard title="Today in results" value={stats.today} icon="📅" />
         <StatCard title="Payment Logs" value={stats.payments} icon="💵" />
         <StatCard title="Maintenance Logs" value={stats.maintenance} icon="🔧" />
       </div>
 
+      <details style={summaryDisclosure}>
+        <summary style={disclosureHeading}>Daily activity summary <span style={disclosureHint}>Review or print a day’s recorded actions</span></summary>
       <DailyActivitySummary
         date={dailySummaryDate}
         onDateChange={(value) => {
+          summaryRequest.current += 1;
+          setDailySummaryLoading(false);
           setDailySummaryDate(value);
           setDailySummaryLoaded(false);
           setDailySummaryMessage("");
@@ -230,11 +249,22 @@ function ActivityLogs() {
         isMobile={isMobile}
       />
 
-      <div style={isMobile ? mobileFilterCard : filterCard}>
+      </details>
+
+      <form onSubmit={(event) => { event.preventDefault(); loadLogs(); }} style={isMobile ? mobileFilterCard : filterCard}>
+        <div style={filterToolbar}>
+          <div><strong>Find activity</strong><p style={sectionDescription}>Filter by record, user, action, or date range.</p></div>
+          <div style={presetButtons}>
+            {[ [1, "Today"], [7, "Last 7 days"], [30, "Last 30 days"] ].map(([days, title]) => (
+              <button key={days} type="button" disabled={loading} style={pageButton} onClick={() => applyDatePreset(days)}>{title}</button>
+            ))}
+          </div>
+        </div>
         <div style={isMobile ? mobileFilterGrid : filterGrid}>
           <div>
-            <label style={labelStyle}>Search</label>
+            <label htmlFor="activity-search" style={labelStyle}>Search</label>
             <input
+              id="activity-search"
               value={filters.search}
               onChange={(event) => updateFilter("search", event.target.value)}
               placeholder={
@@ -247,8 +277,9 @@ function ActivityLogs() {
           </div>
 
           <div>
-            <label style={labelStyle}>Module</label>
+            <label htmlFor="activity-module" style={labelStyle}>Module</label>
             <select
+              id="activity-module"
               value={filters.module}
               onChange={(event) => updateFilter("module", event.target.value)}
               style={inputStyle}
@@ -267,8 +298,9 @@ function ActivityLogs() {
           </div>
 
           <div>
-            <label style={labelStyle}>Action</label>
+            <label htmlFor="activity-action" style={labelStyle}>Action</label>
             <select
+              id="activity-action"
               value={filters.action}
               onChange={(event) => updateFilter("action", event.target.value)}
               style={inputStyle}
@@ -290,9 +322,10 @@ function ActivityLogs() {
           </div>
 
           <div>
-            <label style={labelStyle}>Start Date</label>
+            <label htmlFor="activity-startDate" style={labelStyle}>Start Date</label>
             <input
               type="date"
+              id="activity-startDate"
               value={filters.startDate}
               onChange={(event) => updateFilter("startDate", event.target.value)}
               style={inputStyle}
@@ -300,9 +333,10 @@ function ActivityLogs() {
           </div>
 
           <div>
-            <label style={labelStyle}>End Date</label>
+            <label htmlFor="activity-endDate" style={labelStyle}>End Date</label>
             <input
               type="date"
+              id="activity-endDate"
               value={filters.endDate}
               onChange={(event) => updateFilter("endDate", event.target.value)}
               style={inputStyle}
@@ -310,25 +344,31 @@ function ActivityLogs() {
           </div>
 
           <div style={isMobile ? mobileFilterButtonWrap : filterButtonWrap}>
-            <button type="button" onClick={loadLogs} style={applyButton}>
+            <button type="submit" disabled={loading} style={applyButton}>
               Apply Filters
             </button>
 
-            <button type="button" onClick={clearFilters} style={resetButton}>
+            <button type="button" disabled={loading} onClick={clearFilters} style={resetButton}>
               Reset
             </button>
           </div>
         </div>
-      </div>
+        {filtersPending && !loading && <p role="status" style={filterNotice}>Filters have changed. Select Apply Filters to update the results.</p>}
+      </form>
 
-      {message && <div style={errorBox}>{message}</div>}
+      {message && <div role="alert" style={errorBox}>
+        <strong>Activity could not be updated.</strong> {message}
+        {lastUpdated && <p style={sectionDescription}>The previous results are still displayed below.</p>}
+        <button type="button" disabled={loading} onClick={() => loadLogs()} style={pageButton}>Try again</button>
+      </div>}
 
       <div style={isMobile ? mobileTableCard : tableCard}>
         <div style={tableHeader}>
           <div>
             <h2 style={sectionTitle}>Recent Activity</h2>
             <p style={sectionDescription}>
-              Showing latest user activity based on your selected filters.
+              Newest first · {logs.length.toLocaleString()} matching loaded records
+              {lastUpdated && ` · Updated ${lastUpdated.toLocaleTimeString()}`}
             </p>
           </div>
 
@@ -347,11 +387,14 @@ function ActivityLogs() {
           )}
         </div>
 
+        <p style={scopeNote}>Search and counts cover up to the latest 1,000 records matching the applied module, action, and dates. Narrow the date range when looking for older activity. Recorded events are an activity history, not a statement of current balances.</p>
         {loading ? (
           <LoadingSpinner message="Loading activity logs..." height="420px" />
         ) : logs.length === 0 ? (
           <div style={emptyState}>
-            No activity logs found for the selected filters.
+            <strong>No matching activity</strong>
+            <p>Try a different record name, a wider date range, or reset the filters.</p>
+            <button type="button" onClick={clearFilters} style={pageButton}>Reset filters</button>
           </div>
         ) : isMobile ? (
           <>
@@ -474,26 +517,28 @@ function DailyActivitySummary({
         <div>
           <h2 style={simpleSummaryTitle}>Daily Activity Summary</h2>
           <p style={simpleSummaryHelp}>
-            Select a business day to review collections and important activity.
+            Select a day to review recorded events. Amounts reflect log entries, not verified current payment balances.
           </p>
         </div>
 
         <div style={isMobile ? simpleSummaryControlsMobile : simpleSummaryControls}>
           <div>
-            <label style={dailyDateLabel}>Summary Date</label>
+            <label htmlFor="activity-summary-date" style={dailyDateLabel}>Summary Date</label>
             <input
+              id="activity-summary-date"
               type="date"
+              disabled={loading}
               value={date}
               onChange={(event) => onDateChange(event.target.value)}
               style={dailyDateInput}
             />
           </div>
 
-          <button type="button" onClick={onToday} style={simpleSecondaryButton}>
+          <button type="button" onClick={onToday} disabled={loading} style={simpleSecondaryButton}>
             Today
           </button>
 
-          <button type="button" onClick={onLoad} style={simplePrimaryButton}>
+          <button type="button" onClick={onLoad} disabled={loading} style={simplePrimaryButton}>
             {loading ? "Loading..." : "View Summary"}
           </button>
 
@@ -511,7 +556,7 @@ function DailyActivitySummary({
         </div>
       </div>
 
-      {message && <div style={dailySummaryError}>{message}</div>}
+      {message && <div role="alert" style={dailySummaryError}>{message}</div>}
 
       {loading ? (
         <LoadingSpinner message="Building daily summary..." height="180px" />
@@ -1183,6 +1228,7 @@ function printDailyActivitySummary({ date, summary }) {
       <body>
         <h1>Daily Activity Summary</h1>
         <div class="subtitle">${escapeHtml(formatSummaryDate(date))}</div>
+        <div class="subtitle">Amounts reflect recorded activity events, not verified current payment balances. Use Reports for financial reconciliation.</div>
 
         <div class="metrics">
           <div class="metric">
@@ -1449,19 +1495,25 @@ function MobileLogCard({ log, onView }) {
 }
 
 function LogDetailModal({ log, onClose, isMobile }) {
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    dialogRef.current.showModal();
+    return () => { previousFocus?.focus?.(); };
+  }, []);
   return (
     <div style={modalOverlay}>
-      <div style={isMobile ? mobileModalBox : modalBox}>
+      <dialog ref={dialogRef} aria-labelledby="activity-detail-title" onCancel={onClose} style={{ ...(isMobile ? mobileModalBox : modalBox), border: "none" }}>
         <div style={modalHeader}>
           <div>
-            <h2 style={modalTitle}>Activity Details</h2>
+            <h2 id="activity-detail-title" style={modalTitle}>Activity Details</h2>
             <p style={modalSubtitle}>
               {formatActivityDate(log.created_at)} ·{" "}
               {log.user_email || "Unknown user"}
             </p>
           </div>
 
-          <button type="button" onClick={onClose} style={closeButton}>
+          <button type="button" onClick={onClose} aria-label="Close activity details" style={closeButton}>
             ×
           </button>
         </div>
@@ -1480,13 +1532,13 @@ function LogDetailModal({ log, onClose, isMobile }) {
           <p>{log.description || "—"}</p>
         </div>
 
-        <div style={detailSection}>
-          <strong>Metadata</strong>
+        <details style={detailSection}>
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Technical details / metadata</summary>
           <pre style={metadataBox}>
             {JSON.stringify(log.metadata || {}, null, 2)}
           </pre>
-        </div>
-      </div>
+        </details>
+      </dialog>
     </div>
   );
 }
@@ -2181,6 +2233,14 @@ const summaryFact = {
   color: "#64748b",
   fontSize: "10px",
 };
+
+const summaryDisclosure = { background: "white", border: "1px solid #e2e8f0", borderRadius: "16px", overflow: "hidden" };
+const disclosureHeading = { padding: "16px", cursor: "pointer", color: "#0f172a", fontWeight: 800 };
+const disclosureHint = { display: "inline-block", marginLeft: "12px", color: "#64748b", fontWeight: 400, fontSize: "13px" };
+const filterToolbar = { display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "18px" };
+const presetButtons = { display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" };
+const filterNotice = { margin: "12px 0 0", color: "#92400e", fontSize: "13px" };
+const scopeNote = { background: "#f8fafc", color: "#64748b", borderRadius: "10px", padding: "12px", fontSize: "12px", lineHeight: 1.6 };
 
 const pageWrapper = {
   display: "grid",

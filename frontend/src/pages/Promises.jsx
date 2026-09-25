@@ -1,9 +1,10 @@
 import { getActivePromises } from "../utils/promiseUtils";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getPromises, updateBrokenPromises } from "../api/promisesApi";
 import { formatMoney } from "../utils/moneyUtils";
-import SearchBar from "../components/SearchBar";
+import RequestError from "../components/RequestError";
+import "./Promises.css";
 import LoadingSpinner from "../components/LoadingSpinner";
 
 function Promises() {
@@ -12,14 +13,16 @@ function Promises() {
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
-  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [sortOrder, setSortOrder] = useState("newest");
+  const requestId = useRef(0);
+  const tableRef = useRef(null);
+  const [loading, setLoading] = useState(true);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
 
-  useEffect(() => {
-    loadPromises();
-  }, []);
-
-  const loadPromises = async () => {
+  const loadPromises = useCallback(async () => {
+    const request = ++requestId.current;
     try {
       setLoading(true);
       setError("");
@@ -28,32 +31,47 @@ function Promises() {
 
       const data = await getPromises();
 
+      if (request !== requestId.current) return;
       setPromises(data || []);
       setLastRefreshedAt(new Date());
     } catch (error) {
-      setError(error.message);
+      if (request === requestId.current) setError(error.message || "Unable to load promises.");
     } finally {
-      setLoading(false);
+      if (request === requestId.current) setLoading(false);
     }
-  };
+  }, []);
 
-  const filteredPromises = promises.filter((promise) => {
-    const text = search.toLowerCase();
-
-    const matchesSearch =
-      promise.deals?.deal_tag?.toLowerCase().includes(text) ||
-      promise.deals?.customers?.customer_name?.toLowerCase().includes(text) ||
-      promise.deals?.customers?.phone?.toLowerCase().includes(text) ||
-      promise.promise_status?.toLowerCase().includes(text) ||
-      promise.notes?.toLowerCase().includes(text);
-
-    const matchesStatus =
-      statusFilter === "All" || promise.promise_status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => { if (!cancelled) loadPromises(); });
+    return () => { cancelled = true; requestId.current += 1; };
+  }, [loadPromises]);
 
   const activePromises = getActivePromises(promises);
+  const activeIds = new Set(activePromises.map(promise => promise.id));
+  const filteredPromises = promises.filter((promise) => {
+    const text = search.trim().toLowerCase();
+    const matchesSearch = [promise.deals?.deal_tag,
+      promise.deals?.customers?.customer_name, promise.deals?.customers?.phone,
+      promise.promise_status, promise.notes].some(value => String(value || "").toLowerCase().includes(text));
+    const matchesStatus = statusFilter === "All" ||
+      (statusFilter === "Active" ? activeIds.has(promise.id) : promise.promise_status === statusFilter);
+    return matchesSearch && matchesStatus;
+  }).sort((a, b) => {
+    // Keep missing dates last in either direction, with stable ordering for ties.
+    if (!a.promised_date && b.promised_date) return 1;
+    if (a.promised_date && !b.promised_date) return -1;
+    const dates = String(a.promised_date || "").localeCompare(String(b.promised_date || ""));
+    return (sortOrder === "oldest" ? dates : -dates) || String(a.id).localeCompare(String(b.id));
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredPromises.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const visiblePromises = filteredPromises.slice(startIndex, startIndex + pageSize);
+  const changePage = next => {
+    setPage(Math.max(1, Math.min(next, totalPages)));
+    if (tableRef.current) tableRef.current.scrollTop = 0;
+  };
 
   const pendingPromises = activePromises.filter(
     (promise) => promise.promise_status === "Pending"
@@ -97,10 +115,12 @@ function Promises() {
   const handleClearFilters = () => {
     setSearch("");
     setStatusFilter("All");
+    setSortOrder("newest");
+    setPage(1);
   };
 
   return (
-    <div style={pageWrapper}>
+    <div className="promises-page" style={pageWrapper}>
       <div style={heroCard}>
         <div>
           <div style={eyebrow}>Customer Commitments</div>
@@ -138,7 +158,7 @@ function Promises() {
         </div>
       </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && <div style={errorBox}><RequestError title="Unable to refresh promises" error={error} onRetry={loadPromises} busy={loading} /></div>}
 
       <div style={cardGrid}>
         <MetricCard
@@ -177,7 +197,7 @@ function Promises() {
           icon="🧾"
           title="Partial Paid"
           value={partialPaidPromises.length}
-          subtitle="Some amount collected"
+          subtitle="Partial-payment history"
           tone="warning"
         />
 
@@ -189,6 +209,7 @@ function Promises() {
         />
       </div>
 
+      <p className="promises-scope">Summary cards cover the full promise history. Open balance includes only current active obligations; promises are part of the existing deal balance, not additional debt.</p>
       <div style={filterPanel}>
         <div style={filterHeader}>
           <div>
@@ -204,24 +225,29 @@ function Promises() {
           </button>
         </div>
 
-        <div style={filterGrid}>
+        <div className="promises-filter-grid" style={filterGrid}>
           <div style={searchBox}>
-            <label style={labelStyle}>Search Promises</label>
-            <SearchBar
+            <label htmlFor="promise-search" style={labelStyle}>Search Promises</label>
+            <input
+              id="promise-search"
+              type="search"
+              style={selectStyle}
               value={search}
-              onChange={setSearch}
+              onChange={event => { setSearch(event.target.value); setPage(1); }}
               placeholder="Search deal tag, customer, phone, status, or notes..."
             />
           </div>
 
           <div style={filterControl}>
-            <label style={labelStyle}>Status</label>
+            <label htmlFor="promise-status" style={labelStyle}>Status</label>
             <select
+              id="promise-status"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               style={selectStyle}
             >
-              <option>All</option>
+              <option value="All">All history</option>
+              <option value="Active">Active obligations</option>
               <option>Pending</option>
               <option>Broken</option>
               <option>Partial Paid</option>
@@ -230,11 +256,18 @@ function Promises() {
               <option>Cancelled</option>
             </select>
           </div>
+          <div style={filterControl}>
+            <label htmlFor="promise-sort" style={labelStyle}>Promised date</label>
+            <select id="promise-sort" value={sortOrder} style={selectStyle} onChange={event => { setSortOrder(event.target.value); setPage(1); }}>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+          </div>
         </div>
       </div>
 
       <div style={summaryStrip}>
-        <SummaryItem label="Showing" value={filteredPromises.length} />
+        <SummaryItem label="Matching records" value={filteredPromises.length} />
         <SummaryItem label="Search" value={search || "All Promises"} />
         <SummaryItem label="Status" value={statusFilter} />
         <SummaryItem label="Total Records" value={promises.length} />
@@ -245,8 +278,7 @@ function Promises() {
           <div>
             <h2 style={sectionTitle}>Promise History</h2>
             <p style={sectionDescription}>
-              Deal Tag stays locked. Scroll inside the table to view more
-              columns or records.
+              Open a deal to manage its promises. Historical amounts remain visible for reference; only current obligations contribute to the open balance.
             </p>
           </div>
 
@@ -265,7 +297,7 @@ function Promises() {
           message="Try changing the search text or status filter."
         />
       ) : (
-        <div style={tableScroll}>
+        <div ref={tableRef} style={tableScroll} tabIndex={0} role="region" aria-label="Promise history table">
           <table style={tableStyle}>
               <thead>
                 <tr>
@@ -275,7 +307,7 @@ function Promises() {
                   <th style={{ ...th, width: "125px" }}>Original Due</th>
                   <th style={{ ...th, width: "135px" }}>Promised Date</th>
                   <th style={{ ...th, width: "110px" }}>Due</th>
-                  <th style={{ ...th, width: "110px" }}>Paid Now</th>
+                  <th style={{ ...th, width: "110px" }}>Paid toward promise</th>
                   <th style={{ ...th, width: "120px" }}>Remaining</th>
                   <th style={{ ...th, width: "130px" }}>Status</th>
                   <th style={{ ...th, width: "240px" }}>Notes</th>
@@ -283,7 +315,7 @@ function Promises() {
               </thead>
 
               <tbody>
-                {filteredPromises.map((promise, index) => (
+                {visiblePromises.map((promise, index) => (
                   <tr
                     key={promise.id}
                     style={{
@@ -338,6 +370,7 @@ function Promises() {
                       <span style={getStatusStyle(promise.promise_status)}>
                         {promise.promise_status}
                       </span>
+                      <small className="promise-obligation-label">{activeIds.has(promise.id) ? "Current obligation" : "History / inactive"}</small>
                     </td>
 
                     <td style={notesCell}>{promise.notes || "—"}</td>
@@ -347,6 +380,19 @@ function Promises() {
             </table>
           </div>
         )}
+        <nav className="promises-pagination" aria-label="Promise table pagination">
+          <span role="status">Showing {filteredPromises.length ? startIndex + 1 : 0}–{startIndex + visiblePromises.length} of {filteredPromises.length} promises</span>
+          <label>Rows per page <select value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); changePage(1); }}>
+            {[10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
+          </select></label>
+          <div className="promises-page-buttons">
+            <button type="button" disabled={loading || currentPage === 1} onClick={() => changePage(1)}>First</button>
+            <button type="button" disabled={loading || currentPage === 1} onClick={() => changePage(currentPage - 1)}>Previous</button>
+            <span>Page {currentPage} of {totalPages}</span>
+            <button type="button" disabled={loading || currentPage === totalPages} onClick={() => changePage(currentPage + 1)}>Next</button>
+            <button type="button" disabled={loading || currentPage === totalPages} onClick={() => changePage(totalPages)}>Last</button>
+          </div>
+        </nav>
       </div>
     </div>
   );
@@ -648,17 +694,17 @@ const filterDescription = {
 
 const filterGrid = {
   display: "grid",
-  gridTemplateColumns: "minmax(260px, 1fr) 220px",
+  gridTemplateColumns: "minmax(0, 2fr) repeat(2, minmax(0, 1fr))",
   gap: "14px",
   alignItems: "end",
 };
 
 const searchBox = {
-  minWidth: "240px",
+  minWidth: 0,
 };
 
 const filterControl = {
-  minWidth: "190px",
+  minWidth: 0,
 };
 
 const labelStyle = {
@@ -674,7 +720,7 @@ const selectStyle = {
   padding: "11px",
   border: "1px solid #d1d5db",
   borderRadius: "10px",
-  outline: "none",
+  boxSizing: "border-box",
   background: "white",
   color: "#111827",
   fontWeight: "700",
@@ -771,7 +817,7 @@ const tableCountBadge = {
 const tableScroll = {
   width: "100%",
   maxWidth: "100%",
-  height: "520px",
+  maxHeight: "560px",
   overflowX: "auto",
   overflowY: "auto",
   border: "1px solid #e5e7eb",

@@ -1,0 +1,16 @@
+.due-list-filters { display: flex; align-items: end; gap: 14px; flex-wrap: wrap; padding: 18px; border: 1px solid #e2e8f0; border-radius: 16px; background: white; }
+.due-list-filters > div { flex: 1; min-width: min(100%, 260px); }
+.due-list-filters label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; color: #334155; }
+.due-list-filters input { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
+.due-list-filters p { flex-basis: 100%; margin: 0; color: #64748b; font-size: 13px; line-height: 1.6; }
+.due-pagination { display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: center; padding-top: 16px; color: #475569; font-size: 13px; }
+.due-pagination > div, .due-pagination label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.due-pagination :is(button, select), .due-list-filters button { border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 12px; background: white; color: #0f172a; font: inherit; }
+.due-pagination button, .due-list-filters button { cursor: pointer; font-weight: 600; }
+.due-payments-page button:disabled { opacity: .5; cursor: not-allowed; }
+.due-pagination button:hover:not(:disabled) { background: #eff6ff; }
+.due-payments-page :is(button, input, select, a, summary):focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
+@media (max-width: 600px) {
+  .due-pagination > div { width: 100%; }
+  .due-list-filters { padding: 14px; }
+}

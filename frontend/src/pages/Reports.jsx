@@ -1,4 +1,5 @@
 import RequestError from "../components/RequestError";
+import "./Reports.css";
 import { getActivePromises, isPromiseCoveredBySchedule } from "../utils/promiseUtils";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { getDeals } from "../api/dealsApi";
@@ -10,7 +11,7 @@ import {
   getMaintenanceJobs,
   updateBrokenMaintenancePromises,
 } from "../api/maintenanceApi";
-import { exportToCsv } from "../utils/exportUtils";
+import { exportToCsv as writeCsv } from "../utils/exportUtils";
 import { formatMoney } from "../utils/moneyUtils";
 import {
   getDueDealsForDate,
@@ -33,6 +34,8 @@ function Reports() {
     new Date().toISOString().slice(0, 7)
   );
 
+  const [view, setView] = useState("overview");
+  const [exportNotice, setExportNotice] = useState("");
   const [reportSearch, setReportSearch] = useState("");
   const [reportCategory, setReportCategory] = useState("All");
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
@@ -358,8 +361,18 @@ function Reports() {
     getDealBalanceInfo
   );
 
+  const exportToCsv = (filename, rows) => {
+    if (!rows?.length) {
+      setExportNotice("No matching data is available for this report. Try another report or month.");
+      return;
+    }
+    writeCsv(filename, rows);
+    setExportNotice(`Download requested: ${filename} (${rows.length.toLocaleString()} rows). Check your browser downloads.`);
+  };
+
   const exportFullDealsReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Full Deals Report");
       setError("");
 
@@ -483,6 +496,7 @@ function Reports() {
 
   const exportPastDueScheduledPaymentsReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Past Due Scheduled Payments");
       setError("");
 
@@ -518,6 +532,7 @@ function Reports() {
 
   const exportDueTodayReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Due Today");
       setError("");
 
@@ -570,6 +585,7 @@ function Reports() {
 
   const exportPastDuePromisesReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Past Due Promises");
       setError("");
 
@@ -618,6 +634,7 @@ function Reports() {
 
   const exportSkippedPaymentsReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Skipped Payments");
       setError("");
 
@@ -656,6 +673,7 @@ function Reports() {
 
   const exportPaidOffDealsReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Paid Off Deals");
       setError("");
 
@@ -721,6 +739,7 @@ function Reports() {
 
   const exportDefaultedDealsReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Defaulted Deals");
       setError("");
 
@@ -777,6 +796,7 @@ function Reports() {
 
   const exportRegistrationMoneyReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Registration Money");
       setError("");
 
@@ -821,6 +841,7 @@ function Reports() {
 
   const exportMonthlyCollectionReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Monthly Collection");
       setError("");
 
@@ -886,6 +907,7 @@ function Reports() {
 
   const exportMaintenanceBalancesReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Maintenance Balances");
       setError("");
 
@@ -925,6 +947,7 @@ function Reports() {
 
   const exportCustomerBalanceReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Customer Balance Report");
       setError("");
 
@@ -941,6 +964,7 @@ function Reports() {
 
   const exportCollectionPriorityReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Collection Priority");
       setError("");
 
@@ -962,6 +986,7 @@ function Reports() {
 
   const exportCollectionSummaryByDayReport = async () => {
     try {
+      setExportNotice("");
       setLoadingReport("Daily Collection Summary");
       setError("");
 
@@ -1154,8 +1179,12 @@ function Reports() {
     );
   }
 
+  if (!lastRefreshedAt && error) {
+    return <div style={pageWrapper}><h1>Reports</h1><RequestError error={error} onRetry={loadReportDashboard} busy={loadingPage} title="Unable to load report data" /></div>;
+  }
+
   return (
-    <div style={pageWrapper}>
+    <div className="reports-page" style={pageWrapper}>
       <div style={heroCard}>
         <div>
           <div style={eyebrow}>Business Intelligence</div>
@@ -1177,6 +1206,7 @@ function Reports() {
           <button
             type="button"
             onClick={loadReportDashboard}
+            disabled={Boolean(loadingReport)}
             style={refreshButton}
           >
             ↻ Refresh Reports
@@ -1186,6 +1216,20 @@ function Reports() {
 
       {error && <div style={errorBox}><RequestError error={error} onRetry={loadReportDashboard} busy={loadingPage} title="The report request could not be completed" retryLabel="Reload report data" /></div>}
 
+      <div className="reports-workspace-bar">
+        <div className="reports-view-buttons" role="group" aria-label="Reports view">
+          <button type="button" aria-pressed={view === "overview"} onClick={() => setView("overview")}>Overview</button>
+          <button type="button" aria-pressed={view === "exports"} onClick={() => setView("exports")}>Export Reports · {reportCards.length}</button>
+        </div>
+        <div style={monthFilterBox}>
+          <label htmlFor="reports-month" style={labelStyle}>Collection month</label>
+          <input id="reports-month" type="month" required value={reportMonth} disabled={Boolean(loadingReport)} onChange={event => { if (event.target.value) { setReportMonth(event.target.value); setExportNotice(""); } }} style={monthInput} />
+        </div>
+        <p>Month selection applies to Monthly Collection, Daily Collection Summary, and the payment-method chart. Portfolio balances and other reports retain their own date scope.</p>
+      </div>
+
+      <section hidden={view !== "overview"} aria-label="Reports overview">
+      <div className="reports-overview-intro"><h2>Portfolio overview</h2><p>Balances reflect the loaded records. Cash collected and referral credits are shown separately; voided payments are excluded.</p></div>
       <div style={summaryGrid}>
         <SummaryCard
           title="Total Receivable"
@@ -1240,6 +1284,10 @@ function Reports() {
           tone="info"
         />
 
+      </div>
+      <details className="reports-details">
+        <summary>Deal counts and collection activity</summary>
+        <div style={summaryGrid}>
         <SummaryCard title="Active Deals" value={activeDeals.length} />
         <SummaryCard title="Monthly Deals" value={monthlyDealCount} tone="info" />
         <SummaryCard title="Biweekly Deals" value={biweeklyDealCount} tone="warning" />
@@ -1282,6 +1330,8 @@ function Reports() {
 
         <SummaryCard title="Defaulted" value={defaultedDeals.length} tone="dark" />
       </div>
+
+      </details>
 
       <div style={dealBreakdownGrid}>
         <DealStatusBreakdownCard
@@ -1409,6 +1459,8 @@ function Reports() {
         </ChartCard>
       </div>
 
+      </section>
+      <section hidden={view !== "exports"} aria-label="Export reports">
       <div style={exportsSection}>
         <div style={sectionHeader}>
           <div>
@@ -1422,17 +1474,11 @@ function Reports() {
         </div>
 
         <div style={toolbar}>
-          <div style={monthFilterBox}>
-            <label style={labelStyle}>Monthly Collection Month</label>
-            <input
-              type="month"
-              value={reportMonth}
-              onChange={(e) => setReportMonth(e.target.value)}
-              style={monthInput}
-            />
-          </div>
+
 
           <input
+            type="search"
+            aria-label="Search reports"
             value={reportSearch}
             onChange={(e) => setReportSearch(e.target.value)}
             placeholder="Search reports..."
@@ -1440,6 +1486,7 @@ function Reports() {
           />
 
           <select
+            aria-label="Report category"
             value={reportCategory}
             onChange={(e) => setReportCategory(e.target.value)}
             style={selectStyle}
@@ -1461,6 +1508,10 @@ function Reports() {
           </button>
         </div>
 
+        <p className="reports-result-count" role="status">{filteredReportCards.length} of {reportCards.length} reports · {reportCategory === "All" ? "All categories" : reportCategory}</p>
+        {exportNotice && <p className="reports-export-notice" role="status">{exportNotice}</p>}
+        {loadingReport && <p role="status">Preparing {loadingReport}…</p>}
+        {filteredReportCards.length === 0 && <div className="reports-empty"><strong>No matching reports</strong><p>Try a different keyword or clear the filters to see all available reports.</p><button type="button" onClick={() => { setReportSearch(""); setReportCategory("All"); }}>Show all reports</button></div>}
         <div style={reportGrid}>
           {filteredReportCards.map((card) => (
             <ReportCard
@@ -1472,10 +1523,13 @@ function Reports() {
               buttonText={card.buttonText}
               onClick={card.onClick}
               loading={loadingReport === card.loadingKey}
+              disabled={Boolean(loadingReport)}
+              scope={card.loadingKey === "Monthly Collection" || card.loadingKey === "Daily Collection Summary" ? `Month: ${reportMonth}` : `Snapshot: ${today}`}
             />
           ))}
         </div>
       </div>
+      </section>
     </div>
   );
 }
@@ -1586,6 +1640,8 @@ function ReportCard({
   buttonText,
   onClick,
   loading,
+  disabled,
+  scope,
 }) {
   return (
     <div style={cardStyle}>
@@ -1596,16 +1652,17 @@ function ReportCard({
 
       <h2 style={cardTitle}>{title}</h2>
       <p style={cardDescription}>{description}</p>
+      <p className="reports-card-scope">CSV · {scope}</p>
 
       <button
         type="button"
         onClick={onClick}
         style={{
           ...exportButton,
-          opacity: loading ? 0.7 : 1,
-          cursor: loading ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.7 : 1,
+          cursor: disabled ? "not-allowed" : "pointer",
         }}
-        disabled={loading}
+        disabled={disabled}
       >
         {loading ? "Exporting..." : buttonText}
       </button>
@@ -2432,7 +2489,7 @@ const insightDescription = {
 
 const chartGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
   gap: "16px",
 };
 
@@ -2632,7 +2689,7 @@ const searchInput = {
   borderRadius: "12px",
   padding: "11px 13px",
   fontSize: "14px",
-  outline: "none",
+  boxSizing: "border-box",
 };
 
 const selectStyle = {
@@ -2640,7 +2697,7 @@ const selectStyle = {
   borderRadius: "12px",
   padding: "11px 13px",
   fontSize: "14px",
-  outline: "none",
+  boxSizing: "border-box",
   background: "white",
 };
 
@@ -2656,7 +2713,7 @@ const clearButton = {
 
 const reportGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
   gap: "16px",
 };
 

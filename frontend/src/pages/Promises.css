@@ -1,0 +1,13 @@
+.promises-scope { margin: 0 0 18px; color: #64748b; font-size: 13px; line-height: 1.6; }
+.promise-obligation-label { display: block; margin-top: 6px; color: #64748b; font-size: 11px; white-space: normal; }
+.promises-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding-top: 18px; color: #475569; font-size: 13px; }
+.promises-pagination label, .promises-page-buttons { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.promises-pagination select, .promises-pagination button { padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; background: white; font: inherit; }
+.promises-pagination button { cursor: pointer; font-weight: 600; }
+.promises-pagination button:hover:not(:disabled) { background: #eff6ff; border-color: #93c5fd; }
+.promises-pagination button:disabled { opacity: .45; cursor: not-allowed; }
+.promises-page :is(button, input, select, a, [tabindex]):focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
+@media (max-width: 820px) {
+  .promises-page .promises-filter-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .promises-page-buttons { width: 100%; }
+}

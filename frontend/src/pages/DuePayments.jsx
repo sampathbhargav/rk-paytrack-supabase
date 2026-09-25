@@ -1,6 +1,8 @@
 import RequestError from "../components/RequestError";
+import LoadingSpinner from "../components/LoadingSpinner";
+import "./DuePayments.css";
 import { getActivePromises, getCombinedDueAmount } from "../utils/promiseUtils";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
@@ -9,7 +11,8 @@ import { formatMoney } from "../utils/moneyUtils";
 import { getDueDealsForDate } from "../utils/duePaymentsUtils";
 
 function DuePayments() {
-  const today = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [deals, setDeals] = useState([]);
@@ -17,39 +20,37 @@ function DuePayments() {
   const [promises, setPromises] = useState([]);
   const [error, setError] = useState("");
 
-  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const requestBusy = useRef(false);
-
-  const loadData = async () => {
-    if (requestBusy.current) return;
-    requestBusy.current = true;
+  const requestId = useRef(0);
+  const loadData = useCallback(async () => {
+    const request = ++requestId.current;
     try {
       setLoading(true);
       setError("");
-
       await updateBrokenPromises();
-
-      const dealsData = await getDeals();
-      const paymentsData = await getPayments();
-      const promisesData = await getPromises();
-
+      const [dealsData, paymentsData, promisesData] = await Promise.all([
+        getDeals(), getPayments(), getPromises(),
+      ]);
+      if (request !== requestId.current) return;
       setDeals(dealsData || []);
       setPayments(paymentsData || []);
       setPromises(promisesData || []);
       setLastRefreshedAt(new Date());
     } catch (error) {
-      setError(error.message);
+      if (request === requestId.current) setError(error.message || "Unable to load due payments.");
     } finally {
-      requestBusy.current = false;
-      setLoading(false);
+      if (request === requestId.current) setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => { if (!cancelled) loadData(); });
+    return () => { cancelled = true; requestId.current += 1; };
+  }, [loadData]);
 
   const activePayments = payments.filter(
     (payment) => payment.payment_status !== "Voided"
@@ -98,8 +99,26 @@ function DuePayments() {
   const pageDateLabel = isToday ? "Today" : formatDisplayDate(selectedDate);
   const totalFollowUps = scheduledUnpaidOrPartial.length + promisesDue.length;
 
+  const matchesDeal = (deal, notes = "") => {
+    const query = search.trim().toLowerCase();
+    return [deal?.deal_tag, deal?.customers?.customer_name, deal?.customers?.phone, notes]
+      .some(value => String(value || "").toLowerCase().includes(query));
+  };
+  const listedScheduled = scheduledUnpaidOrPartial.filter(item => matchesDeal(item.deal));
+  const listedPromises = promisesDue.filter(promise => matchesDeal(promise.deals, promise.notes));
+  const listedMissing = missingScheduleDeals.filter(deal => matchesDeal(deal));
+  const listKey = JSON.stringify([selectedDate, search]);
+
+  if (!lastRefreshedAt) {
+    return <div style={pageWrapper}>
+      <h1 style={{ color: "#0f172a" }}>Due Payments</h1>
+      {error ? <RequestError error={error} onRetry={loadData} busy={loading} /> :
+        <LoadingSpinner message="Loading scheduled payments and promises…" height="420px" />}
+    </div>;
+  }
+
   return (
-    <div style={pageWrapper}>
+    <div className="due-payments-page" style={pageWrapper}>
       <div style={heroCard}>
         <div>
           <div style={eyebrow}>Collections Follow-Up</div>
@@ -148,10 +167,7 @@ function DuePayments() {
               setup.
             </strong>
             <p style={{ margin: "6px 0 0" }}>
-              These deals will not show in due payments until the required
-              schedule fields are completed. Monthly deals need Start Date, Due
-              Day, Payment Amount, and Term. Biweekly deals need First Payment
-              Date, Payment Amount, and Term. Semi-monthly deals need First Payment Date, Second Due Day, Payment Amount, and Term.
+              Open Missing Schedule Setup below to review the affected deals and required fields.
             </p>
           </div>
         </div>
@@ -161,18 +177,19 @@ function DuePayments() {
         <div>
           <h2 style={controlTitle}>Select Collection Date</h2>
           <p style={controlDescription}>
-            Choose a date to view scheduled payments and promises that need
-            follow-up.
+            Shows obligations dated exactly on this day, not all overdue balances.
           </p>
         </div>
 
         <div style={controlActions}>
           <div>
-            <label style={labelStyle}>Due Date</label>
+            <label htmlFor="collection-date" style={labelStyle}>Due Date</label>
             <input
+              id="collection-date"
               type="date"
+              required
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(e) => { if (e.target.value) setSelectedDate(e.target.value); }}
               style={inputStyle}
             />
           </div>
@@ -210,15 +227,7 @@ function DuePayments() {
           icon="📅"
           title="Scheduled Payments"
           value={scheduledUnpaidOrPartial.length}
-          subtitle="Unpaid or partial"
-          tone="warning"
-        />
-
-        <MetricCard
-          icon="💵"
-          title="Scheduled Amount"
-          value={formatMoney(totalScheduledDue)}
-          subtitle="Remaining due"
+          subtitle={`${formatMoney(totalScheduledDue)} remaining`}
           tone="warning"
         />
 
@@ -226,15 +235,7 @@ function DuePayments() {
           icon="🤝"
           title="Promises Due"
           value={promisesDue.length}
-          subtitle="Customer promises"
-          tone="info"
-        />
-
-        <MetricCard
-          icon="📌"
-          title="Promise Amount"
-          value={formatMoney(totalPromiseDue)}
-          subtitle="Promise balance"
+          subtitle={`${formatMoney(totalPromiseDue)} promised`}
           tone="info"
         />
 
@@ -254,29 +255,33 @@ function DuePayments() {
           tone="danger"
         />
 
-        <MetricCard
-          icon="🧩"
-          title="Missing Schedule"
-          value={missingScheduleDeals.length}
-          subtitle="Setup incomplete"
-          tone="warning"
-        />
       </div>
 
       <div style={summaryStrip}>
         <SummaryItem label="Selected Date" value={formatDisplayDate(selectedDate)} />
         <SummaryItem label="Pending Promises" value={pendingPromisesDue.length} />
         <SummaryItem label="Broken Promises" value={brokenPromisesDue.length} />
-        <SummaryItem label="Total Follow-Ups" value={totalFollowUps} />
+        <SummaryItem label="Scheduled + promise records" value={totalFollowUps} />
+      </div>
+
+      <div className="due-list-filters">
+        <div>
+          <label htmlFor="due-search">Find a customer or deal</label>
+          <input id="due-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search deal tag, customer, phone, or promise notes" />
+        </div>
+        <button type="button" onClick={() => setSearch("")} disabled={!search}>Clear search</button>
+        <p>Cards show all obligations on the selected date. Search and pagination affect only the lists. A scheduled installment and its promise may appear in both lists; Total Due counts that obligation once.</p>
       </div>
 
       {missingScheduleDeals.length > 0 && (
         <DashboardSection
+          collapsible
           title="Missing Schedule Setup"
           description="These active deals cannot generate due payments until schedule fields are completed."
-          count={missingScheduleDeals.length}
+          count={listedMissing.length}
           tone="warning"
         >
+          <DueList key={listKey} rows={listedMissing} label="Missing schedule deals">{rows => (
           <div style={tableScrollSmall}>
             <table style={missingScheduleTableStyle}>
               <thead>
@@ -296,7 +301,7 @@ function DuePayments() {
               </thead>
 
               <tbody>
-                {missingScheduleDeals.map((deal, index) => {
+                {rows.map((deal, index) => {
                   const frequency = getPaymentFrequency(deal);
 
                   return (
@@ -353,22 +358,24 @@ function DuePayments() {
               </tbody>
             </table>
           </div>
+          )}</DueList>
         </DashboardSection>
       )}
 
       <DashboardSection
         title="Scheduled Payments Due"
         description="Monthly, biweekly, semi-monthly, or one-time scheduled installments due on the selected date that are still unpaid or partially paid."
-        count={scheduledUnpaidOrPartial.length}
+        count={listedScheduled.length}
         tone="warning"
       >
-        {scheduledUnpaidOrPartial.length === 0 ? (
+        {listedScheduled.length === 0 ? (
           <EmptyState
             icon="✅"
-            title="No scheduled payments due for this date."
-            message="There are no active scheduled installments that need payment follow-up for the selected date."
+            title={search ? "No scheduled payments match your search." : "No scheduled payments due for this date."}
+            message={search ? "Try another customer or deal, or clear the search." : "No open scheduled installments were found on this date. Other dates may still have amounts outstanding."}
           />
         ) : (
+          <DueList key={listKey} rows={listedScheduled} label="Scheduled payments">{rows => (
           <div style={tableScroll}>
             <table style={scheduledTableStyle}>
               <thead>
@@ -388,7 +395,7 @@ function DuePayments() {
               </thead>
 
               <tbody>
-                {scheduledUnpaidOrPartial.map((item, index) => (
+                {rows.map((item, index) => (
                   <tr
                     key={`${item.deal.id}-${item.dueDate}`}
                     style={{
@@ -454,22 +461,24 @@ function DuePayments() {
               </tbody>
             </table>
           </div>
+          )}</DueList>
         )}
       </DashboardSection>
 
       <DashboardSection
         title="Promises Due"
         description="Customer promises due on the selected date, including pending and broken promise follow-ups."
-        count={promisesDue.length}
+        count={listedPromises.length}
         tone="info"
       >
-        {promisesDue.length === 0 ? (
+        {listedPromises.length === 0 ? (
           <EmptyState
             icon="🤝"
-            title="No promises due for this date."
-            message="There are no active customer promises to follow up for the selected date."
+            title={search ? "No promises match your search." : "No promises due for this date."}
+            message={search ? "Try another customer or deal, or clear the search." : "No active promises were found on this date. Other dates may still have commitments outstanding."}
           />
         ) : (
+          <DueList key={listKey} rows={listedPromises} label="Promises due">{rows => (
           <div style={tableScroll}>
             <table style={promiseTableStyle}>
               <thead>
@@ -486,7 +495,7 @@ function DuePayments() {
               </thead>
 
               <tbody>
-                {promisesDue.map((promise, index) => (
+                {rows.map((promise, index) => (
                   <tr
                     key={promise.id}
                     style={{
@@ -543,27 +552,61 @@ function DuePayments() {
               </tbody>
             </table>
           </div>
+          )}</DueList>
         )}
       </DashboardSection>
     </div>
   );
 }
 
-function DashboardSection({ title, description, count, tone, children }) {
+function DashboardSection({ title, description, count, tone, children, collapsible = false }) {
+  const Container = collapsible ? "details" : "section";
+  const Header = collapsible ? "summary" : "div";
   return (
-    <div style={tableBox}>
-      <div style={sectionHeader}>
+    <Container style={tableBox}>
+      <Header style={{ ...sectionHeader, cursor: collapsible ? "pointer" : undefined }}>
         <div>
           <h2 style={sectionTitle}>{title}</h2>
           <p style={sectionDescription}>{description}</p>
         </div>
 
         <span style={getSectionBadgeStyle(tone)}>{count}</span>
-      </div>
+      </Header>
 
       {children}
-    </div>
+    </Container>
   );
+}
+
+function DueList({ rows, label, children }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const listRef = useRef(null);
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const current = Math.min(page, pages);
+  const start = (current - 1) * pageSize;
+  const visible = rows.slice(start, start + pageSize);
+  const go = next => {
+    setPage(Math.max(1, Math.min(next, pages)));
+    const scroller = listRef.current?.firstElementChild;
+    if (scroller) scroller.scrollTop = 0;
+  };
+  return <>
+    <div ref={listRef}>{rows.length ? children(visible) : <p>No matching records. Try clearing the search.</p>}</div>
+    <nav className="due-pagination" aria-label={`${label} pagination`}>
+      <span role="status">Showing {rows.length ? start + 1 : 0}–{start + visible.length} of {rows.length}</span>
+      <label>Rows per page <select value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); go(1); }}>
+        {[10, 25, 50, 100].map(size => <option key={size}>{size}</option>)}
+      </select></label>
+      <div>
+        <button type="button" disabled={current === 1} onClick={() => go(1)}>First</button>
+        <button type="button" disabled={current === 1} onClick={() => go(current - 1)}>Previous</button>
+        <span>Page {current} of {pages}</span>
+        <button type="button" disabled={current === pages} onClick={() => go(current + 1)}>Next</button>
+        <button type="button" disabled={current === pages} onClick={() => go(pages)}>Last</button>
+      </div>
+    </nav>
+  </>;
 }
 
 function getPaymentFrequency(deal) {
@@ -1209,7 +1252,7 @@ const sectionDescription = {
 const tableScroll = {
   width: "100%",
   maxWidth: "100%",
-  height: "430px",
+  maxHeight: "430px",
   overflowX: "auto",
   overflowY: "auto",
   border: "1px solid #e5e7eb",
@@ -1219,7 +1262,7 @@ const tableScroll = {
 
 const tableScrollSmall = {
   ...tableScroll,
-  height: "260px",
+  maxHeight: "260px",
 };
 
 const scheduledTableStyle = {

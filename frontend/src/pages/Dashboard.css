@@ -1,0 +1,21 @@
+.dashboard-page { min-width: 0; }
+.dashboard-priority-card { width: 100%; text-align: left; font: inherit; cursor: pointer; transition: box-shadow 150ms ease; }
+.dashboard-priority-card:hover { box-shadow: 0 6px 20px #0f172a26 !important; }
+.dashboard-priority-card > div:first-child { flex-wrap: wrap; }
+.dashboard-scope-note { color: #64748b; font-size: 13px; line-height: 1.6; margin: 0 0 18px; }
+.dashboard-follow-ups { scroll-margin-top: 100px; }
+.dashboard-search { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0; }
+.dashboard-search label { font-size: 13px; font-weight: 700; color: #334155; }
+.dashboard-search input { flex: 1; min-width: 180px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; font-size: 14px; box-sizing: border-box; }
+.dashboard-search p { flex-basis: 100%; font-size: 12px; color: #64748b; margin: 0; }
+.dashboard-pagination, .dashboard-pagination nav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.dashboard-pagination { margin-top: 14px; justify-content: space-between; color: #475569; font-size: 13px; }
+.dashboard-pagination p { margin: 0; }
+.dashboard-pagination label { display: flex; gap: 8px; align-items: center; }
+.dashboard-page button:disabled { opacity: .45; cursor: not-allowed; }
+.dashboard-page :is(button, input, select, summary, a, [tabindex]):focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
+.dashboard-finances { margin-top: 24px; padding: 18px; border: 1px solid #e2e8f0; border-radius: 16px; background: #f8fafc; }
+@media (max-width: 600px) { .dashboard-search label { width: 100%; } .dashboard-finances { padding: 12px; } .dashboard-pagination nav { width: 100%; } }
+.dashboard-search button, .dashboard-pagination button, .dashboard-pagination select { border: 1px solid #cbd5e1; border-radius: 9px; padding: 10px 12px; background: white; color: #334155; font: inherit; font-size: 13px; cursor: pointer; }
+.dashboard-finances > h2 { margin: 0; font-size: 19px; color: #0f172a; }
+.dashboard-finances > p { margin: 6px 0 18px; font-size: 13px; color: #64748b; }

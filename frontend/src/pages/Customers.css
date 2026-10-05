@@ -9,3 +9,16 @@
 .customers-page-buttons span { padding: 0 4px; font-variant-numeric: tabular-nums; }
 .customers-page-buttons button:focus-visible, .customers-page-size select:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 @media (max-width: 600px) { .customers-pagination { align-items: flex-start; flex-direction: column; } }
+
+.customers-refreshed { color: #dbeafe; font-size: 13px; margin-bottom: 0; }
+.customers-scope { color: #64748b; font-size: 13px; line-height: 1.6; }
+.customers-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; }
+.customers-search-field { flex: 1 1 320px; min-width: 0; }
+.customers-filters select, .customers-filters button, .customers-reset { border: 1px solid #cbd5e1; padding: 12px; border-radius: 10px; background: white; color: #334155; font: inherit; font-size: 14px; }
+.customers-filters button, .customers-reset { cursor: pointer; font-weight: 700; }
+.customers-page button:disabled { opacity: .5; cursor: not-allowed; }
+.customers-page :is(button, input, select, a, [tabindex]):focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
+.customers-page tbody tr:nth-child(even) { background: #f8fafc; }
+.customers-page tbody tr:hover { background: #eff6ff; }
+.customers-page td { font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .customers-filters > div { width: 100%; } .customers-filters select { width: 100%; } }

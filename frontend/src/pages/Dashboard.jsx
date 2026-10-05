@@ -1,6 +1,7 @@
+import "./Dashboard.css";
 import RequestError from "../components/RequestError";
 import { getActivePromises } from "../utils/promiseUtils";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { getDeals } from "../api/dealsApi";
 import { getPayments } from "../api/paymentsApi";
@@ -20,16 +21,12 @@ function Dashboard() {
   const [paymentSkips, setPaymentSkips] = useState([]);
   const [error, setError] = useState("");
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
-
-  useEffect(() => {
-    loadDashboard();
-  }, []);
 
   const requestBusy = useRef(false);
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     if (requestBusy.current) return;
     requestBusy.current = true;
     try {
@@ -54,7 +51,13 @@ function Dashboard() {
       requestBusy.current = false;
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => { if (!cancelled) loadDashboard(); });
+    return () => { cancelled = true; };
+  }, [loadDashboard]);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -171,8 +174,18 @@ function Dashboard() {
     return acc;
   }, {});
 
+  const queues = [
+    { id: "overdue", title: "Past due installments", rows: pastDueScheduled, type: "past", description: "Scheduled installments before today with a remaining balance." },
+    { id: "today", title: "Due today", rows: scheduledDueToday, type: "scheduled", description: "Unpaid and partially paid installments scheduled for today." },
+    { id: "promises", title: "Promises today", rows: promisesDueToday, type: "promise", description: "Active promises with a promised date of today." },
+    { id: "broken", title: "Broken promises", rows: pastDuePromises, type: "promise", description: "Active promises marked broken under the existing payment rules." },
+  ];
+  const openQueue = (id) => {
+    document.getElementById(`dashboard-${id}`)?.scrollIntoView({ block: "start" });
+  };
+
   return (
-    <div style={pageWrapper}>
+    <div className="dashboard-page" style={pageWrapper}>
       <div style={heroCard}>
         <div>
           <div style={eyebrow}>RK PayTrack Overview</div>
@@ -212,8 +225,8 @@ function Dashboard() {
 
       {error && <div style={errorBox}><RequestError error={error} onRetry={loadDashboard} busy={loading} /></div>}
 
-      {loading && deals.length === 0 ? (
-        <LoadingSpinner message="Loading dashboard data..." height="520px" />
+      {!lastRefreshedAt ? (
+        loading ? <LoadingSpinner message="Loading your dashboard…" height="360px" /> : null
       ) : (
         <>
           <div style={prioritySection}>
@@ -221,7 +234,7 @@ function Dashboard() {
               <div>
                 <h2 style={sectionTitle}>Today’s Collection Priorities</h2>
                 <p style={sectionDescription}>
-                  High-priority follow-ups that need attention today.
+                  All follow-up categories are shown below. Select a card to jump to its section.
                 </p>
               </div>
             </div>
@@ -229,15 +242,17 @@ function Dashboard() {
             <div style={priorityCardGrid}>
               <MetricCard
                 icon="🚨"
-                title="Past Due Customers"
+                title="Past Due Installments"
+                onClick={() => openQueue("overdue")}
                 value={pastDueScheduled.length}
-                subtitle="Scheduled payments late"
+                subtitle="Open scheduled installments"
                 tone="danger"
               />
 
               <MetricCard
                 icon="💰"
                 title="Past Due Amount"
+                onClick={() => openQueue("overdue")}
                 value={formatMoney(totalPastDueScheduled)}
                 subtitle="Remaining scheduled balance"
                 tone="danger"
@@ -246,6 +261,7 @@ function Dashboard() {
               <MetricCard
                 icon="📅"
                 title="Due Today"
+                onClick={() => openQueue("today")}
                 value={scheduledDueToday.length}
                 subtitle={formatMoney(totalRemainingToday)}
                 tone="warning"
@@ -254,6 +270,7 @@ function Dashboard() {
               <MetricCard
                 icon="🤝"
                 title="Promises Due Today"
+                onClick={() => openQueue("promises")}
                 value={promisesDueToday.length}
                 subtitle={formatMoney(totalPromisesDueToday)}
                 tone="info"
@@ -262,6 +279,7 @@ function Dashboard() {
               <MetricCard
                 icon="⚠️"
                 title="Broken Promises"
+                onClick={() => openQueue("broken")}
                 value={brokenPromises.length}
                 subtitle="Promise date missed"
                 tone="danger"
@@ -270,12 +288,15 @@ function Dashboard() {
               <MetricCard
                 icon="📌"
                 title="Past Due Promise Amount"
+                onClick={() => openQueue("broken")}
                 value={formatMoney(totalPastDuePromiseAmount)}
                 subtitle="Broken promise balance"
                 tone="danger"
               />
             </div>
           </div>
+
+          <p className="dashboard-scope-note">Scheduled amounts and promises can describe the same debt. These categories are separate views and should not be added together.</p>
 
           <div style={summaryStrip}>
             <SummaryItem label="Active Deals" value={activeDealCount} />
@@ -296,76 +317,13 @@ function Dashboard() {
             <SummaryItem label="Pending Promises" value={pendingPromises.length} />
           </div>
 
-          <DashboardSection
-            title="Past Due Customers"
-            description="Scheduled installments before today that still have remaining balance."
-            count={pastDueScheduled.length}
-            tone="danger"
-          >
-            {pastDueScheduled.length === 0 ? (
-              <EmptyState
-                icon="✅"
-                title="No past due customers."
-                message="There are no unpaid scheduled installments before today."
-              />
-            ) : (
-              <PastDueTable items={pastDueScheduled} />
-            )}
-          </DashboardSection>
+          <section aria-label="Collection follow-ups">
+            {queues.map(item => <DashboardFollowUps key={item.id} queue={item} />)}
+          </section>
 
-          <div style={twoColumnGrid}>
-            <DashboardSection
-              title="Due Today"
-              description="Scheduled installments due today that are unpaid or partially paid."
-              count={scheduledDueToday.length}
-              tone="warning"
-            >
-              {scheduledDueToday.length === 0 ? (
-                <EmptyState
-                  icon="📅"
-                  title="No scheduled payments due today."
-                  message="There are no active scheduled installments due today."
-                />
-              ) : (
-                <FollowUpTable items={scheduledDueToday} />
-              )}
-            </DashboardSection>
-
-            <DashboardSection
-              title="Promises Due Today"
-              description="Customer promises that need follow-up today."
-              count={promisesDueToday.length}
-              tone="info"
-            >
-              {promisesDueToday.length === 0 ? (
-                <EmptyState
-                  icon="🤝"
-                  title="No promises due today."
-                  message="There are no active customer promises due today."
-                />
-              ) : (
-                <PromiseFollowUpTable promises={promisesDueToday} />
-              )}
-            </DashboardSection>
-          </div>
-
-          <DashboardSection
-            title="Past Due Promises"
-            description="Customer promises where the promised date has passed and payment was not completed."
-            count={pastDuePromises.length}
-            tone="danger"
-          >
-            {pastDuePromises.length === 0 ? (
-              <EmptyState
-                icon="✅"
-                title="No past due promises."
-                message="There are no broken customer promises at this time."
-              />
-            ) : (
-              <PromiseFollowUpTable promises={pastDuePromises} />
-            )}
-          </DashboardSection>
-
+          <section className="dashboard-finances" aria-label="Financial breakdown">
+            <h2>Financial breakdown</h2>
+            <p>Portfolio totals and balances by deal type</p>
           <div style={twoColumnGrid}>
             <div style={financeCard}>
               <div style={sectionHeaderRow}>
@@ -441,10 +399,63 @@ function Dashboard() {
               </div>
             </div>
           </div>
+          </section>
         </>
       )}
     </div>
   );
+}
+
+function DashboardFollowUps({ queue }) {
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+  const rows = queue.rows.filter(item => {
+    const deal = item.deal || item.deals;
+    return [deal?.deal_tag, deal?.customers?.customer_name, deal?.customers?.company_name, deal?.customers?.phone]
+      .some(value => String(value || "").toLowerCase().includes(query));
+  });
+  return <section id={`dashboard-${queue.id}`} className="dashboard-follow-ups" aria-label={queue.title}>
+    <DashboardSection title={queue.title} description={queue.description} count={queue.rows.length} tone={queue.id === "overdue" || queue.id === "broken" ? "danger" : "info"}>
+      {queue.rows.length > 0 && <div className="dashboard-search">
+        <label htmlFor={`search-${queue.id}`}>Search this section</label>
+        <input id={`search-${queue.id}`} type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Deal tag, customer, company, or phone" />
+        {search && <button type="button" onClick={() => setSearch("")}>Clear search</button>}
+        <p>Showing matches from {queue.rows.length} records. Other sections and summary totals are unchanged.</p>
+      </div>}
+      {rows.length === 0 ? <EmptyState icon={query ? "⌕" : "✓"} title={query ? "No matching follow-ups" : "No follow-ups in this category"} message={query ? "Try another name or deal tag, or clear this search." : "Other scheduled payments and promises remain visible in the sections below and above."} /> :
+        <DashboardQueue key={search} rows={rows} type={queue.type} />}
+    </DashboardSection>
+  </section>;
+}
+
+function DashboardQueue({ rows, type }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(type === "past" ? 150 : 10);
+  const pageSizes = type === "past" ? [10, 25, 50, 100, 150] : [10, 25, 50, 100];
+  const container = useRef(null);
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const start = (currentPage - 1) * pageSize;
+  const visibleRows = rows.slice(start, start + pageSize);
+  const changePage = (next) => {
+    setPage(next);
+    const table = container.current?.querySelector('[data-dashboard-scroll]');
+    if (table) table.scrollTop = 0;
+  };
+  return <div ref={container}>
+    {type === "promise" ? <PromiseFollowUpTable promises={visibleRows} /> : type === "past" ? <PastDueTable items={visibleRows} /> : <FollowUpTable items={visibleRows} />}
+    <div className="dashboard-pagination">
+      <p role="status">Showing {start + 1}–{Math.min(start + pageSize, rows.length)} of {rows.length}</p>
+      <label>Rows <select value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); changePage(1); }}>{pageSizes.map(size => <option key={size} value={size}>{size}</option>)}</select></label>
+      <nav aria-label="Follow-up table pages">
+        <button type="button" disabled={currentPage === 1} onClick={() => changePage(1)}>First</button>
+        <button type="button" disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)}>Previous</button>
+        <span>{currentPage} / {pageCount}</span>
+        <button type="button" disabled={currentPage === pageCount} onClick={() => changePage(currentPage + 1)}>Next</button>
+        <button type="button" disabled={currentPage === pageCount} onClick={() => changePage(pageCount)}>Last</button>
+      </nav>
+    </div>
+  </div>;
 }
 
 function DashboardSection({ title, description, count, tone, children }) {
@@ -476,7 +487,7 @@ function CustomerCompanyCell({ customerName, companyName }) {
 
 function PastDueTable({ items }) {
   return (
-    <div style={tableScroll}>
+    <div data-dashboard-scroll style={tableScroll} tabIndex={0} role="region" aria-label="Scrollable follow-up table">
       <table style={pastDueTableStyle}>
         <thead>
           <tr>
@@ -557,7 +568,7 @@ function PastDueTable({ items }) {
 
 function FollowUpTable({ items }) {
   return (
-    <div style={tableScroll}>
+    <div data-dashboard-scroll style={tableScroll} tabIndex={0} role="region" aria-label="Scrollable follow-up table">
       <table style={dueTodayTableStyle}>
         <thead>
           <tr>
@@ -631,7 +642,7 @@ function FollowUpTable({ items }) {
 
 function PromiseFollowUpTable({ promises }) {
   return (
-    <div style={tableScroll}>
+    <div data-dashboard-scroll style={tableScroll} tabIndex={0} role="region" aria-label="Scrollable follow-up table">
       <table style={promiseTableStyle}>
         <thead>
           <tr>
@@ -697,16 +708,16 @@ function PromiseFollowUpTable({ promises }) {
   );
 }
 
-function MetricCard({ icon, title, value, subtitle, tone = "default" }) {
+function MetricCard({ icon, title, value, subtitle, tone = "default", onClick }) {
   return (
-    <div style={{ ...metricCard, ...getMetricToneStyle(tone) }}>
+    <button type="button" className="dashboard-priority-card" onClick={onClick} style={{ ...metricCard, ...getMetricToneStyle(tone) }}>
       <div style={metricTop}>
         <span style={metricIcon}>{icon}</span>
         <span style={getMetricBadgeStyle(tone)}>{title}</span>
       </div>
       <div style={metricValue}>{value}</div>
       <div style={metricSubtitle}>{subtitle}</div>
-    </div>
+    </button>
   );
 }
 
@@ -1184,7 +1195,7 @@ const prioritySection = {
 
 const priorityCardGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
   gap: "14px",
   marginTop: "14px",
   maxWidth: "100%",
@@ -1271,7 +1282,7 @@ const tableBox = {
 
 const twoColumnGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))",
   gap: "18px",
   alignItems: "flex-start",
 };
@@ -1301,7 +1312,7 @@ const sectionDescription = {
 const tableScroll = {
   width: "100%",
   maxWidth: "100%",
-  height: "390px",
+  maxHeight: "480px",
   overflowX: "auto",
   overflowY: "auto",
   border: "1px solid #e5e7eb",

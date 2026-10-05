@@ -1,5 +1,5 @@
 import RequestError from "../components/RequestError";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { getCustomerDashboardRows } from "../api/customersApi";
 import { formatMoney } from "../utils/moneyUtils";
@@ -12,15 +12,15 @@ function Customers() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    loadCustomers();
-  }, []);
+  const [loading, setLoading] = useState(true);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+  const [balanceFilter, setBalanceFilter] = useState("all");
+  const [sort, setSort] = useState("name");
+  const tableRef = useRef(null);
 
   const requestBusy = useRef(false);
 
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async () => {
     if (requestBusy.current) return;
     requestBusy.current = true;
     try {
@@ -29,29 +29,46 @@ function Customers() {
 
       const data = await getCustomerDashboardRows();
       setCustomers(data || []);
+      setLastRefreshedAt(new Date());
     } catch (error) {
       setError(error.message || "Unable to load customers.");
     } finally {
       requestBusy.current = false;
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => { if (!cancelled) loadCustomers(); });
+    return () => { cancelled = true; };
+  }, [loadCustomers]);
+
+  const changePage = (next) => {
+    setPage(next);
+    if (tableRef.current) tableRef.current.scrollTop = 0;
   };
+  const resetFilters = () => { setSearch(""); setBalanceFilter("all"); setSort("name"); changePage(1); };
 
   const filteredCustomers = useMemo(() => {
     const text = search.toLowerCase().trim();
 
-    if (!text) return customers;
-
-    return customers.filter((customer) => {
-      return (
-        customer.customer_name?.toLowerCase().includes(text) ||
-        customer.company_name?.toLowerCase().includes(text) ||
-        customer.phone?.toLowerCase().includes(text) ||
-        customer.email?.toLowerCase().includes(text) ||
-        customer.address?.toLowerCase().includes(text)
-      );
+    return customers.filter(customer => {
+      const matchesSearch = [customer.customer_name, customer.company_name, customer.phone, customer.email, customer.address]
+        .some(value => String(value || "").toLowerCase().includes(text));
+      const matchesBalance = balanceFilter === "all" ||
+        (balanceFilter === "outstanding" && Number(customer.total_balance || 0) > 0) ||
+        (balanceFilter === "clear" && Number(customer.total_balance || 0) === 0) ||
+        (balanceFilter === "maintenance" && Number(customer.maintenance_balance || 0) > 0);
+      return matchesSearch && matchesBalance;
+    }).sort((a, b) => {
+      const byName = String(a.customer_name || "").localeCompare(String(b.customer_name || "")) || String(a.id).localeCompare(String(b.id));
+      if (sort === "balance") return Number(b.total_balance || 0) - Number(a.total_balance || 0) || byName;
+      if (sort === "deals") return Number(b.deal_count || 0) - Number(a.deal_count || 0) || byName;
+      if (sort === "name-desc") return -byName;
+      return byName;
     });
-  }, [customers, search]);
+  }, [customers, search, balanceFilter, sort]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -64,15 +81,15 @@ function Customers() {
   );
 
   return (
-    <div style={pageWrapper}>
+    <div className="customers-page" style={pageWrapper}>
       <div style={heroCard}>
         <div>
           <div style={eyebrow}>Customer Management</div>
           <h1 style={pageTitle}>Customers</h1>
           <p style={pageDescription}>
-            Search customers, company names, balances, and open the full
-            customer profile.
+            Find customer accounts, review outstanding balances, and open a profile to manage deals and maintenance.
           </p>
+          {lastRefreshedAt && <p className="customers-refreshed">Last refreshed {lastRefreshedAt.toLocaleString()}</p>}
         </div>
 
         <button type="button" onClick={loadCustomers} disabled={loading} style={refreshButton}>
@@ -82,6 +99,8 @@ function Customers() {
 
       {error && <div style={errorBox}><RequestError error={error} onRetry={loadCustomers} busy={loading} /></div>}
 
+      {!lastRefreshedAt ? (loading ? <LoadingSpinner message="Loading customer accounts…" /> : null) : <>
+      <p className="customers-scope">Summary for {filteredCustomers.length} matching customers from {customers.length} loaded accounts. Totals include every matching page.</p>
       <div style={metricGrid}>
         <MetricCard label="Customers" value={filteredCustomers.length} />
 
@@ -92,22 +111,34 @@ function Customers() {
         />
       </div>
 
-      <div style={filterCard}>
+      <div style={filterCard} className="customers-filters">
+        <div className="customers-search-field">
         <label htmlFor="customers-search" style={labelStyle}>Search Customers</label>
         <input
+          type="search"
           id="customers-search"
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          onChange={(e) => { setSearch(e.target.value); changePage(1); }}
           placeholder="Search customer name, company name, phone, email, or address..."
           style={inputStyle}
         />
+        </div>
+        <div><label htmlFor="customers-balance" style={labelStyle}>Balance filter</label>
+          <select id="customers-balance" value={balanceFilter} onChange={event => { setBalanceFilter(event.target.value); changePage(1); }}>
+            <option value="all">All customers</option><option value="outstanding">Outstanding balance</option><option value="clear">Zero balance</option><option value="maintenance">Maintenance balance</option>
+          </select>
+        </div>
+        <div><label htmlFor="customers-sort" style={labelStyle}>Sort by</label>
+          <select id="customers-sort" value={sort} onChange={event => { setSort(event.target.value); changePage(1); }}>
+            <option value="name">Name A–Z</option><option value="name-desc">Name Z–A</option><option value="balance">Highest balance</option><option value="deals">Most deals</option>
+          </select>
+        </div>
+        <button type="button" onClick={resetFilters} disabled={!search && balanceFilter === "all" && sort === "name"}>Reset filters</button>
       </div>
-
-      {loading ? (
-        <LoadingSpinner message="Loading customers..." />
-      ) : (
+      {loading && <p role="status" className="customers-scope">Refreshing accounts… Current results remain visible until the refresh finishes.</p>}
+      {(
         <div style={tableCard}>
-          <div style={tableWrapper}>
+          <div ref={tableRef} style={tableWrapper} tabIndex={0} role="region" aria-label="Customer accounts table">
             <table style={tableStyle}>
               <thead>
                 <tr>
@@ -127,7 +158,9 @@ function Customers() {
                 {filteredCustomers.length === 0 ? (
                   <tr>
                     <td style={emptyCell} colSpan="9">
-                      No customers found.
+                      <strong>{customers.length ? "No customers match these filters" : "No customers available"}</strong>
+                      <p>{customers.length ? "Try another name or balance filter." : "Customer accounts will appear here once they are available."}</p>
+                      {customers.length > 0 && <button type="button" className="customers-reset" onClick={resetFilters}>Show all customers</button>}
                     </td>
                   </tr>
                 ) : (
@@ -193,20 +226,21 @@ function Customers() {
             </span>
             <label className="customers-page-size">
               Rows per page
-              <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>
+              <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); changePage(1); }}>
                 {[10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
               </select>
             </label>
             <div className="customers-page-buttons">
-              <button type="button" disabled={currentPage === 1} onClick={() => setPage(1)} aria-label="First customer page">First</button>
-              <button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} aria-label="Previous customer page">Previous</button>
+              <button type="button" disabled={currentPage === 1} onClick={() => changePage(1)} aria-label="First customer page">First</button>
+              <button type="button" disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)} aria-label="Previous customer page">Previous</button>
               <span>Page {currentPage} of {totalPages}</span>
-              <button type="button" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Next customer page">Next</button>
-              <button type="button" disabled={currentPage === totalPages} onClick={() => setPage(totalPages)} aria-label="Last customer page">Last</button>
+              <button type="button" disabled={currentPage === totalPages} onClick={() => changePage(currentPage + 1)} aria-label="Next customer page">Next</button>
+              <button type="button" disabled={currentPage === totalPages} onClick={() => changePage(totalPages)} aria-label="Last customer page">Last</button>
             </div>
           </nav>
         </div>
       )}
+      </>}
     </div>
   );
 }
@@ -333,7 +367,8 @@ const inputStyle = {
   padding: "12px",
   border: "1px solid #d1d5db",
   borderRadius: "10px",
-  outline: "none",
+  font: "inherit",
+  fontSize: "14px",
   boxSizing: "border-box",
 };
 
@@ -348,6 +383,7 @@ const tableCard = {
 const tableWrapper = {
   width: "100%",
   overflowX: "auto",
+  maxHeight: "65vh",
   border: "1px solid #e5e7eb",
   borderRadius: "14px",
 };
@@ -359,6 +395,9 @@ const tableStyle = {
 };
 
 const thStyle = {
+  position: "sticky",
+  top: 0,
+  zIndex: 1,
   background: "#f8fafc",
   color: "#334155",
   fontSize: "12px",

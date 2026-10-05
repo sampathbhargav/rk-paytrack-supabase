@@ -101,7 +101,8 @@ function AppLayout() {
 
   const showSidebarLabels = isMobile || !collapsed;
   const headerHidden = headerScrolledAway && !headerHovered && !headerFocused;
-  const headerLeft = isMobile ? 0 : collapsed ? 72 : 250;
+  const sidebarOverlaysContent = !isMobile && !isWideDesktop;
+  const headerLeft = isMobile ? 0 : sidebarOverlaysContent || collapsed ? 72 : 250;
 
   useEffect(() => {
     let hoverFrame;
@@ -220,6 +221,12 @@ function AppLayout() {
       }
     : {
         ...sidebarStyle,
+        ...(sidebarOverlaysContent ? {
+          position: "fixed",
+          left: 0,
+          zIndex: 70,
+          boxShadow: collapsed ? "none" : "12px 0 30px rgba(15, 23, 42, 0.2)",
+        } : {}),
         width: collapsed ? "72px" : "250px",
         padding: collapsed ? "16px 10px" : "20px",
       };
@@ -337,7 +344,7 @@ function AppLayout() {
 
       <main
         ref={mainScrollRef}
-        style={{ ...(isMobile ? mobileMainStyle : mainStyle), paddingTop: isMobile && showFullSearch ? "148px" : "96px" }}
+        style={{ ...(isMobile ? mobileMainStyle : mainStyle), marginLeft: sidebarOverlaysContent ? "72px" : 0, paddingTop: isMobile && showFullSearch ? "148px" : "96px" }}
         onScroll={handleMainScroll}
       >
         <button type="button" className="app-header-reveal" style={{ left: headerLeft }}
